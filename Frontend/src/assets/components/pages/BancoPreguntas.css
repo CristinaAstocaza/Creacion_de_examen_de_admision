@@ -1,0 +1,345 @@
+/* Variables locales compartidas */
+.banco-container {
+  --primary-blue: #1a73e8;
+  --primary-hover: #1557b0;
+  --text-main: #202124;
+  --text-muted: #5f6368;
+  --border-color: #dadce0;
+  --bg-surface: #ffffff;
+  --danger: #d93025;
+  --success-bg: #e6f4ea;
+  --success-text: #137333;
+  --inactive-bg: #f1f3f4;
+  --inactive-text: #5f6368;
+  --warning-bg: #fef7e0;
+  --warning-text: #b06000;
+  
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Cabecera y Botones */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-primary {
+  background-color: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-family: inherit;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-outline {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.2s;
+}
+
+.btn-outline:hover {
+  background-color: var(--inactive-bg);
+}
+
+/* Barra de Filtros */
+.filters-bar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  background-color: var(--bg-surface);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.filter-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.filter-input:focus { border-color: var(--primary-blue); }
+
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: white;
+  outline: none;
+}
+
+/* Tarjeta de la Tabla */
+.table-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  background-color: #f8f9fa;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+td {
+  padding: 16px;
+  font-size: 14px;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+tr:last-child td { border-bottom: none; }
+tr:hover td { background-color: #fcfcfc; }
+
+/* Ocultar texto largo en la tabla */
+.truncate-text {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Badges e Iconos */
+.badge { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 100px; font-size: 12px; font-weight: 500; }
+.badge-easy { background-color: var(--success-bg); color: var(--success-text); }
+.badge-medium { background-color: var(--warning-bg); color: var(--warning-text); }
+.badge-hard { background-color: #fce8e6; color: var(--danger); }
+
+.action-buttons { display: flex; gap: 8px; }
+.btn-icon { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 6px; border-radius: 4px; display: flex; transition: all 0.2s;}
+.btn-icon:hover { background-color: var(--inactive-bg); color: var(--primary-blue); }
+
+/* Estilos internos del Modal */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(32, 33, 36, 0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+
+.modal-content {
+  background-color: var(--bg-surface);
+  width: 100%; max-width: 600px;
+  border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+}
+
+.modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+.modal-header h3 { margin: 0; font-size: 18px; color: var(--text-main); }
+.modal-body { padding: 24px; }
+
+.question-meta { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+.question-text { font-size: 16px; line-height: 1.5; color: var(--text-main); margin-bottom: 24px; font-weight: 500; }
+
+.options-list { list-style: none; padding: 0; margin: 0 0 24px 0; display: flex; flex-direction: column; gap: 12px; }
+.option-item { display: flex; gap: 12px; font-size: 14px; color: var(--text-muted); padding: 8px; border-radius: 6px; border: 1px solid transparent; }
+.option-letter { font-weight: 600; color: var(--text-main); }
+
+.option-item.correct {
+  background-color: var(--success-bg);
+  border-color: #ceead6;
+  color: var(--success-text);
+  font-weight: 500;
+}
+.option-item.correct .option-letter { color: var(--success-text); }
+
+.hidden-answer-box {
+  background-color: var(--inactive-bg);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 16px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.hidden-answer-box p { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+/* =========================================
+   ESTILOS PARA EL FORMULARIO (NUEVO)
+   ========================================= */
+.form-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  margin-bottom: 16px;
+}
+
+.form-group.mb-0 { margin-bottom: 0; }
+
+.form-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.form-control {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-main);
+  outline: none;
+  background-color: white;
+}
+
+.form-control:focus { border-color: var(--primary-blue); }
+
+textarea.form-control {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.options-container {
+  background-color: var(--bg-body);
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 16px;
+}
+
+.option-input-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.option-input-group:last-child { margin-bottom: 0; }
+.option-input-group .form-control { flex: 1; margin-bottom: 0; }
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+
+/* =========================================
+   ESTILOS PARA LA IMAGEN (NUEVO)
+   ========================================= */
+.image-preview-container {
+  position: relative;
+  display: inline-block;
+  margin-top: 8px;
+}
+
+.image-preview {
+  max-height: 120px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  object-fit: cover;
+}
+
+.btn-remove-image {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.question-image {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+}
+
+
+/* =========================================
+   ESTILOS PARA IMÁGENES EN ALTERNATIVAS
+   ========================================= */
+.option-image {
+  max-height: 100px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  margin-top: 8px;
+  display: block;
+}
+
+.option-input-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.file-input-small {
+  font-size: 12px;
+  color: var(--text-muted);
+}
