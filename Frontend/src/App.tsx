@@ -4,6 +4,7 @@ import Areas from './assets/components/pages/Areas';
 import BancoPreguntas from './assets/components/pages/BancoPreguntas';
 import GenerarExamen from './assets/components/pages/GenerarExamen';
 import Cursos from './assets/components/pages/Cursos';
+import { ImportarPreguntas } from './assets/components/pages/ImportarPreguntas'; // <-- 1. Importamos el nuevo componente
 import './App.css';
 
 export default function App() {
@@ -19,16 +20,19 @@ export default function App() {
             {/* Si entras a la raíz, te redirige al Dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             
-            {/* Rutas de las pantallas */}
+            {/* Rutas principales */}
             <Route path="/dashboard" element={<h2>Dashboard (En construcción...)</h2>} />
             <Route path="/areas" element={<Areas />} />
-            <Route path="/banco" element={<BancoPreguntas />} />
-            <Route path="/generar" element={<GenerarExamen />} />
             <Route path="/cursos" element={<Cursos />} />
-            <Route path="/configuracion" element={<Cursos />} />
+            <Route path="/banco" element={<BancoPreguntas />} />
             
-            {/* Aquí iremos agregando el Banco de Preguntas, Historial, etc. */}
-            <Route path="/banco" element={<h2>Banco de Preguntas (En construcción...)</h2>} />
+            {/* 2. Aquí agregamos la nueva ruta de Importación */}
+            <Route path="/importar" element={<ImportarPreguntas />} />
+            
+            <Route path="/generar" element={<GenerarExamen />} />
+            
+            {/* Nota: Configuracion está apuntando a Cursos temporalmente */}
+            <Route path="/configuracion" element={<Cursos />} />
           </Routes>
         </main>
       </div>

@@ -1,0 +1,202 @@
+.import-container {
+  padding: 24px;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.upload-card {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 32px;
+  width: 100%;
+  max-width: 650px;
+}
+
+.upload-card h2 {
+  margin-top: 0;
+  margin-bottom: 24px;
+  color: #202124;
+  font-size: 1.25rem;
+}
+
+.dropzone {
+  border: 2px dashed #dadce0;
+  border-radius: 8px;
+  padding: 48px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #fafafa;
+}
+
+.dropzone:hover {
+  border-color: #1a73e8;
+  background-color: #e8f0fe;
+}
+
+.dropzone.dragover {
+  border-color: #1a73e8;
+  background-color: #e8f0fe;
+  border-style: solid;
+  transform: scale(1.01);
+}
+
+.dropzone.has-file {
+  display: none; /* Ocultamos la zona de drop si ya hay un archivo procesándose */
+}
+
+.dropzone svg {
+  width: 48px;
+  height: 48px;
+  color: #1a73e8;
+  margin-bottom: 16px;
+}
+
+.dropzone p {
+  margin: 8px 0;
+  color: #5f6368;
+  font-size: 1rem;
+}
+
+.dropzone .highlight {
+  color: #1a73e8;
+  font-weight: 600;
+}
+
+.dropzone .subtitle {
+  font-size: 0.85rem;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.file-preview {
+  margin-top: 16px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 20px;
+  background-color: #fff;
+  animation: fadeIn 0.3s ease;
+}
+
+.file-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-name {
+  font-weight: 600;
+  color: #202124;
+}
+
+.file-size {
+  color: #5f6368;
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.status-processing {
+  background-color: #fef7e0;
+  color: #b06000;
+}
+
+.status-success {
+  background-color: #e6f4ea;
+  color: #0f9d58;
+}
+
+.validation-results {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: #5f6368;
+  background: #f8f9fa;
+  padding: 16px;
+  border-radius: 6px;
+}
+
+.validation-results p {
+  margin: 4px 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-primary, .btn-outline {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.btn-primary {
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #1557b0;
+}
+
+.btn-primary:disabled {
+  background-color: #a8c7fa;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  /* Arreglamos el padding para que tenga una forma de botón real */
+  padding: 10px 20px; 
+  /* Aseguramos que la altura no esté forzada y sea automática */
+  height: auto; 
+  
+  /* Definimos colores claros para el borde y el texto */
+  background-color: transparent;
+  color: #1a73e8; /* Usamos el color azul principal para el texto */
+  border: 1px solid #dadce0; /* Un borde gris sutil y limpio */
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  /* Centramos el texto perfectamente usando flexbox */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex: 1; /* Para que ocupe el mismo ancho que el otro botón */
+}
+
+.btn-outline:hover:not(:disabled) {
+  background-color: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.btn-outline:disabled {
+  border-color: #dadce0;
+  color: #dadce0;
+  cursor: not-allowed;
+}
+
