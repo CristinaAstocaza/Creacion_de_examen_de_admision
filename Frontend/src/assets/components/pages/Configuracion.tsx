@@ -1,4 +1,4 @@
-import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 'react';
 import './Configuracion.css';
 
 // Interfaces
