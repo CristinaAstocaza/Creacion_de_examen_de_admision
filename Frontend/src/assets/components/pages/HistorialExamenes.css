@@ -1,0 +1,372 @@
+/* --- CONTENEDOR GENERAL --- */
+.historial-container, .preview-container {
+  width: 100%;
+  animation: fadeIn 0.25s ease;
+}
+
+/* --- FILTROS DE BÚSQUEDA --- */
+.header-filters-section {
+  margin-bottom: 24px;
+  border-bottom: 1px solid #dadce0;
+  padding-bottom: 20px;
+}
+
+.filters-group {
+  display: flex;
+  gap: 16px;
+}
+
+.input-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-control label {
+  font-size: 0.85rem;
+  color: #5f6368;
+  font-weight: 600;
+}
+
+.input-control input, .input-control select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.input-control input:focus, .input-control select:focus {
+  border-color: #1a73e8;
+}
+
+/* --- TABLA --- */
+.table-container {
+  width: 100%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid #dadce0;
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  background-color: #f8f9fa;
+  color: #5f6368;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 14px 16px;
+  text-transform: uppercase;
+  border-bottom: 2px solid #dadce0;
+}
+
+td {
+  padding: 16px;
+  border-bottom: 1px solid #dadce0;
+  color: #202124;
+  font-size: 0.95rem;
+}
+
+tbody tr:hover {
+  background-color: #f8fabb;
+}
+
+.exam-code {
+  font-weight: 600;
+  color: #1a73e8;
+}
+
+/* --- CHIPS --- */
+.chip-container {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background-color: #e8eaed;
+  color: #3c4043;
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.action-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #5f6368;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  border-color: #1a73e8;
+  color: #1a73e8;
+  background-color: #e8f0fe;
+}
+
+.btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- MODAL (OVERLAY SEMITRANSPARENTE Y TARJETA BLANCA) --- */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  z-index: 1100;
+  backdrop-filter: blur(1px);
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 650px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+  animation: modalUp 0.2s ease-out;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #dadce0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #5f6368;
+  cursor: pointer;
+  display: flex;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  color: #5f6368;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.summary-value {
+  font-size: 0.95rem;
+  color: #202124;
+  font-weight: 500;
+}
+
+.versions-section {
+  border-top: 1px solid #dadce0;
+  padding-top: 20px;
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.version-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.version-icon {
+  color: #1a73e8;
+  background-color: #e8f0fe;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+}
+
+.version-name {
+  font-weight: 600;
+  margin: 0;
+}
+
+.version-meta {
+  font-size: 0.85rem;
+  color: #5f6368;
+  margin: 0;
+}
+
+.version-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-action {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-action-outline {
+  background: transparent;
+  border: 1px solid #dadce0;
+  color: #5f6368;
+}
+
+.btn-action-primary {
+  background-color: #e8f0fe;
+  color: #1a73e8;
+}
+
+/* --- VISTA PREVIA (SIMULACIÓN DE VISOR PDF A4) --- */
+.preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+}
+
+.btn-outline {
+  background: transparent;
+  color: #1a73e8;
+  border: 1px solid #1a73e8;
+}
+
+.btn-primary {
+  background-color: #1a73e8;
+  color: white;
+}
+
+.a4-wrapper {
+  background-color: #525659;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 40px 0;
+  border-radius: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.a4-sheet {
+  background: white;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+  box-sizing: border-box;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  font-family: 'Times New Roman', Times, serif;
+  color: black;
+}
+
+.exam-header {
+  text-align: center;
+  border-bottom: 2px solid black;
+  padding-bottom: 12px;
+  margin-bottom: 20px;
+}
+
+.institution-name {
+  font-size: 18px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.exam-title {
+  font-size: 15px;
+  margin: 6px 0 12px 0;
+  font-style: italic;
+}
+
+.student-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.exam-instructions {
+  font-size: 12px;
+  border: 1px dotted black;
+  padding: 10px;
+  margin-bottom: 20px;
+}
+
+.question-item {
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.options-list {
+  list-style: none;
+  padding-left: 15px;
+  margin-top: 6px;
+}
+
+.options-list li {
+  margin-bottom: 4px;
+}
+
+/* --- ANIMACIONES --- */
+@keyframes fadeIn {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes modalUp {
+  from { transform: translateY(15px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
