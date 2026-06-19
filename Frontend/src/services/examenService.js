@@ -1,7 +1,42 @@
 import api from './api';
 
-export const generarExamen = async (payload) => {
-  const { data } = await api.post('/examenes/generar', payload);
+export const listarExamenes = async () => {
+  const { data } = await api.get('/examenes');
+  return data;
+};
+
+export const obtenerExamen = async (examenId) => {
+  const { data } = await api.get(`/examenes/${examenId}`);
+  return data;
+};
+
+export const obtenerSolucionario = async (examenId) => {
+  const { data } = await api.get(`/examenes/${examenId}/solucionario`);
+  return data;
+};
+
+export const generarExamen = async ({
+  idCategoria,
+  nombreExamen,
+  cantidadVersiones,
+  aleatorizarPreguntas,
+  aleatorizarAlternativas,
+  cursos
+}) => {
+  const { data } = await api.post('/examenes/generar', {
+    idCategoria,
+    nombreExamen,
+    cantidadVersiones,
+    aleatorizarPreguntas,
+    aleatorizarAlternativas,
+    cursos: cursos.map(curso => ({
+      idCurso: curso.idCurso,
+      cantidadTotal: curso.cantidadTotal,
+      cantidadFacil: curso.cantidadFacil,
+      cantidadMedio: curso.cantidadMedio,
+      cantidadDificil: curso.cantidadDificil
+    }))
+  });
   return data;
 };
 

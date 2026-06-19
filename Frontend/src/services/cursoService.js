@@ -5,6 +5,11 @@ export const listarCursos = async () => {
   return data;
 };
 
+export const obtenerCurso = async (id) => {
+  const { data } = await api.get(`/cursos/${id}`);
+  return data;
+};
+
 export const crearCurso = async (payload) => {
   const { data } = await api.post('/cursos', payload);
   return data;
