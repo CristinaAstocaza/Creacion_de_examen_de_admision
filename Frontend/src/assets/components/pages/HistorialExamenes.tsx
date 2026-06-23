@@ -8,12 +8,11 @@ import {
   descargarPdfSolucionario,
   descargarPdfsVersiones
 } from '../../../services/examenService';
+import { listarCategorias } from '../../../services/categoriaService';
 
-
-// Definición de tipos para asegurar robustez en TypeScript
 interface Version {
   id: number;
-  letraVersion: string;
+  codigoVersion: string;
 }
 
 interface ExamenCursoUsado {
@@ -39,6 +38,10 @@ export const HistorialExamenes = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [filtroCodigo, setFiltroCodigo] = useState<string>('');
+  const [filtroArea, setFiltroArea] = useState<string>('');
+  const [categorias, setCategorias] = useState<any[]>([]);
+
   const [examenSeleccionado, setExamenSeleccionado] = useState<Examen | null>(null);
   const [loadingDetalle, setLoadingDetalle] = useState<boolean>(false);
 
@@ -49,7 +52,17 @@ export const HistorialExamenes = () => {
 
   useEffect(() => {
     cargarExamenes();
+    cargarCategorias();
   }, []);
+
+  const cargarCategorias = async () => {
+    try {
+      const data = await listarCategorias();
+      setCategorias(data);
+    } catch (err) {
+      console.error('Error al cargar categorias:', err);
+    }
+  };
 
   const cargarExamenes = async () => {
     try {
@@ -68,9 +81,7 @@ export const HistorialExamenes = () => {
   const handleVerDetalle = async (exam: Examen) => {
     try {
       setLoadingDetalle(true);
-      // Abrimos el modal con data básica primero para que se vea rápido
       setExamenSeleccionado(exam);
-      // Luego traemos la data completa (versiones, cursos)
       const dataCompleta = await obtenerExamen(exam.id);
       setExamenSeleccionado(dataCompleta);
     } catch (err) {
@@ -81,27 +92,34 @@ export const HistorialExamenes = () => {
     }
   };
 
-  // Bloqueo de seguridad para la vista A4
   const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
   };
 
-  // Ir a la vista previa A4 desde el modal
   const handleVerPreviewA4 = async (examenId: number, examenNombre: string, versionLetra: string) => {
     setVersionActivaNombre(`${examenNombre} - Versión ${versionLetra}`);
-    setVistaActiva('previsualizacion'); // Cambiamos vista inmediatamente
-    setExamenSeleccionado(null); // Cerramos modal
+    setVistaActiva('previsualizacion');
+    setExamenSeleccionado(null);
 
     try {
       setLoadingVersion(true);
       const data = await obtenerVersionExamen(examenId, versionLetra);
-      setVersionData(data);
+      setVersionData({ ...data, examenId, codigoVersion: versionLetra });
     } catch (err) {
       console.error('Error al cargar la versión del examen:', err);
       alert('Error al cargar la vista previa de esta versión.');
       setVistaActiva('tabla');
     } finally {
       setLoadingVersion(false);
+    }
+  };
+
+  const handleDescargarZip = async (examenId: number) => {
+    try {
+      await descargarPdfsVersiones(examenId);
+    } catch (err) {
+      console.error('Error al descargar ZIP:', err);
+      alert('Hubo un error al intentar descargar el paquete ZIP de versiones.');
     }
   };
 
@@ -115,8 +133,54 @@ export const HistorialExamenes = () => {
     return new Date(fecha).toLocaleDateString();
   };
 
-  // Renderizado de la Vista Previa A4 (Reglas de seguridad incluidas)
+  const getCoverConfig = () => {
+    const savedConfig = localStorage.getItem('configuracionExamen');
+    let config = {
+      institutionName: 'UNIVERSIDAD NACIONAL',
+      headerText: 'EXAMEN DE ADMISIÓN 2025',
+      instructions: 'Lea cuidadosamente cada pregunta y marque solo una alternativa.',
+      logoUrl: null,
+      modalidad: 'MODALIDAD ORDINARIO',
+      colorPortada: '#6366f1'
+    };
+    if (savedConfig) {
+      try {
+        config = { ...config, ...JSON.parse(savedConfig) };
+      } catch (e) {}
+    }
+    return config;
+  };
+
+  const getContrastColor = (hexColor: string) => {
+    const hex = (hexColor || '#ffffff').replace('#', '');
+    if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+      return (yiq >= 128) ? '#0f172a' : '#ffffff';
+    }
+    return '#ffffff';
+  };
+
+  // Renderizado de la Vista Previa A4 (Dos páginas)
   if (vistaActiva === 'previsualizacion') {
+    const coverConfig = getCoverConfig();
+    const previewTextColor = getContrastColor(coverConfig.colorPortada);
+    
+    // Agrupar preguntas por curso con numeracion global 1-100
+    const preguntasPorCurso: Record<string, any[]> = {};
+    if (versionData && versionData.preguntas) {
+      let globalCounter = 1;
+      versionData.preguntas.forEach((p: any) => {
+        const curso = p.cursoNombre || 'OTROS';
+        if (!preguntasPorCurso[curso]) {
+          preguntasPorCurso[curso] = [];
+        }
+        preguntasPorCurso[curso].push({ ...p, globalNumber: globalCounter++ });
+      });
+    }
+
     return (
       <div className="preview-container">
         <div className="preview-toolbar">
@@ -131,7 +195,7 @@ export const HistorialExamenes = () => {
             {versionData && (
               <button
                 className="btn btn-primary"
-                onClick={() => descargarPdfVersion(versionData.examenId, versionData.letraVersion)}
+                onClick={() => descargarPdfVersion(versionData.examenId, versionData.codigoVersion)}
               >
                 Descargar PDF
               </button>
@@ -139,52 +203,98 @@ export const HistorialExamenes = () => {
           </div>
         </div>
 
-        <div className="a4-wrapper" onContextMenu={handleContextMenu}>
-          <div className="a4-sheet">
-            <header className="exam-header">
-              <h1 className="institution-name">Sistema de Gestión de Exámenes</h1>
-              <h2 className="exam-title">{versionActivaNombre}</h2>
-              <div className="student-info">
-                <div>Apellidos y Nombres: _____________________________________________</div>
-                <div>Código: _________________</div>
-              </div>
-            </header>
+        <div className="a4-preview-scroll-wrapper" onContextMenu={handleContextMenu}>
+          <div className="a4-pages-flex">
+            
+            {/* PÁGINA 1: PORTADA */}
+            <div className="a4-sheet cover-page" style={{ backgroundColor: coverConfig.colorPortada, color: previewTextColor }}>
+              <div className="cover-preview-content">
+                <div className="cover-institution">
+                  {coverConfig.institutionName || 'UNIVERSIDAD'}
+                </div>
+                
+                {coverConfig.logoUrl ? (
+                  <img src={coverConfig.logoUrl} alt="Logo" className="cover-logo" />
+                ) : (
+                  <div className="cover-logo-placeholder" style={{ borderColor: previewTextColor }}>LOGO</div>
+                )}
+                
+                <div className="cover-title">
+                  {coverConfig.headerText || 'EXAMEN DE ADMISIÓN'}
+                </div>
 
-            <div className="exam-instructions">
-              <strong>INSTRUCCIONES GENERALES:</strong><br />
-              1. Lea detenidamente cada una de las preguntas antes de responder.<br />
-              2. No se permiten borrones ni enmendaduras. Prohibido el uso de dispositivos electrónicos.
+                <div className="cover-modality">
+                  {coverConfig.modalidad || 'MODALIDAD'}
+                </div>
+
+                <div className="cover-theme-section" style={{ borderColor: previewTextColor }}>
+                  <div className="cover-theme-label">TEMA</div>
+                  <div className="cover-theme-letter">{versionData?.codigoVersion || 'A'}</div>
+                  <div className="cover-theme-hint">(Generado automáticamente)</div>
+                </div>
+
+                <div className="cover-instructions" style={{ borderColor: previewTextColor }}>
+                  <strong>Instrucciones:</strong> {coverConfig.instructions || 'Sin instrucciones adicionales.'}
+                </div>
+                
+                <div className="cover-footer-text">
+                  Examen de Admisión Oficial
+                </div>
+              </div>
             </div>
 
-            {loadingVersion ? (
-              <p style={{ textAlign: 'center', marginTop: '20px' }}>Cargando preguntas de la versión...</p>
-            ) : versionData && versionData.preguntas ? (
-              <div className="questions-list">
-                {versionData.preguntas.map((p: any, idx: number) => (
-                  <div className="question-item" key={p.id || idx}>
-                    <p className="question-text">
-                      <strong>{idx + 1}.</strong> {p.enunciado}
-                    </p>
-                    <ul className="options-list">
-                      {p.alternativas?.map((alt: any) => (
-                        <li key={alt.id}>
-                          {alt.letra}) {alt.contenidoTexto}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={{ textAlign: 'center', marginTop: '20px' }}>No hay datos disponibles para esta versión.</p>
-            )}
+            {/* PÁGINA 2: CONTENIDO ORDENADO POR CURSOS */}
+            <div className="a4-sheet questions-page">
+              <header className="exam-header-compact">
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontWeight: 'bold' }}>TEMA {versionData?.codigoVersion || 'A'}</span>
+                  <span style={{ textTransform: 'uppercase' }}>{coverConfig.institutionName}</span>
+                </div>
+              </header>
+
+              {loadingVersion ? (
+                <p style={{ textAlign: 'center', marginTop: '20px' }}>Cargando preguntas de la versión...</p>
+              ) : Object.keys(preguntasPorCurso).length > 0 ? (
+                <div className="questions-grouped-container">
+                  {Object.entries(preguntasPorCurso).map(([curso, listaPreguntas]) => (
+                    <div key={curso} className="course-group-section">
+                      <h3 className="course-group-title">{curso.toUpperCase()}</h3>
+                      <div className="questions-list-by-course">
+                        {listaPreguntas.map((p: any) => (
+                          <div className="question-item-grouped" key={p.id || p.globalNumber}>
+                            <p className="question-text-grouped">
+                              <strong>{p.globalNumber}.</strong> {p.enunciado.replace(/^\d+[\.\-\)]\s*/, '')}
+                            </p>
+                            <div className="options-grid-grouped">
+                              {p.alternativas?.map((alt: any) => (
+                                <div className="option-item-grouped" key={alt.id}>
+                                  <strong>{alt.letra})</strong> {alt.contenidoTexto}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ textAlign: 'center', marginTop: '20px' }}>No hay datos disponibles para esta versión.</p>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
     );
   }
 
-  // Renderizado Principal: Tabla e Historial
+  const examenesFiltrados = examenes.filter((exam) => {
+    const matchesCodigo = exam.codigo.toLowerCase().includes(filtroCodigo.toLowerCase());
+    const matchesArea = filtroArea === '' || exam.categoriaExamenNombre === filtroArea;
+    return matchesCodigo && matchesArea;
+  });
+
   return (
     <div className="historial-container">
       <h2>Historial de Exámenes</h2>
@@ -193,13 +303,23 @@ export const HistorialExamenes = () => {
         <div className="filters-group">
           <div className="input-control">
             <label>Buscar por código</label>
-            <input type="text" placeholder="Ej. EXM-2026..." />
+            <input 
+              type="text" 
+              placeholder="Ej. EXM-2026..." 
+              value={filtroCodigo}
+              onChange={(e) => setFiltroCodigo(e.target.value)}
+            />
           </div>
           <div className="input-control">
             <label>Filtrar por Área</label>
-            <select>
-              <option>Todas las áreas</option>
-              {/* Aquí se podrían mapear dinámicamente si fuera necesario */}
+            <select 
+              value={filtroArea} 
+              onChange={(e) => setFiltroArea(e.target.value)}
+            >
+              <option value="">Todas las áreas</option>
+              {categorias.map((cat) => (
+                <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -210,8 +330,8 @@ export const HistorialExamenes = () => {
           <p style={{ padding: '20px', textAlign: 'center' }}>Cargando exámenes...</p>
         ) : error ? (
           <p style={{ padding: '20px', textAlign: 'center', color: 'red' }}>{error}</p>
-        ) : examenes.length === 0 ? (
-          <p style={{ padding: '20px', textAlign: 'center' }}>No hay exámenes generados aún.</p>
+        ) : examenesFiltrados.length === 0 ? (
+          <p style={{ padding: '20px', textAlign: 'center' }}>No se encontraron exámenes con los filtros aplicados.</p>
         ) : (
           <table>
             <thead>
@@ -225,7 +345,7 @@ export const HistorialExamenes = () => {
               </tr>
             </thead>
             <tbody>
-              {examenes.map((exam) => (
+              {examenesFiltrados.map((exam) => (
                 <tr key={exam.id}>
                   <td className="exam-code">{exam.codigo}</td>
                   <td>{formatFecha(exam.fechaCreacion)}</td>
@@ -250,7 +370,7 @@ export const HistorialExamenes = () => {
                     <button
                       className="btn-icon"
                       title="Descargar paquete ZIP (Todas las versiones)"
-                      onClick={() => descargarPdfsVersiones(exam.id)}
+                      onClick={() => handleDescargarZip(exam.id)}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -264,7 +384,7 @@ export const HistorialExamenes = () => {
         )}
       </div>
 
-      {/* MODAL DETALLE DE VERSIONES (Renderizado Condicional) */}
+      {/* MODAL DETALLE DE VERSIONES */}
       {examenSeleccionado && (
         <div className="modal-overlay" onClick={() => setExamenSeleccionado(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -324,26 +444,26 @@ export const HistorialExamenes = () => {
                         </svg>
                       </div>
                       <div className="version-details">
-                        <p className="version-name">Versión {v.letraVersion}</p>
+                        <p className="version-name">Versión {v.codigoVersion}</p>
                         <p className="version-meta">Generado por sistema</p>
                       </div>
                     </div>
                     <div className="version-actions">
                       <button
                         className="btn-action btn-action-primary"
-                        onClick={() => handleVerPreviewA4(examenSeleccionado.id, examenSeleccionado.nombre, v.letraVersion)}
+                        onClick={() => handleVerPreviewA4(examenSeleccionado.id, examenSeleccionado.nombre, v.codigoVersion)}
                       >
                         Vista Previa A4
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.letraVersion)}
+                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.codigoVersion)}
                       >
                         Solucionario
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfVersion(examenSeleccionado.id, v.letraVersion)}
+                        onClick={() => descargarPdfVersion(examenSeleccionado.id, v.codigoVersion)}
                       >
                         PDF
                       </button>

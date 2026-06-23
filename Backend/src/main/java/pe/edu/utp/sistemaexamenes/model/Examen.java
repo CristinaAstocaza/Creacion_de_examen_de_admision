@@ -73,6 +73,21 @@ public class Examen {
     @Column(name = "fecha_publicacion")
     private LocalDateTime fechaPublicacion;
 
+    @Column(name = "nombre_universidad", length = 150)
+    private String nombreUniversidad;
+
+    @Column(name = "titulo_examen", length = 150)
+    private String tituloExamen;
+
+    @Column(name = "modalidad", length = 150)
+    private String modalidad;
+
+    @Column(name = "color_portada", length = 20)
+    private String colorPortada;
+
+    @Column(name = "logo_url", columnDefinition = "TEXT")
+    private String logoUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "categoria_examen_id", nullable = false)
     private CategoriaExamen categoriaExamen;

@@ -1,18 +1,11 @@
 package pe.edu.utp.sistemaexamenes.service.impl;
 
-import com.lowagie.text.Document;
-import com.lowagie.text.DocumentException;
-import com.lowagie.text.Element;
-import com.lowagie.text.Font;
-import com.lowagie.text.PageSize;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import pe.edu.utp.sistemaexamenes.dto.request.GenerarExamenRequest;
 import pe.edu.utp.sistemaexamenes.dto.response.ArchivoDescargaResponse;
 import pe.edu.utp.sistemaexamenes.enums.LetraAlternativa;
 import pe.edu.utp.sistemaexamenes.exception.ResourceNotFoundException;
@@ -24,15 +17,12 @@ import pe.edu.utp.sistemaexamenes.repository.ExamenRepository;
 import pe.edu.utp.sistemaexamenes.repository.ExamenVersionRepository;
 import pe.edu.utp.sistemaexamenes.service.ExamenPdfService;
 
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -46,6 +36,9 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     private static final String ZIP = "application/zip";
     private static final DateTimeFormatter FECHA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
+    // Letra de tema por índice de versión (0 = A, 1 = B, ...)
+    private static final char[] LETRAS_TEMA = "ABCDEFGHIJ".toCharArray();
+
     private final ExamenRepository examenRepository;
     private final ExamenVersionRepository examenVersionRepository;
 
@@ -56,7 +49,7 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         return new ArchivoDescargaResponse(
                 nombrePdf(examenVersion, false),
                 PDF,
-                generarPdfExamen(examenVersion)
+                generarPdfExamen(examenVersion, null)
         );
     }
 
@@ -68,7 +61,7 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream(); ZipOutputStream zip = new ZipOutputStream(output)) {
             for (ExamenVersion version : examen.getVersiones().stream().sorted(Comparator.comparing(ExamenVersion::getNumero)).toList()) {
                 zip.putNextEntry(new ZipEntry(nombrePdf(version, false)));
-                zip.write(generarPdfExamen(version));
+                zip.write(generarPdfExamen(version, null));
                 zip.closeEntry();
             }
             zip.finish();
@@ -89,43 +82,216 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         );
     }
 
-    private ExamenVersion buscarVersion(Long examenId, String version) {
-        return examenVersionRepository.findByExamenIdAndCodigoVersion(examenId, version.toUpperCase())
-                .orElseThrow(() -> new ResourceNotFoundException("Versión de examen no encontrada: " + version));
+    // ─────────────────────────────────────────────────────────────────
+    // Método principal de generación con soporte de carátula
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Genera el PDF de un examen, incluyendo carátula y contenido a 2 columnas.
+     *
+     * @param version La versión del examen a renderizar.
+     * @param request El request original con datos de la carátula. Puede ser null
+     *                (se usarán valores por defecto desde el modelo).
+     */
+    public byte[] generarPdfExamen(ExamenVersion version, GenerarExamenRequest request) {
+        try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            Document document = new Document(PageSize.A4, 45, 45, 45, 45);
+            PdfWriter writer = PdfWriter.getInstance(document, output);
+            document.open();
+
+            // --- PÁGINA 1: CARÁTULA ---
+            agregarCaratula(document, writer, version, request);
+            document.newPage();
+
+            // --- PÁGINAS SIGUIENTES: CONTENIDO A 2 COLUMNAS ---
+            agregarContenidoDobleColumna(document, version);
+
+            document.close();
+            return output.toByteArray();
+        } catch (DocumentException | IOException ex) {
+            throw new IllegalStateException("No se pudo generar el PDF", ex);
+        }
     }
 
-    private byte[] generarPdfExamen(ExamenVersion version) {
-        return crearDocumento(document -> {
-            agregarEncabezado(document, version, "EXAMEN");
-            agregarInstrucciones(document);
-            Map<String, List<ExamenPregunta>> porCurso = agruparPorCurso(version);
-            int numeroVisual = 1;
-            for (Map.Entry<String, List<ExamenPregunta>> entry : porCurso.entrySet()) {
-                Paragraph curso = new Paragraph(entry.getKey().toUpperCase(), fuente(14, Font.BOLD));
-                curso.setSpacingBefore(12);
-                curso.setSpacingAfter(8);
-                document.add(curso);
+    // ─────────────────────────────────────────────────────────────────
+    // CARÁTULA
+    // ─────────────────────────────────────────────────────────────────
 
-                for (ExamenPregunta examenPregunta : entry.getValue()) {
-                    document.add(new Paragraph(numeroVisual + ". " + examenPregunta.getPregunta().getEnunciado(), fuente(11, Font.NORMAL)));
-                    numeroVisual++;
-                    for (Alternativa alternativa : ordenarAlternativas(examenPregunta)) {
-                        String contenido = alternativa.getTipo().name().equals("IMAGEN")
-                                ? Objects.toString(alternativa.getImagenUrl(), "")
-                                : Objects.toString(alternativa.getContenidoTexto(), "");
-                        Paragraph alternativaParagraph = new Paragraph("   " + alternativa.getLetra() + ") " + contenido, fuente(10, Font.NORMAL));
-                        alternativaParagraph.setSpacingAfter(3);
-                        document.add(alternativaParagraph);
-                    }
-                    document.add(new Paragraph(" "));
-                }
+    private void agregarCaratula(Document document, PdfWriter writer, ExamenVersion version, GenerarExamenRequest request)
+            throws DocumentException {
+
+        Examen examen = version.getExamen();
+
+        // -- Valores de la carátula (del modelo, request o por defecto) --
+        String universidad = (examen.getNombreUniversidad() != null && !examen.getNombreUniversidad().isBlank())
+                ? examen.getNombreUniversidad().toUpperCase()
+                : (request != null && request.nombreUniversidad() != null && !request.nombreUniversidad().isBlank())
+                ? request.nombreUniversidad().toUpperCase()
+                : "UNIVERSIDAD NACIONAL".toUpperCase();
+
+        String titulo = (examen.getTituloExamen() != null && !examen.getTituloExamen().isBlank())
+                ? examen.getTituloExamen().toUpperCase()
+                : (request != null && request.tituloExamen() != null && !request.tituloExamen().isBlank())
+                ? request.tituloExamen().toUpperCase()
+                : examen.getNombre().toUpperCase();
+
+        String modalidad = (examen.getModalidad() != null && !examen.getModalidad().isBlank())
+                ? examen.getModalidad().toUpperCase()
+                : (request != null && request.modalidad() != null && !request.modalidad().isBlank())
+                ? request.modalidad().toUpperCase()
+                : "MODALIDAD ORDINARIO";
+
+        // -- Color de fondo (HEX → java.awt.Color) --
+        Color bgColor = parseColor(examen.getColorPortada() != null ? examen.getColorPortada() : (request != null ? request.colorPortada() : null));
+
+        // -- Letra del Tema según el número de versión (1-based → 0-based index) --
+        int versionIndex = (version.getNumero() != null ? version.getNumero() : 1) - 1;
+        char letraTema = LETRAS_TEMA[Math.min(versionIndex, LETRAS_TEMA.length - 1)];
+
+        // -- Dibujar fondo de color en toda la página --
+        PdfContentByte canvas = writer.getDirectContentUnder();
+        Rectangle pageSize = document.getPageSize();
+        canvas.setColorFill(bgColor);
+        canvas.rectangle(pageSize.getLeft(), pageSize.getBottom(), pageSize.getWidth(), pageSize.getHeight());
+        canvas.fill();
+
+        // -- Determinar color de texto contrastante --
+        Color textColor = isColorOscuro(bgColor) ? Color.WHITE : new Color(15, 23, 42);
+
+        // -- Panel superior (Universidad) --
+        Paragraph pUniversidad = new Paragraph(universidad, fuenteColor(20, Font.BOLD, textColor));
+        pUniversidad.setAlignment(Element.ALIGN_CENTER);
+        pUniversidad.setSpacingBefore(100f);
+        pUniversidad.setSpacingAfter(15f);
+        document.add(pUniversidad);
+
+        // -- Aquí iría el Logo --
+        String logoBase64 = examen.getLogoUrl() != null ? examen.getLogoUrl() : (request != null ? request.logoUrl() : null);
+        if (logoBase64 != null && logoBase64.contains("base64,")) {
+            try {
+                String base64Data = logoBase64.split("base64,")[1].replaceAll("\\s+", "");
+                byte[] decodedBytes = java.util.Base64.getDecoder().decode(base64Data);
+                Image logo = Image.getInstance(decodedBytes);
+                logo.scaleToFit(140f, 140f);
+                logo.setAlignment(Element.ALIGN_CENTER);
+                logo.setSpacingAfter(15f);
+                document.add(logo);
+            } catch (Exception e) {
+                e.printStackTrace();
+                Paragraph pLogoSpace = new Paragraph(" ", fuenteColor(20, Font.BOLD, textColor));
+                pLogoSpace.setSpacingAfter(60f);
+                document.add(pLogoSpace);
             }
-        });
+        } else {
+            Paragraph pLogoSpace = new Paragraph(" ", fuenteColor(20, Font.BOLD, textColor));
+            pLogoSpace.setSpacingAfter(60f);
+            document.add(pLogoSpace);
+        }
+
+        // -- Título del examen --
+        Paragraph pTitulo = new Paragraph(titulo, fuenteColor(22, Font.BOLD, textColor));
+        pTitulo.setAlignment(Element.ALIGN_CENTER);
+        pTitulo.setSpacingAfter(10f);
+        document.add(pTitulo);
+
+        // -- Modalidad --
+        Paragraph pModalidad = new Paragraph(modalidad, fuenteColor(15, Font.NORMAL, textColor));
+        pModalidad.setAlignment(Element.ALIGN_CENTER);
+        pModalidad.setSpacingAfter(40f);
+        document.add(pModalidad);
+
+        // -- TEMA: Letra grande centrada --
+        Paragraph pTemaLabel = new Paragraph("TEMA", fuenteColor(14, Font.BOLD, textColor));
+        pTemaLabel.setAlignment(Element.ALIGN_CENTER);
+        pTemaLabel.setSpacingAfter(0f);
+        document.add(pTemaLabel);
+
+        // Rectángulo de fondo semi-transparente para el tema
+        Color temaBoxColor = isColorOscuro(bgColor)
+                ? new Color(255, 255, 255, 40)
+                : new Color(0, 0, 0, 20);
+        dibujarRectanguloTema(writer, document, temaBoxColor);
+
+        Paragraph pLetra = new Paragraph(String.valueOf(letraTema), fuenteColor(96, Font.BOLD, textColor));
+        pLetra.setAlignment(Element.ALIGN_CENTER);
+        pLetra.setSpacingBefore(-8f);
+        pLetra.setSpacingAfter(60f);
+        document.add(pLetra);
+
+        // -- Instrucciones --
+        Paragraph pInstrucciones = new Paragraph("Instrucciones: Lea cuidadosamente cada pregunta y marque solo una alternativa.", fuenteColor(12, Font.NORMAL, textColor));
+        pInstrucciones.setAlignment(Element.ALIGN_CENTER);
+        pInstrucciones.setSpacingBefore(40f);
+        pInstrucciones.setSpacingAfter(20f);
+        document.add(pInstrucciones);
+
+        // -- Pie de página --
+        Paragraph pPie = new Paragraph("Examen de Admisión Oficial", fuenteColor(11, Font.NORMAL, textColor));
+        pPie.setAlignment(Element.ALIGN_CENTER);
+        pPie.setSpacingAfter(10f);
+        document.add(pPie);
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    // CONTENIDO A 2 COLUMNAS
+    // ─────────────────────────────────────────────────────────────────
+
+    private void agregarContenidoDobleColumna(Document document, ExamenVersion version)
+            throws DocumentException {
+
+        Map<String, List<ExamenPregunta>> porCurso = agruparPorCurso(version);
+        int numeroVisual = 1;
+
+        MultiColumnText mct = new MultiColumnText();
+        mct.addRegularColumns(document.left(), document.right(), 24f, 2);
+
+        for (Map.Entry<String, List<ExamenPregunta>> entry : porCurso.entrySet()) {
+            // --- Cabecera del curso ---
+            PdfPTable cabeceraCurso = new PdfPTable(1);
+            cabeceraCurso.setWidthPercentage(100f);
+            PdfPCell celdaCurso = new PdfPCell(new Phrase(entry.getKey().toUpperCase(), fuente(10, Font.BOLD)));
+            celdaCurso.setBackgroundColor(new Color(230, 230, 230));
+            celdaCurso.setBorderWidth(0f);
+            celdaCurso.setPaddingTop(4f);
+            celdaCurso.setPaddingBottom(4f);
+            cabeceraCurso.addCell(celdaCurso);
+
+            cabeceraCurso.setSpacingAfter(4f);
+            mct.addElement(cabeceraCurso);
+
+            // --- Preguntas del curso ---
+            for (ExamenPregunta examenPregunta : entry.getValue()) {
+                Phrase contenidoPregunta = new Phrase();
+                String enunciadoLimpio = examenPregunta.getPregunta().getEnunciado().replaceFirst("^\\d+[\\.\\-\\)]\\s*", "");
+                contenidoPregunta.add(new Chunk(numeroVisual + ". " + enunciadoLimpio + "\n",
+                        fuente(9, Font.BOLD)));
+                numeroVisual++;
+
+                for (Alternativa alternativa : ordenarAlternativas(examenPregunta)) {
+                    String contenido = alternativa.getTipo().name().equals("IMAGEN")
+                            ? Objects.toString(alternativa.getImagenUrl(), "")
+                            : Objects.toString(alternativa.getContenidoTexto(), "");
+                    contenidoPregunta.add(new Chunk("   " + alternativa.getLetra() + ") " + contenido + "\n",
+                            fuente(8, Font.NORMAL)));
+                }
+                contenidoPregunta.add(new Chunk("\n", fuente(4, Font.NORMAL)));
+
+                Paragraph p = new Paragraph(contenidoPregunta);
+                p.setSpacingAfter(2f);
+                mct.addElement(p);
+            }
+        }
+
+        document.add(mct);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // SOLUCIONARIO (sin cambios estructurales)
+    // ─────────────────────────────────────────────────────────────────
 
     private byte[] generarPdfSolucionarioVersion(ExamenVersion version) {
-        return crearDocumento(document -> {
-            agregarEncabezado(document, version, "SOLUCIONARIO");
+        return crearDocumentoSimple(document -> {
+            agregarEncabezadoSimple(document, version, "SOLUCIONARIO");
             PdfPTable table = new PdfPTable(new float[]{1f, 3f, 3f, 2f});
             table.setWidthPercentage(100);
             agregarCeldaHeader(table, "N°");
@@ -151,7 +317,11 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         });
     }
 
-    private byte[] crearDocumento(DocumentoCallback callback) {
+    // ─────────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────────
+
+    private byte[] crearDocumentoSimple(DocumentoCallback callback) {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4, 45, 45, 45, 45);
             PdfWriter.getInstance(document, output);
@@ -164,17 +334,15 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         }
     }
 
-    private void agregarEncabezado(Document document, ExamenVersion version, String titulo) throws DocumentException {
+    private void agregarEncabezadoSimple(Document document, ExamenVersion version, String titulo) throws DocumentException {
         Examen examen = version.getExamen();
         Paragraph institucion = new Paragraph("SISTEMA DE ADMISIÓN", fuente(16, Font.BOLD));
         institucion.setAlignment(Element.ALIGN_CENTER);
         document.add(institucion);
-
         Paragraph subtitulo = new Paragraph(titulo, fuente(14, Font.BOLD));
         subtitulo.setAlignment(Element.ALIGN_CENTER);
         subtitulo.setSpacingAfter(12);
         document.add(subtitulo);
-
         document.add(new Paragraph("Nombre del examen: " + examen.getNombre(), fuente(11, Font.NORMAL)));
         document.add(new Paragraph("Categoría: " + examen.getCategoriaExamen().getNombre(), fuente(11, Font.NORMAL)));
         document.add(new Paragraph("Código del examen: " + examen.getCodigo(), fuente(11, Font.NORMAL)));
@@ -184,8 +352,11 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     }
 
     private void agregarInstrucciones(Document document) throws DocumentException {
-        Paragraph instrucciones = new Paragraph("Instrucciones: Lea cuidadosamente cada pregunta y marque solo una alternativa. No se muestran respuestas correctas en este documento.", fuente(10, Font.BOLD));
-        instrucciones.setSpacingAfter(12);
+        Paragraph instrucciones = new Paragraph(
+                "INSTRUCCIONES: Lea cuidadosamente cada pregunta y marque solo una alternativa. " +
+                "No se permiten borrones ni enmendaduras. Prohibido el uso de dispositivos electrónicos.",
+                fuente(9, Font.BOLD));
+        instrucciones.setSpacingAfter(10f);
         document.add(instrucciones);
     }
 
@@ -217,16 +388,11 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     private List<LetraAlternativa> parsearLetras(String alternativasOrdenadas) {
         List<LetraAlternativa> letras = new ArrayList<>();
-        if (alternativasOrdenadas == null) {
-            return letras;
-        }
-
+        if (alternativasOrdenadas == null) return letras;
         Matcher matcher = Pattern.compile("[A-E]").matcher(alternativasOrdenadas);
         while (matcher.find()) {
             LetraAlternativa letra = LetraAlternativa.valueOf(matcher.group());
-            if (!letras.contains(letra)) {
-                letras.add(letra);
-            }
+            if (!letras.contains(letra)) letras.add(letra);
         }
         return letras;
     }
@@ -245,6 +411,70 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         return new Font(Font.HELVETICA, size, style);
     }
 
+    private Font fuenteColor(int size, int style, Color color) {
+        return new Font(Font.HELVETICA, size, style, color);
+    }
+
+    private PdfPCell celdasColumnaSinBorde() {
+        PdfPCell celda = new PdfPCell();
+        celda.setBorderWidth(0f);
+        celda.setPaddingRight(8f);
+        return celda;
+    }
+
+    private void agregarLinea(Document document, Color color, PdfWriter writer) throws DocumentException {
+        PdfContentByte cb = writer.getDirectContent();
+        cb.setColorStroke(color);
+        cb.setLineWidth(0.5f);
+        float y = writer.getVerticalPosition(false);
+        cb.moveTo(document.leftMargin(), y - 2);
+        cb.lineTo(document.right(), y - 2);
+        cb.stroke();
+        // Paragraph vacío para dar espacio
+        Paragraph sep = new Paragraph(" ", fuente(6, Font.NORMAL));
+        document.add(sep);
+    }
+
+    private void dibujarRectanguloTema(PdfWriter writer, Document document, Color color) throws DocumentException {
+        // Agrega espacio antes del cuadro
+        Paragraph pre = new Paragraph(" ", fuente(4, Font.NORMAL));
+        document.add(pre);
+        // El rectángulo se dibuja en coordenadas actuales, centrado
+        float pageWidth = document.getPageSize().getWidth();
+        float boxW = 120f;
+        float boxH = 130f;
+        float x = (pageWidth - boxW) / 2f;
+        float y = writer.getVerticalPosition(false) - boxH;
+        PdfContentByte canvas = writer.getDirectContentUnder();
+        canvas.setColorFill(color);
+        canvas.roundRectangle(x, y, boxW, boxH, 12f);
+        canvas.fill();
+    }
+
+    /** Parsea un color HEX (#RRGGBB) a java.awt.Color. Retorna gris azulado si es inválido/null. */
+    private Color parseColor(String hex) {
+        if (hex == null || hex.isBlank()) return new Color(99, 102, 241); // indigo por defecto
+        try {
+            String limpio = hex.startsWith("#") ? hex.substring(1) : hex;
+            if (limpio.length() == 6) {
+                int r = Integer.parseInt(limpio.substring(0, 2), 16);
+                int g = Integer.parseInt(limpio.substring(2, 4), 16);
+                int b = Integer.parseInt(limpio.substring(4, 6), 16);
+                return new Color(r, g, b);
+            }
+        } catch (NumberFormatException ignored) {}
+        return new Color(99, 102, 241);
+    }
+
+    /**
+     * Determina si un color es "oscuro" para decidir si el texto debe ser blanco.
+     * Usa la fórmula de luminancia relativa (WCAG).
+     */
+    private boolean isColorOscuro(Color color) {
+        double luminancia = (0.299 * color.getRed() + 0.587 * color.getGreen() + 0.114 * color.getBlue()) / 255.0;
+        return luminancia < 0.5;
+    }
+
     private String nombrePdf(ExamenVersion version, boolean solucionario) {
         String suffix = solucionario ? "_SOLUCIONARIO_" : "_VERSION_";
         return "examen_" + limpiar(version.getExamen().getCodigo()) + suffix + limpiar(version.getCodigoVersion()) + ".pdf";
@@ -252,6 +482,11 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     private String limpiar(String value) {
         return value == null ? "sin_codigo" : value.replaceAll("[^A-Za-z0-9_-]", "_");
+    }
+
+    private ExamenVersion buscarVersion(Long examenId, String version) {
+        return examenVersionRepository.findByExamenIdAndCodigoVersion(examenId, version.toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Versión de examen no encontrada: " + version));
     }
 
     @FunctionalInterface

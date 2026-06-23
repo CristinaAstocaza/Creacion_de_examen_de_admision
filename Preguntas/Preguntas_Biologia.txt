@@ -1,0 +1,160 @@
+1. La unidad básica de los seres vivos es:
+   a) Tejido
+   b) Órgano
+   c) Célula
+   d) Sistema
+   e) Molécula
+   Respuesta: c
+
+2. El organelo encargado de producir energía (ATP) es:
+   a) Núcleo
+   b) Ribosoma
+   c) Mitocondria
+   d) Lisosoma
+   e) Vacuola
+   Respuesta: c
+
+3. La fotosíntesis ocurre principalmente en:
+   a) Mitocondrias
+   b) Cloroplastos
+   c) Ribosomas
+   d) Núcleo
+   e) Lisosomas
+   Respuesta: b
+
+4. El ADN se encuentra principalmente en:
+   a) Citoplasma
+   b) Núcleo
+   c) Membrana celular
+   d) Ribosomas
+   e) Vacuola
+   Respuesta: b
+
+5. La función principal de los ribosomas es:
+   a) Respiración celular
+   b) Síntesis de proteínas
+   c) Digestión celular
+   d) Transporte de agua
+   e) Producción de energía
+   Respuesta: b
+
+6. La célula vegetal se diferencia de la animal por la presencia de:
+   a) Mitocondrias
+   b) Ribosomas
+   c) Pared celular
+   d) Núcleo
+   e) Citoplasma
+   Respuesta: c
+
+7. El proceso por el cual las plantas producen glucosa es:
+   a) Respiración
+   b) Digestión
+   c) Fotosíntesis
+   d) Fermentación
+   e) Transpiración
+   Respuesta: c
+
+8. La sangre transporta oxígeno gracias a:
+   a) Plaquetas
+   b) Glóbulos rojos
+   c) Glóbulos blancos
+   d) Plasma
+   e) Linfa
+   Respuesta: b
+
+9. El sistema encargado de coordinar el cuerpo es:
+   a) Digestivo
+   b) Respiratorio
+   c) Nervioso
+   d) Excretor
+   e) Circulatorio
+   Respuesta: c
+
+10. La función del sistema digestivo es:
+    a) Transportar oxígeno
+    b) Eliminar desechos
+    c) Descomponer alimentos
+    d) Regular temperatura
+    e) Producir hormonas
+    Respuesta: c
+
+11. La herencia genética está determinada por:
+    a) ARN
+    b) Proteínas
+    c) ADN
+    d) Lípidos
+    e) Enzimas
+    Respuesta: c
+
+12. Un gen es:
+    a) Una célula
+    b) Un tejido
+    c) Un fragmento de ADN
+    d) Un órgano
+    e) Una proteína
+    Respuesta: c
+
+13. La mitosis produce:
+    a) Gametos
+    b) Células idénticas
+    c) Mutaciones
+    d) Órganos
+    e) Tejidos nuevos siempre distintos
+    Respuesta: b
+
+14. La meiosis produce:
+    a) Células idénticas
+    b) Células somáticas
+    c) Gametos
+    d) Órganos
+    e) Proteínas
+    Respuesta: c
+
+15. La evolución se basa principalmente en:
+    a) Cambios climáticos
+    b) Selección natural
+    c) Mutación voluntaria
+    d) Reproducción artificial
+    e) Energía solar
+    Respuesta: b
+
+16. El órgano principal del sistema respiratorio es:
+    a) Corazón
+    b) Pulmones
+    c) Riñones
+    d) Hígado
+    e) Estómago
+    Respuesta: b
+
+17. La función de los glóbulos blancos es:
+    a) Transportar oxígeno
+    b) Coagular la sangre
+    c) Defender el organismo
+    d) Transportar nutrientes
+    e) Producir hormonas
+    Respuesta: c
+
+18. La célula procariota se caracteriza por:
+    a) Tener núcleo definido
+    b) No tener núcleo definido
+    c) Ser multicelular
+    d) Tener mitocondrias
+    e) Tener cloroplastos siempre
+    Respuesta: b
+
+19. La digestión química ocurre gracias a:
+    a) Huesos
+    b) Enzimas
+    c) Nervios
+    d) Sangre
+    e) Pulmones
+    Respuesta: b
+
+20. El sistema excretor elimina principalmente:
+    a) Oxígeno
+    b) Nutrientes
+    c) Desechos metabólicos
+    d) Hormonas
+    e) Vitaminas
+    Respuesta: c
+

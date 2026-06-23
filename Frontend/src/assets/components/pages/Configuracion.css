@@ -160,7 +160,7 @@
   width: 100%;
   aspect-ratio: 1 / 1.414; /* Proporción A4 estándar */
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  padding: 24px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -168,90 +168,113 @@
   overflow: hidden;
 }
 
-.exam-sim-header {
+/* --- VISTA PREVIA PORTADA REAL --- */
+.cover-preview-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  border-bottom: 2px solid #202124;
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  justify-content: space-between;
+  height: 100%;
+  text-align: center;
 }
 
-.exam-sim-logo {
-  width: 50px;
-  height: 50px;
+.cover-institution {
+  font-size: 22px;
+  font-weight: bold;
+  margin-top: 15px;
+  text-transform: uppercase;
+  border-bottom: 2px solid currentColor;
+  padding-bottom: 10px;
+  width: 90%;
+  opacity: 0.95;
+  letter-spacing: 0.5px;
+}
+
+.cover-logo {
+  width: 105px;
+  height: 105px;
   object-fit: contain;
+  margin-top: 15px;
 }
 
-.exam-sim-logo-placeholder {
-  width: 50px;
-  height: 50px;
-  background-color: #e8eaed;
+.cover-logo-placeholder {
+  width: 105px;
+  height: 105px;
+  border: 2px dashed currentColor;
+  opacity: 0.7;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
-  color: #5f6368;
-  font-weight: bold;
-}
-
-.exam-sim-titles h3 {
-  font-size: 16px;
-  margin: 0 0 4px 0;
-  text-transform: uppercase;
-}
-
-.exam-sim-titles h4 {
   font-size: 14px;
-  margin: 0;
-  font-weight: normal;
-  color: #5f6368;
+  font-weight: bold;
+  margin-top: 15px;
+  border-radius: 8px;
 }
 
-.exam-sim-student-info {
-  font-size: 11px;
-  margin-bottom: 16px;
+.cover-title {
+  font-size: 24px;
+  font-weight: 900;
+  margin-top: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.info-line {
-  margin-bottom: 8px;
+.cover-modality {
+  font-size: 16px;
+  margin-top: 6px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.95;
 }
 
-.info-row {
+.cover-theme-section {
+  margin-top: 15px;
+  padding: 16px 36px;
+  border-radius: 12px;
+  border: 2px solid currentColor;
   display: flex;
-  gap: 24px;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
-.exam-sim-instructions {
+.cover-theme-label {
+  font-size: 15px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.cover-theme-letter {
+  font-size: 68px;
+  font-weight: 900;
+  line-height: 1;
+  margin: 4px 0;
+}
+
+.cover-theme-hint {
   font-size: 10px;
-  padding: 8px;
-  border: 1px dashed #dadce0;
-  background-color: #f8f9fa;
-  margin-bottom: 16px;
-  color: #3c4043;
+  opacity: 0.85;
+  font-style: italic;
+  max-width: 150px;
 }
 
-.exam-sim-body {
-  flex-grow: 1;
+.cover-instructions {
+  font-size: 13px;
+  padding: 16px;
+  border: 1.5px dashed currentColor;
+  border-radius: 8px;
+  width: 95%;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  opacity: 0.95;
+  text-align: left;
+  line-height: 1.4;
 }
 
-.sim-question {
+.cover-footer-text {
   font-size: 11px;
-  color: #d2d2d2; /* Gris claro para simular contenido sin quitar atención al header */
-}
-
-.sim-question ul {
-  list-style: none;
-  padding-left: 12px;
-  margin-top: 4px;
-}
-
-.exam-sim-footer {
-  font-size: 9px;
-  text-align: center;
-  border-top: 1px solid #dadce0;
-  padding-top: 8px;
-  color: #5f6368;
+  opacity: 0.85;
+  margin-bottom: 10px;
 }
 
 /* Responsive */

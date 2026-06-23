@@ -21,7 +21,12 @@ export const generarExamen = async ({
   cantidadVersiones,
   aleatorizarPreguntas,
   aleatorizarAlternativas,
-  cursos
+  cursos,
+  // Campos opcionales de la carátula
+  nombreUniversidad,
+  tituloExamen,
+  modalidad,
+  colorPortada
 }) => {
   const { data } = await api.post('/examenes/generar', {
     idCategoria,
@@ -35,7 +40,11 @@ export const generarExamen = async ({
       cantidadFacil: curso.cantidadFacil,
       cantidadMedio: curso.cantidadMedio,
       cantidadDificil: curso.cantidadDificil
-    }))
+    })),
+    nombreUniversidad: nombreUniversidad || null,
+    tituloExamen: tituloExamen || null,
+    modalidad: modalidad || null,
+    colorPortada: colorPortada || null
   });
   return data;
 };

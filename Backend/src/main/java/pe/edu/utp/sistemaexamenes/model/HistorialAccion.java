@@ -54,4 +54,16 @@ public class HistorialAccion {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "examen_id")
     private Examen examen;
+
+    public LocalDateTime getFecha() {
+        return this.fechaAccion;
+    }
+
+    public String getUsuario() {
+        return this.usuarioResponsable;
+    }
+
+    public String getAccion() {
+        return this.tipoAccion != null ? this.tipoAccion.name() : null;
+    }
 }

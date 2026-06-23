@@ -1,0 +1,159 @@
+1. Si al aumentar el precio de un bien la cantidad demandada disminuye, pero en menor proporción, se afirma que la demanda es:
+   a) Elástica
+   b) Inelástica
+   c) Unitaria
+   d) Perfectamente elástica
+   e) Perfectamente inelástica
+   Respuesta: b
+
+2. Un incremento del ingreso del consumidor provoca aumento en la demanda de un bien X. Se puede afirmar que X es:
+   a) Inferior
+   b) Giffen
+   c) Normal
+   d) Sustituto
+   e) Complementario
+   Respuesta: c
+
+3. Si el precio de equilibrio es mayor al precio de mercado, entonces:
+   a) Hay exceso de demanda
+   b) Hay exceso de oferta
+   c) El mercado está equilibrado
+   d) La oferta desaparece
+   e) La demanda se anula
+   Respuesta: a
+
+4. Cuando el precio es inferior al de equilibrio, se genera:
+   a) Exceso de oferta
+   b) Exceso de demanda
+   c) Equilibrio estable
+   d) Inflación controlada
+   e) Mercado eficiente
+   Respuesta: b
+
+5. Si la oferta aumenta sin variación de la demanda, el precio de equilibrio:
+   a) Aumenta
+   b) Disminuye
+   c) No cambia
+   d) Se vuelve rígido
+   e) Se duplica
+   Respuesta: b
+
+6. Si el precio de un bien aumenta y la cantidad ofrecida no varía significativamente, la oferta es:
+   a) Elástica
+   b) Inelástica
+   c) Perfectamente elástica
+   d) Perfectamente inelástica
+   e) Mixta
+   Respuesta: b
+
+7. El costo de oportunidad de una decisión económica representa:
+   a) El gasto total realizado
+   b) El beneficio contable
+   c) El valor de la mejor alternativa sacrificada
+   d) El ingreso total
+   e) El costo fijo
+   Respuesta: c
+
+8. En un mercado competitivo, el precio se determina principalmente por:
+   a) El gobierno
+   b) Las empresas
+   c) La interacción de oferta y demanda
+   d) Los consumidores únicamente
+   e) Los impuestos
+   Respuesta: c
+
+9. Si aumenta el precio de un bien sustituto, la demanda del bien original:
+   a) Disminuye
+   b) Aumenta
+   c) Se mantiene
+   d) Se elimina
+   e) Se vuelve inelástica
+   Respuesta: b
+
+10. Un bien complementario se caracteriza porque:
+    a) Su demanda es independiente
+    b) Su consumo se realiza junto con otro bien
+    c) Es siempre inferior
+    d) Es gratuito
+    e) No tiene mercado
+    Respuesta: b
+
+11. Si el ingreso aumenta y la demanda de un bien disminuye, se trata de un bien:
+    a) Normal
+    b) Inferior
+    c) Sustituto
+    d) Complementario
+    e) Público
+    Respuesta: b
+
+12. El desplazamiento de la curva de demanda hacia la derecha indica:
+    a) Disminución de precio
+    b) Aumento de demanda
+    c) Aumento de oferta
+    d) Equilibrio
+    e) Reducción de costos
+    Respuesta: b
+
+13. La inflación afecta principalmente:
+    a) La producción
+    b) El poder adquisitivo
+    c) La tecnología
+    d) El empleo exclusivamente
+    e) El comercio exterior únicamente
+    Respuesta: b
+
+14. Si los costos de producción disminuyen, la curva de oferta:
+    a) Se desplaza a la izquierda
+    b) Se desplaza a la derecha
+    c) No cambia
+    d) Se vuelve vertical
+    e) Se elimina
+    Respuesta: b
+
+15. El mercado de competencia perfecta se caracteriza por:
+    a) Barreras de entrada altas
+    b) Un solo productor
+    c) Muchos compradores y vendedores
+    d) Control estatal total
+    e) Productos diferenciados
+    Respuesta: c
+
+16. En un monopolio, el precio es determinado por:
+    a) El consumidor
+    b) El mercado libre
+    c) Una sola empresa
+    d) El equilibrio natural
+    e) La competencia perfecta
+    Respuesta: c
+
+17. El PIB mide:
+    a) La riqueza total acumulada
+    b) La producción dentro de un país en un periodo
+    c) El ingreso personal
+    d) El ahorro nacional
+    e) Las exportaciones netas únicamente
+    Respuesta: b
+
+18. Si el Estado fija un precio máximo por debajo del equilibrio, se genera:
+    a) Exceso de oferta
+    b) Exceso de demanda
+    c) Equilibrio automático
+    d) Aumento de producción
+    e) Disminución de impuestos
+    Respuesta: b
+
+19. La política monetaria expansiva busca:
+    a) Reducir la inflación únicamente
+    b) Disminuir la oferta monetaria
+    c) Aumentar la liquidez en la economía
+    d) Eliminar el crédito
+    e) Aumentar impuestos
+    Respuesta: c
+
+20. En términos económicos, la escasez implica que:
+    a) No existen recursos
+    b) Los recursos son ilimitados
+    c) Las necesidades superan los recursos disponibles
+    d) El mercado no funciona
+    e) No hay producción
+    Respuesta: c

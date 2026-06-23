@@ -1,0 +1,159 @@
+1. Un móvil parte del reposo y acelera a 2 m/s² durante 5 s. ¿Qué velocidad final alcanza?
+   a) 5 m/s
+   b) 8 m/s
+   c) 10 m/s
+   d) 12 m/s
+   e) 15 m/s
+   Respuesta: c
+
+2. Un cuerpo de 4 kg recibe una fuerza de 20 N. ¿Cuál es su aceleración?
+   a) 2 m/s²
+   b) 4 m/s²
+   c) 5 m/s²
+   d) 8 m/s²
+   e) 10 m/s²
+   Respuesta: c
+
+3. ¿Qué distancia recorre un móvil con velocidad constante de 6 m/s en 8 s?
+   a) 36 m
+   b) 42 m
+   c) 48 m
+   d) 54 m
+   e) 60 m
+   Respuesta: c
+
+4. Un objeto cae libremente desde el reposo durante 3 s (g = 10 m/s²). ¿Qué velocidad tiene al final?
+   a) 20 m/s
+   b) 25 m/s
+   c) 30 m/s
+   d) 35 m/s
+   e) 40 m/s
+   Respuesta: c
+
+5. ¿Qué altura alcanza un cuerpo lanzado verticalmente hacia arriba con 20 m/s? (g = 10 m/s²)
+   a) 10 m
+   b) 15 m
+   c) 20 m
+   d) 25 m
+   e) 30 m
+   Respuesta: c
+
+6. Un trabajo de 100 J se realiza al aplicar una fuerza de 20 N. ¿Qué distancia se recorrió?
+   a) 2 m
+   b) 3 m
+   c) 4 m
+   d) 5 m
+   e) 6 m
+   Respuesta: d
+
+7. ¿Cuál es la energía cinética de un cuerpo de 2 kg que se mueve a 3 m/s?
+   a) 6 J
+   b) 9 J
+   c) 12 J
+   d) 18 J
+   e) 24 J
+   Respuesta: b
+
+8. Un cuerpo de 5 kg está a 10 m de altura (g = 10 m/s²). ¿Cuál es su energía potencial?
+   a) 250 J
+   b) 400 J
+   c) 500 J
+   d) 600 J
+   e) 700 J
+   Respuesta: c
+
+9. Un bloque de 10 kg está sobre una superficie. ¿Cuál es su peso? (g = 10 m/s²)
+   a) 10 N
+   b) 50 N
+   c) 100 N
+   d) 150 N
+   e) 200 N
+   Respuesta: c
+
+10. Una fuerza de 30 N actúa sobre un área de 3 m². ¿Cuál es la presión?
+    a) 5 Pa
+    b) 10 Pa
+    c) 15 Pa
+    d) 20 Pa
+    e) 30 Pa
+    Respuesta: b
+
+11. Un móvil recorre 120 m en 6 s. ¿Cuál es su velocidad?
+    a) 15 m/s
+    b) 18 m/s
+    c) 20 m/s
+    d) 22 m/s
+    e) 24 m/s
+    Respuesta: c
+
+12. Un objeto desacelera de 20 m/s a 0 en 4 s. ¿Cuál es su aceleración?
+    a) -2 m/s²
+    b) -3 m/s²
+    c) -4 m/s²
+    d) -5 m/s²
+    e) -6 m/s²
+    Respuesta: c
+
+13. ¿Qué fuerza se necesita para acelerar 3 m/s² a un cuerpo de 6 kg?
+    a) 12 N
+    b) 15 N
+    c) 18 N
+    d) 20 N
+    e) 24 N
+    Respuesta: c
+
+14. Un cuerpo recorre 50 m en 10 s con velocidad constante. ¿Cuál es su velocidad?
+    a) 3 m/s
+    b) 4 m/s
+    c) 5 m/s
+    d) 6 m/s
+    e) 7 m/s
+    Respuesta: c
+
+15. Un objeto cae durante 2 s. ¿Qué distancia recorre? (g = 10 m/s²)
+    a) 10 m
+    b) 15 m
+    c) 20 m
+    d) 25 m
+    e) 30 m
+    Respuesta: c
+
+16. ¿Cuál es la potencia si se realiza 200 J en 10 s?
+    a) 10 W
+    b) 15 W
+    c) 20 W
+    d) 25 W
+    e) 30 W
+    Respuesta: c
+
+17. Un cuerpo de 3 kg se mueve a 4 m/s. ¿Cuál es su energía cinética?
+    a) 12 J
+    b) 18 J
+    c) 24 J
+    d) 30 J
+    e) 36 J
+    Respuesta: c
+
+18. ¿Qué aceleración tiene un móvil que pasa de 0 a 15 m/s en 3 s?
+    a) 3 m/s²
+    b) 4 m/s²
+    c) 5 m/s²
+    d) 6 m/s²
+    e) 7 m/s²
+    Respuesta: c
+
+19. Un cuerpo de 8 kg es levantado a 5 m de altura. ¿Cuál es su energía potencial? (g = 10 m/s²)
+    a) 300 J
+    b) 350 J
+    c) 400 J
+    d) 450 J
+    e) 500 J
+    Respuesta: c
+
+20. Un móvil recorre 200 m en 20 s. ¿Cuál es su velocidad?
+    a) 8 m/s
+    b) 9 m/s
+    c) 10 m/s
+    d) 11 m/s
+    e) 12 m/s
+    Respuesta: c
