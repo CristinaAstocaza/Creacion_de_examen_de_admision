@@ -26,6 +26,14 @@ public record GenerarExamenRequest(
 
         @Valid
         @NotNull(message = "Los cursos seleccionados son obligatorios")
-        List<GenerarExamenCursoRequest> cursos
+        List<GenerarExamenCursoRequest> cursos,
+
+        // --- Campos opcionales para la carátula del PDF ---
+        String nombreUniversidad,
+        String tituloExamen,
+        String modalidad,
+        /** Color de fondo de la portada en formato HEX (ej: "#FF5733"). Usa blanco si es null. */
+        String colorPortada,
+        String logoUrl
 ) {
 }

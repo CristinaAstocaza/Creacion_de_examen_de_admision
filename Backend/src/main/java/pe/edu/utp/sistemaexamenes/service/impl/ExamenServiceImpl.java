@@ -82,6 +82,11 @@ public class ExamenServiceImpl implements ExamenService {
                 .estado(EstadoExamen.ACTIVO)
                 .fechaPublicacion(LocalDateTime.now())
                 .categoriaExamen(categoria)
+                .nombreUniversidad(request.nombreUniversidad())
+                .tituloExamen(request.tituloExamen())
+                .modalidad(request.modalidad())
+                .colorPortada(request.colorPortada())
+                .logoUrl(request.logoUrl())
                 .build();
 
         agregarConfiguraciones(examen, request.cursos(), cursos);

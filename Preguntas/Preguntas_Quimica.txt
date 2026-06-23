@@ -1,0 +1,160 @@
+1. El número atómico representa:
+   a) Protones + neutrones
+   b) Solo neutrones
+   c) Protones
+   d) Electrones + neutrones
+   e) Masa del átomo
+   Respuesta: c
+
+2. Un átomo neutro tiene:
+   a) Más protones que electrones
+   b) Más electrones que protones
+   c) Igual número de protones y electrones
+   d) Solo protones
+   e) Solo neutrones
+   Respuesta: c
+
+3. El enlace iónico se forma por:
+   a) Compartición de electrones
+   b) Transferencia de electrones
+   c) Unión de neutrones
+   d) Unión de protones
+   e) Mezcla física
+   Respuesta: b
+
+4. El agua (H₂O) es una sustancia:
+   a) Elemental
+   b) Compuesta
+   c) Metálica
+   d) Radiactiva
+   e) Simple
+   Respuesta: b
+
+5. El estado sólido se caracteriza por:
+   a) Forma variable
+   b) Volumen variable
+   c) Forma y volumen definidos
+   d) Alta compresibilidad
+   e) Partículas libres
+   Respuesta: c
+
+6. El estado gaseoso tiene:
+   a) Forma definida
+   b) Volumen definido
+   c) Forma y volumen variables
+   d) Alta densidad siempre
+   e) Partículas fijas
+   Respuesta: c
+
+7. La tabla periódica organiza los elementos según:
+   a) Color
+   b) Masa atómica únicamente
+   c) Número atómico
+   d) Densidad
+   e) Estado físico
+   Respuesta: c
+
+8. Un metal se caracteriza por:
+   a) Fragilidad
+   b) Mal conductor
+   c) Buena conductividad eléctrica
+   d) Ser gas
+   e) No tener brillo
+   Respuesta: c
+
+9. Un no metal generalmente:
+   a) Conduce electricidad
+   b) Es brillante
+   c) Es mal conductor
+   d) Es siempre sólido metálico
+   e) Tiene alta densidad
+   Respuesta: c
+
+10. El pH menor a 7 indica una sustancia:
+    a) Neutra
+    b) Ácida
+    c) Básica
+    d) Salina
+    e) Metálica
+    Respuesta: b
+
+11. El pH mayor a 7 indica una sustancia:
+    a) Ácida
+    b) Neutra
+    c) Básica
+    d) Radiactiva
+    e) Orgánica
+    Respuesta: c
+
+12. El átomo está formado por:
+    a) Solo protones
+    b) Protones y neutrones únicamente
+    c) Protones, neutrones y electrones
+    d) Solo electrones
+    e) Moléculas
+    Respuesta: c
+
+13. El electrón tiene carga:
+    a) Positiva
+    b) Neutra
+    c) Negativa
+    d) Variable
+    e) Doble positiva
+    Respuesta: c
+
+14. El protón tiene carga:
+    a) Negativa
+    b) Neutra
+    c) Positiva
+    d) Variable
+    e) Doble negativa
+    Respuesta: c
+
+15. El neutrón tiene carga:
+    a) Positiva
+    b) Negativa
+    c) Neutra
+    d) Doble positiva
+    e) Doble negativa
+    Respuesta: c
+
+16. Una reacción de combustión generalmente produce:
+    a) Solo agua
+    b) Solo oxígeno
+    c) CO₂ y H₂O
+    d) Sales
+    e) Metales
+    Respuesta: c
+
+17. La fórmula del agua es:
+    a) CO₂
+    b) H₂O
+    c) O₂
+    d) H₂
+    e) NaCl
+    Respuesta: b
+
+18. El oxígeno en la naturaleza es:
+    a) Metal
+    b) Gas noble
+    c) No metal
+    d) Metal alcalino
+    e) Sal
+    Respuesta: c
+
+19. La masa atómica se encuentra principalmente en:
+    a) Electrones
+    b) Protones y neutrones
+    c) Solo electrones
+    d) Solo protones
+    e) Vacíos
+    Respuesta: b
+
+20. Una mezcla homogénea es aquella que:
+    a) Tiene fases visibles
+    b) No es uniforme
+    c) Es uniforme en toda su composición
+    d) Es siempre sólida
+    e) No puede separarse
+    Respuesta: c
+

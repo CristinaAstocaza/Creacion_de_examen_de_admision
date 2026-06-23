@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import './Areas.css';
-import { actualizarCurso, crearCurso, eliminarCurso, listarCursos } from '../../../services/cursoService';
+import { actualizarCurso, crearCurso, eliminarCurso, listarCursos, obtenerCurso } from '../../../services/cursoService';
 
 interface Curso {
   id: number;
@@ -21,6 +21,7 @@ export default function Cursos() {
   const [codigo, setCodigo] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [activo, setActivo] = useState(true);
+  const [selectedCurso, setSelectedCurso] = useState<Curso | null>(null);
 
   const cargarCursos = async () => {
     try {
@@ -54,6 +55,15 @@ export default function Cursos() {
     setDescripcion('');
     setActivo(true);
     setIsModalOpen(true);
+  };
+
+  const handleOpenDetailModal = async (curso: Curso) => {
+    try {
+      const data = await obtenerCurso(curso.id);
+      setSelectedCurso(data);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al obtener detalle del curso');
+    }
   };
 
   const handleOpenEditModal = (curso: Curso) => {
@@ -150,6 +160,9 @@ export default function Cursos() {
                 </td>
                 <td>
                   <div className="action-buttons">
+                    <button className="btn-icon" title="Ver Detalle" onClick={() => handleOpenDetailModal(curso)}>
+                      <span className="material-icons-outlined">visibility</span>
+                    </button>
                     <button className="btn-icon" title="Editar" onClick={() => handleOpenEditModal(curso)}>
                       <span className="material-icons-outlined">edit</span>
                     </button>
@@ -207,6 +220,29 @@ export default function Cursos() {
             <div className="modal-footer">
               <button className="btn-outline" onClick={handleCloseModal}>Cancelar</button>
               <button className="btn-primary" onClick={handleSaveCurso}>{editingId ? 'Guardar Cambios' : 'Guardar Curso'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedCurso && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Detalle del Curso</h3>
+              <button className="btn-icon" onClick={() => setSelectedCurso(null)}>
+                <span className="material-icons-outlined">close</span>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p><strong>Nombre:</strong> {selectedCurso.nombre}</p>
+              <p><strong>Código:</strong> {selectedCurso.codigo || 'N/A'}</p>
+              <p><strong>Descripción:</strong> {selectedCurso.descripcion || 'Sin descripción'}</p>
+              <p><strong>Estado:</strong> {selectedCurso.activo ? 'Activo' : 'Inactivo'}</p>
+              <p><strong>Fecha de Creación:</strong> {new Date(selectedCurso.fechaCreacion).toLocaleDateString()}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={() => setSelectedCurso(null)}>Cerrar</button>
             </div>
           </div>
         </div>

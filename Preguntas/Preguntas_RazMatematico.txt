@@ -1,0 +1,160 @@
+1. ¿Cuál es el siguiente número en la serie? 2, 6, 12, 20, 30, ___
+   a) 36
+   b) 40
+   c) 42
+   d) 44
+   e) 48
+   Respuesta: c
+
+2. ¿Cuál es el siguiente número? 1, 4, 9, 16, 25, ___
+   a) 30
+   b) 35
+   c) 36
+   d) 40
+   e) 49
+   Respuesta: c
+
+3. Si 3 → 9, 4 → 16, 5 → 25, entonces 6 → ?
+   a) 30
+   b) 32
+   c) 34
+   d) 36
+   e) 38
+   Respuesta: d
+
+4. ¿Cuál es el siguiente término? 5, 10, 20, 40, ___
+   a) 60
+   b) 70
+   c) 80
+   d) 90
+   e) 100
+   Respuesta: c
+
+5. En una fila hay 5 personas. ¿De cuántas formas pueden ordenarse?
+   a) 10
+   b) 20
+   c) 60
+   d) 100
+   e) 120
+   Respuesta: e
+
+6. Si hoy es lunes, ¿qué día será dentro de 10 días?
+   a) Martes
+   b) Miércoles
+   c) Jueves
+   d) Viernes
+   e) Sábado
+   Respuesta: c
+
+7. ¿Cuántos números pares hay del 1 al 20?
+   a) 8
+   b) 9
+   c) 10
+   d) 11
+   e) 12
+   Respuesta: c
+
+8. Si 2 obreros hacen una obra en 6 días, 3 obreros la harán en:
+   a) 2 días
+   b) 3 días
+   c) 4 días
+   d) 5 días
+   e) 6 días
+   Respuesta: c
+
+9. ¿Cuántos triángulos se forman con 3 puntos no colineales?
+   a) 1
+   b) 2
+   c) 3
+   d) 4
+   e) 5
+   Respuesta: a
+
+10. Si un número aumenta en 50% y luego disminuye en 50%, el resultado es:
+    a) Mayor
+    b) Menor
+    c) Igual al original
+    d) Doble
+    e) Triple
+    Respuesta: b
+
+11. ¿Cuál es el siguiente número? 2, 3, 5, 7, 11, ___
+    a) 12
+    b) 13
+    c) 14
+    d) 15
+    e) 17
+    Respuesta: b
+
+12. Si 1 + 2 = 3, 2 + 3 = 10, 3 + 4 = 21, entonces 4 + 5 = ?
+    a) 20
+    b) 30
+    c) 40
+    d) 45
+    e) 50
+    Respuesta: d
+
+13. En una caja hay 3 rojas y 2 azules. Probabilidad de sacar una roja:
+    a) 1/5
+    b) 2/5
+    c) 3/5
+    d) 4/5
+    e) 5/5
+    Respuesta: c
+
+14. ¿Cuántos múltiplos de 3 hay del 1 al 30?
+    a) 8
+    b) 9
+    c) 10
+    d) 11
+    e) 12
+    Respuesta: c
+
+15. Si 5x = 25, entonces x =
+    a) 3
+    b) 4
+    c) 5
+    d) 6
+    e) 7
+    Respuesta: c
+
+16. ¿Cuál es el siguiente número? 1, 1, 2, 3, 5, 8, ___
+    a) 11
+    b) 12
+    c) 13
+    d) 14
+    e) 15
+    Respuesta: c
+
+17. Si un tren recorre 100 km en 2 horas, su velocidad es:
+    a) 40 km/h
+    b) 45 km/h
+    c) 50 km/h
+    d) 55 km/h
+    e) 60 km/h
+    Respuesta: c
+
+18. ¿Cuántos cuadrados hay en una cuadrícula de 2x2?
+    a) 4
+    b) 5
+    c) 6
+    d) 7
+    e) 8
+    Respuesta: b
+
+19. Si 6 → 36, 7 → 49, 8 → 64, entonces 9 → ?
+    a) 70
+    b) 72
+    c) 80
+    d) 81
+    e) 90
+    Respuesta: d
+
+20. ¿Cuál es el siguiente número? 10, 9, 7, 4, 0, ___
+    a) -3
+    b) -4
+    c) -5
+    d) -6
+    e) -7
+    Respuesta: c
+

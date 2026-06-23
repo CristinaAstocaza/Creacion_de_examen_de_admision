@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './BancoPreguntas.css';
 import { listarCursos } from '../../../services/cursoService';
-import { actualizarPregunta, crearPregunta, listarPreguntas } from '../../../services/preguntaService';
+import { actualizarPregunta, crearPregunta, listarPreguntas, eliminarPregunta, obtenerPregunta } from '../../../services/preguntaService';
 
 interface Curso {
   id: number;
@@ -114,9 +114,24 @@ export default function BancoPreguntas() {
     return matchesSearch && matchesCurso && matchesDiff;
   }), [filterCursoId, filterDifficulty, preguntas, searchTerm]);
 
-  const handleOpenDetail = (question: PreguntaResponse) => {
-    setSelectedQuestion(question);
-    setIsAnswerRevealed(false);
+  const handleOpenDetail = async (question: PreguntaResponse) => {
+    try {
+      const data = await obtenerPregunta(question.id);
+      setSelectedQuestion(data);
+      setIsAnswerRevealed(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al obtener detalle de la pregunta');
+    }
+  };
+
+  const handleDeleteQuestion = async (id: number) => {
+    if (!window.confirm('¿Está seguro de eliminar esta pregunta?')) return;
+    try {
+      await eliminarPregunta(id);
+      await cargarDatos(); // refrescar lista
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar la pregunta');
+    }
   };
 
   const handleOpenCreateForm = () => {
@@ -283,6 +298,7 @@ export default function BancoPreguntas() {
                   <div className="action-buttons">
                     <button className="btn-icon" title="Ver Detalle" onClick={() => handleOpenDetail(q)}><span className="material-icons-outlined">visibility</span></button>
                     <button className="btn-icon" title="Editar" onClick={() => handleOpenEditForm(q)}><span className="material-icons-outlined">edit</span></button>
+                    <button className="btn-icon" title="Eliminar" onClick={() => handleDeleteQuestion(q.id)} style={{ color: 'var(--danger)' }}><span className="material-icons-outlined">delete</span></button>
                   </div>
                 </td>
               </tr>

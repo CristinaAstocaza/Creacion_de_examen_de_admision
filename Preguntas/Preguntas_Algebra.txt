@@ -1,0 +1,162 @@
+1. Si ( x + 5 = 12 ), entonces ( x ) es:
+   a) 5
+   b) 6
+   c) 7
+   d) 8
+   e) 9
+   Respuesta: c
+
+2. Si ( 2x = 18 ), entonces ( x ) es:
+   a) 6
+   b) 7
+   c) 8
+   d) 9
+   e) 10
+   Respuesta: d
+
+3. La solución de ( x^2 = 25 ) es:
+   a) 5
+   b) -5
+   c) ±5
+   d) 0
+   e) 25
+   Respuesta: c
+
+4. Factoriza: ( x^2 - 9 ):
+   a) (x-3)(x-3)
+   b) (x+3)(x+3)
+   c) (x-3)(x+3)
+   d) (x+9)(x-1)
+   e) (x-9)(x+1)
+   Respuesta: c
+
+5. Si ( (x-2)(x+2) ), el resultado es:
+   a) x² - 4
+   b) x² + 4
+   c) x² - 2x + 2
+   d) x² + 2x + 2
+   e) x² - 1
+   Respuesta: a
+
+6. Resolver: ( 3x + 2 = 11 ):
+   a) 2
+   b) 3
+   c) 4
+   d) 5
+   e) 6
+   Respuesta: b
+
+7. Si ( x = 3 ), el valor de ( x^2 + 2x ) es:
+   a) 9
+   b) 12
+   c) 15
+   d) 18
+   e) 21
+   Respuesta: d
+
+8. El producto notable ( (a+b)^2 ) es:
+   a) a² + b²
+   b) a² - b²
+   c) a² + 2ab + b²
+   d) a² - 2ab + b²
+   e) 2a + 2b
+   Respuesta: c
+
+9. Si ( x^2 + 6x + 9 ), su factorización es:
+   a) (x+3)(x+3)
+   b) (x-3)(x-3)
+   c) (x+9)(x+1)
+   d) (x-9)(x-1)
+   e) (x+6)(x+3)
+   Respuesta: a
+
+10. Resolver: ( x/2 = 7 ):
+    a) 12
+    b) 13
+    c) 14
+    d) 15
+    e) 16
+    Respuesta: c
+
+11. Si ( x - 3 = 10 ), entonces x es:
+    a) 11
+    b) 12
+    c) 13
+    d) 14
+    e) 15
+    Respuesta: c
+
+12. El valor de ( x^2 - x ) cuando ( x = 5 ) es:
+    a) 15
+    b) 20
+    c) 25
+    d) 30
+    e) 35
+    Respuesta: b
+
+13. Sistema:
+    ( x + y = 10 ), ( x = 6 ). Entonces y es:
+    a) 2
+    b) 3
+    c) 4
+    d) 5
+    e) 6
+    Respuesta: c
+
+14. Si ( 5x = 0 ), entonces x es:
+    a) 1
+    b) 5
+    c) 0
+    d) -5
+    e) 10
+    Respuesta: c
+
+15. Factoriza: ( x^2 + x ):
+    a) x(x+1)
+    b) (x+1)(x+1)
+    c) (x-1)(x+1)
+    d) x²(1+x)
+    e) x(x-1)
+    Respuesta: a
+
+16. Si ( (x+3)(x-3) ), entonces es igual a:
+    a) x² + 9
+    b) x² - 9
+    c) x² + 6x + 9
+    d) x² - 6x + 9
+    e) 2x
+    Respuesta: b
+
+17. Si ( x = -2 ), entonces ( x^2 ) es:
+    a) -4
+    b) 0
+    c) 2
+    d) 4
+    e) -2
+    Respuesta: d
+
+18. Resolver: ( 4x - 8 = 0 ):
+    a) 1
+    b) 2
+    c) 3
+    d) 4
+    e) 5
+    Respuesta: b
+
+19. Si ( x + x = 20 ), entonces x es:
+    a) 5
+    b) 8
+    c) 10
+    d) 12
+    e) 15
+    Respuesta: c
+
+20. La expresión ( x^2 - 2x + 1 ) es igual a:
+    a) (x-1)(x-1)
+    b) (x+1)(x+1)
+    c) (x-2)(x+2)
+    d) x(x-1)
+    e) x² - 1
+    Respuesta: a
+
+

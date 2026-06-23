@@ -23,3 +23,17 @@ export const listarConfigCursos = async (categoriaId) => {
   const { data } = await api.get(`/categorias/${categoriaId}/config-cursos`);
   return data;
 };
+
+export const crearConfigCurso = async (categoriaId, payload) => {
+  const { data } = await api.post(`/categorias/${categoriaId}/config-cursos`, payload);
+  return data;
+};
+
+export const actualizarConfigCurso = async (categoriaId, idConfig, payload) => {
+  const { data } = await api.put(`/categorias/${categoriaId}/config-cursos/${idConfig}`, payload);
+  return data;
+};
+
+export const eliminarConfigCurso = async (categoriaId, idConfig) => {
+  await api.delete(`/categorias/${categoriaId}/config-cursos/${idConfig}`);
+};

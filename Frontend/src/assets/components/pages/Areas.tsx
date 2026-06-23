@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import './Areas.css';
-import { actualizarCategoria, crearCategoria, eliminarCategoria, listarCategorias } from '../../../services/categoriaService';
+import { 
+  actualizarCategoria, 
+  crearCategoria, 
+  eliminarCategoria, 
+  listarCategorias,
+  listarConfigCursos,
+  crearConfigCurso,
+  actualizarConfigCurso,
+  eliminarConfigCurso
+} from '../../../services/categoriaService';
+import { listarCursos } from '../../../services/cursoService';
 
 interface Area {
   id: string;
@@ -16,19 +26,41 @@ interface CategoriaResponse {
   activo: boolean;
 }
 
+interface Curso {
+  id: number;
+  nombre: string;
+}
+
+interface ConfigCurso {
+  id: number;
+  cursoId: number;
+  cursoNombre: string;
+  cantidadSugerida: number;
+  activo: boolean;
+}
+
 export default function Areas() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Estados Modal Categoría
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newAreaName, setNewAreaName] = useState('');
   const [newAreaDesc, setNewAreaDesc] = useState('');
-  
-  // Estado para controlar si el select dice 'Activo' o 'Inactivo'
   const [newAreaStatus, setNewAreaStatus] = useState<'Activo' | 'Inactivo'>('Activo');
-  
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Estados Modal Configuración Cursos
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [selectedAreaForConfig, setSelectedAreaForConfig] = useState<Area | null>(null);
+  const [configCursos, setConfigCursos] = useState<ConfigCurso[]>([]);
+  const [cursosDisponibles, setCursosDisponibles] = useState<Curso[]>([]);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  
+  const [newConfigCursoId, setNewConfigCursoId] = useState<string>('');
+  const [newConfigCantidad, setNewConfigCantidad] = useState<number>(0);
+  const [editingConfigId, setEditingConfigId] = useState<number | null>(null);
 
   const cargarCategorias = async () => {
     try {
@@ -49,11 +81,7 @@ export default function Areas() {
   };
 
   useEffect(() => {
-    const cargar = async () => {
-      await cargarCategorias();
-    };
-
-    cargar();
+    cargarCategorias();
   }, []);
 
   const handleOpenCreateModal = () => {
@@ -74,9 +102,6 @@ export default function Areas() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setNewAreaName('');
-    setNewAreaDesc('');
-    setNewAreaStatus('Activo');
     setEditingId(null);
   };
 
@@ -85,19 +110,14 @@ export default function Areas() {
       alert('Por favor, ingresa el nombre del área. Es obligatorio.');
       return;
     }
-
     try {
       const payload = {
         nombre: newAreaName.trim(),
         descripcion: newAreaDesc.trim() || null,
         activo: newAreaStatus === 'Activo',
       };
-
-      if (editingId) {
-        await actualizarCategoria(editingId, payload);
-      } else {
-        await crearCategoria(payload);
-      }
+      if (editingId) await actualizarCategoria(editingId, payload);
+      else await crearCategoria(payload);
 
       await cargarCategorias();
       handleCloseModal();
@@ -107,11 +127,89 @@ export default function Areas() {
   };
 
   const handleDeleteArea = async (id: string) => {
+    if (!window.confirm('¿Está seguro de eliminar esta área?')) return;
     try {
       await eliminarCategoria(id);
       await cargarCategorias();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el área');
+    }
+  };
+
+  // -- HANDLERS CONFIGURACIÓN CURSOS --
+  const handleOpenConfigModal = async (area: Area) => {
+    setSelectedAreaForConfig(area);
+    setIsConfigModalOpen(true);
+    setEditingConfigId(null);
+    setNewConfigCursoId('');
+    setNewConfigCantidad(0);
+    
+    try {
+      setLoadingConfig(true);
+      const [configs, cursos] = await Promise.all([
+        listarConfigCursos(area.id),
+        listarCursos()
+      ]);
+      setConfigCursos(configs);
+      setCursosDisponibles(cursos);
+    } catch (err) {
+      alert('Error al cargar configuración de cursos');
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
+  const handleCloseConfigModal = () => {
+    setIsConfigModalOpen(false);
+    setSelectedAreaForConfig(null);
+  };
+
+  const handleSaveConfig = async () => {
+    if (!selectedAreaForConfig) return;
+    if (!newConfigCursoId || newConfigCantidad <= 0) {
+      alert('Seleccione un curso válido y una cantidad mayor a 0');
+      return;
+    }
+
+    try {
+      const payload = {
+        cursoId: Number(newConfigCursoId),
+        cantidadSugerida: newConfigCantidad,
+        activo: true
+      };
+
+      if (editingConfigId) {
+        await actualizarConfigCurso(selectedAreaForConfig.id, editingConfigId, payload);
+      } else {
+        await crearConfigCurso(selectedAreaForConfig.id, payload);
+      }
+      
+      const configs = await listarConfigCursos(selectedAreaForConfig.id);
+      setConfigCursos(configs);
+      
+      setEditingConfigId(null);
+      setNewConfigCursoId('');
+      setNewConfigCantidad(0);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo guardar la configuración');
+    }
+  };
+
+  const handleEditConfig = (config: ConfigCurso) => {
+    setEditingConfigId(config.id);
+    setNewConfigCursoId(String(config.cursoId));
+    setNewConfigCantidad(config.cantidadSugerida);
+  };
+
+  const handleDeleteConfig = async (configId: number) => {
+    if (!selectedAreaForConfig) return;
+    if (!window.confirm('¿Está seguro de quitar este curso?')) return;
+    try {
+      await eliminarConfigCurso(selectedAreaForConfig.id, configId);
+      const configs = await listarConfigCursos(selectedAreaForConfig.id);
+      setConfigCursos(configs);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar la configuración');
     }
   };
 
@@ -161,6 +259,13 @@ export default function Areas() {
                 </td>
                 <td>
                   <div className="action-buttons">
+                    <button 
+                      className="btn-icon" 
+                      title="Configurar Cursos" 
+                      onClick={() => handleOpenConfigModal(area)}
+                    >
+                      <span className="material-icons-outlined">settings</span>
+                    </button>
                     <button 
                       className="btn-icon" 
                       title="Editar" 
@@ -242,6 +347,91 @@ export default function Areas() {
               <button className="btn-primary" onClick={handleSaveArea}>
                 {editingId ? 'Guardar Cambios' : 'Guardar Área'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isConfigModalOpen && selectedAreaForConfig && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>Configuración de Cursos: {selectedAreaForConfig.name}</h3>
+              <button className="btn-icon" onClick={handleCloseConfigModal}>
+                <span className="material-icons-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '20px' }}>
+                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <label>Curso</label>
+                  <select 
+                    className="form-control"
+                    value={newConfigCursoId}
+                    onChange={(e) => setNewConfigCursoId(e.target.value)}
+                  >
+                    <option value="">Seleccione...</option>
+                    {cursosDisponibles.map(c => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group" style={{ width: '100px', marginBottom: 0 }}>
+                  <label>Preguntas</label>
+                  <input 
+                    type="number" 
+                    className="form-control"
+                    value={newConfigCantidad}
+                    onChange={(e) => setNewConfigCantidad(Number(e.target.value))}
+                    min="1"
+                  />
+                </div>
+                <button className="btn-primary" onClick={handleSaveConfig} style={{ height: '40px' }}>
+                  {editingConfigId ? 'Actualizar' : 'Agregar'}
+                </button>
+              </div>
+
+              {loadingConfig ? (
+                <p>Cargando configuración...</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #ccc', textAlign: 'left' }}>
+                      <th style={{ padding: '8px' }}>Curso</th>
+                      <th style={{ padding: '8px', width: '100px' }}>Cant. Sugerida</th>
+                      <th style={{ padding: '8px', width: '80px' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {configCursos.map(conf => (
+                      <tr key={conf.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '8px' }}>{conf.cursoNombre}</td>
+                        <td style={{ padding: '8px' }}>{conf.cantidadSugerida}</td>
+                        <td style={{ padding: '8px', display: 'flex', gap: '4px' }}>
+                          <button className="btn-icon" onClick={() => handleEditConfig(conf)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>edit</span>
+                          </button>
+                          <button className="btn-icon delete" onClick={() => handleDeleteConfig(conf.id)}>
+                            <span className="material-icons-outlined" style={{ fontSize: '18px' }}>delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {configCursos.length === 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ padding: '16px', textAlign: 'center' }}>
+                          No hay cursos configurados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-outline" onClick={handleCloseConfigModal}>Cerrar</button>
             </div>
           </div>
         </div>

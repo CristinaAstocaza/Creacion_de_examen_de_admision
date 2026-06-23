@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './GenerarExamen.css';
 import { listarCategorias, listarConfigCursos } from '../../../services/categoriaService';
 import { listarCursos } from '../../../services/cursoService';
-import { descargarPdfSolucionario, descargarPdfVersion, descargarPdfsVersiones, generarExamen, obtenerVersionExamen } from '../../../services/examenService';
+import { generarExamen } from '../../../services/examenService';
 
 interface CategoriaExamen {
   id: number;
@@ -35,22 +36,6 @@ interface Quantities {
   dificil: number;
 }
 
-interface AlternativaVista {
-  letra: string;
-  tipo: string;
-  contenidoTexto: string | null;
-  imagenUrl: string | null;
-}
-
-interface PreguntaVista {
-  numeroOrden: number;
-  codigo: string;
-  enunciado: string;
-  imagenUrl: string | null;
-  cursoNombre: string;
-  alternativas: AlternativaVista[];
-}
-
 interface ExamenGenerado {
   id: number;
   codigo: string;
@@ -58,16 +43,10 @@ interface ExamenGenerado {
   categoriaExamenNombre: string;
 }
 
-interface ExamenVersion {
-  codigoVersion: string;
-  preguntas: PreguntaVista[];
-}
-
-const versionCode = (index: number) => String.fromCharCode(65 + index);
-
 const emptyQuantities = (): Quantities => ({ total: 0, facil: 0, medio: 0, dificil: 0 });
 
 export default function GenerarExamen() {
+  const navigate = useNavigate();
   const [categorias, setCategorias] = useState<CategoriaExamen[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [configs, setConfigs] = useState<CategoriaCursoConfig[]>([]);
@@ -82,7 +61,7 @@ export default function GenerarExamen() {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [examenGenerado, setExamenGenerado] = useState<ExamenGenerado | null>(null);
-  const [versionPreview, setVersionPreview] = useState<ExamenVersion | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const cargarCategoriasYCursos = async () => {
     try {
@@ -99,11 +78,7 @@ export default function GenerarExamen() {
   };
 
   useEffect(() => {
-    const cargarDatosIniciales = async () => {
-      await cargarCategoriasYCursos();
-    };
-
-    cargarDatosIniciales();
+    cargarCategoriasYCursos();
   }, []);
 
   useEffect(() => {
@@ -195,6 +170,26 @@ export default function GenerarExamen() {
   const handleGenerate = async () => {
     if (isGenerateDisabled) return;
 
+    // Validación del diseño de la carátula
+    const savedConfig = localStorage.getItem('configuracionExamen');
+    let configValida = false;
+    let parsedConfig: any = null;
+
+    if (savedConfig) {
+      try {
+        parsedConfig = JSON.parse(savedConfig);
+        // Validamos que existan y no estén vacíos los campos requeridos para la portada
+        if (parsedConfig.institutionName && parsedConfig.headerText && parsedConfig.modalidad && parsedConfig.colorPortada) {
+          configValida = true;
+        }
+      } catch (e) {}
+    }
+
+    if (!configValida) {
+      alert("Aún no hay un diseño hecho para la categoría seleccionada. Por favor, configure el formato antes de generar.");
+      return;
+    }
+
     const confirmacion = window.confirm(`Vas a generar ${numVersions} versión(es) de un examen con 100 preguntas. ¿Deseas continuar?`);
     if (!confirmacion || !selectedCategoriaId) return;
 
@@ -214,6 +209,15 @@ export default function GenerarExamen() {
     try {
       setGenerating(true);
       setError('');
+      
+      const payloadConfig = {
+        nombreUniversidad: parsedConfig.institutionName.trim(),
+        tituloExamen: parsedConfig.headerText.trim(),
+        modalidad: parsedConfig.modalidad.trim(),
+        colorPortada: parsedConfig.colorPortada,
+        logoUrl: parsedConfig.logoUrl || null
+      };
+
       const examen = await generarExamen({
         idCategoria: selectedCategoriaId,
         nombreExamen: nombreExamen.trim() || 'Examen de admisión',
@@ -221,10 +225,11 @@ export default function GenerarExamen() {
         aleatorizarPreguntas: randomizeQuestions,
         aleatorizarAlternativas: randomizeOptions,
         cursos: cursosPayload,
+        ...payloadConfig
       });
-      const version = await obtenerVersionExamen(examen.id, 'A');
+
       setExamenGenerado(examen);
-      setVersionPreview(version);
+      setShowSuccessModal(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el examen');
     } finally {
@@ -232,31 +237,9 @@ export default function GenerarExamen() {
     }
   };
 
-  const handleDescargarPdf = async (version: string) => {
-    if (!examenGenerado) return;
-    try {
-      await descargarPdfVersion(examenGenerado.id, version);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo descargar el PDF');
-    }
-  };
-
-  const handleDescargarSolucionario = async (version: string) => {
-    if (!examenGenerado) return;
-    try {
-      await descargarPdfSolucionario(examenGenerado.id, version);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo descargar el solucionario');
-    }
-  };
-
-  const handleDescargarZip = async () => {
-    if (!examenGenerado) return;
-    try {
-      await descargarPdfsVersiones(examenGenerado.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo descargar el ZIP');
-    }
+  const handleCloseSuccessModal = () => {
+    setShowSuccessModal(false);
+    navigate('/historial');
   };
 
   return (
@@ -287,8 +270,8 @@ export default function GenerarExamen() {
                 </div>
               </div>
               <div className="form-group">
-                <label>Nombre del examen</label>
-                <input className="form-control" value={nombreExamen} onChange={(e) => setNombreExamen(e.target.value)} />
+                <label>Nombre del archivo</label>
+                <input className="form-control" placeholder="Nombre del archivo" value={nombreExamen} onChange={(e) => setNombreExamen(e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Número de Versiones</label>
@@ -372,53 +355,6 @@ export default function GenerarExamen() {
               </tbody>
             </table>
           </div>
-
-          {examenGenerado && versionPreview && (
-            <div className="a4-preview">
-              <div className="pdf-actions">
-                {Array.from({ length: numVersions }, (_, index) => versionCode(index)).map((version) => (
-                  <button key={version} className="btn-outline pdf-button" onClick={() => handleDescargarPdf(version)}>
-                    Descargar Versión {version}
-                  </button>
-                ))}
-                {numVersions > 1 && (
-                  <button className="btn-outline pdf-button" onClick={handleDescargarZip}>
-                    Descargar todas (ZIP)
-                  </button>
-                )}
-                <button className="btn-outline pdf-button" onClick={() => handleDescargarSolucionario(versionPreview.codigoVersion)}>
-                  Descargar Solucionario {versionPreview.codigoVersion}
-                </button>
-              </div>
-              <div className="exam-header">
-                <h2>{examenGenerado.nombre}</h2>
-                <p>Sistema de Admisión - Vista previa de examen generado</p>
-              </div>
-              <div className="exam-meta">
-                <span><strong>Categoría:</strong> {examenGenerado.categoriaExamenNombre}</span>
-                <span><strong>Código:</strong> {examenGenerado.codigo}</span>
-                <span><strong>Versión:</strong> {versionPreview.codigoVersion}</span>
-              </div>
-              <div className="exam-instructions">
-                <strong>Instrucciones:</strong> Lee cuidadosamente cada pregunta y marca solo una alternativa. No se muestran respuestas correctas en esta vista.
-              </div>
-              <ol className="question-list">
-                {versionPreview.preguntas.map((pregunta, index) => (
-                  <li key={`${index + 1}-${pregunta.codigo}`} className="question-item" value={index + 1}>
-                    <div className="question-text">{pregunta.enunciado}</div>
-                    <div className="question-course">Curso: {pregunta.cursoNombre}</div>
-                    <div className="alternatives-list">
-                      {pregunta.alternativas.map((alternativa) => (
-                        <div key={`${index + 1}-${alternativa.letra}`}>
-                          <strong>{alternativa.letra})</strong> {alternativa.tipo === 'IMAGEN' ? alternativa.imagenUrl : alternativa.contenidoTexto}
-                        </div>
-                      ))}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
         </div>
 
         <div className="summary-section">
@@ -461,6 +397,19 @@ export default function GenerarExamen() {
           </div>
         </div>
       </div>
+
+      {showSuccessModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <span className="material-icons-outlined success-icon">check_circle</span>
+            <h3>¡Generación Exitosa!</h3>
+            <p>Exámenes generados con éxito. Ya fueron cargados en la sección Historial de Exámenes con la configuración determinada.</p>
+            <button className="btn-primary" onClick={handleCloseSuccessModal}>
+              Ir al Historial
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

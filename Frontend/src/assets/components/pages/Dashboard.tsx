@@ -1,241 +1,255 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
+import { obtenerStatsDashboard } from '../../../services/dashboardService';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts';
 
-// --- INTERFACES DE DATOS ---
-interface KPI {
-  totalQuestions: number;
-  activeAreas: number;
-  generatedExams: number;
-  pendingReview: number;
-}
+// --- Componentes UI Reutilizables (Tema Claro) ---
+const KpiCard = ({ label, value, sub, trend, icon, accentColor }: any) => (
+  <div style={{ background: '#ffffff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>{label}</span>
+      <span style={{ background: accentColor, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: '20px' }}>{icon}</span>
+    </div>
+    <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{value}</div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+      {trend !== undefined && (
+        <span style={{ color: trend >= 0 ? '#16a34a' : '#dc2626', fontWeight: '600' }}>
+          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+        </span>
+      )}
+      <span style={{ color: '#64748b' }}>{sub}</span>
+    </div>
+  </div>
+);
 
-interface AreaStat {
-  id: string;
-  name: string;
-  count: number;
-  percentage: number;
-}
+const ChartCard = ({ children, style }: any) => (
+  <div style={{ background: '#ffffff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)', ...style }}>
+    {children}
+  </div>
+);
 
-interface DifficultyStat {
-  id: string;
-  level: string;
-  count: number;
-  percentage: number;
-}
+const SectionTitle = ({ title, subtitle }: any) => (
+  <div style={{ marginBottom: '20px' }}>
+    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#0f172a' }}>{title}</h3>
+    {subtitle && <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>{subtitle}</p>}
+  </div>
+);
 
-interface TopArea {
-  id: string;
-  rank: number;
-  name: string;
-  examCount: number;
-}
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: '#ffffff', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+        <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: index !== payload.length - 1 ? '4px' : 0 }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: entry.color || entry.fill }} />
+            <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: '500' }}>
+              {entry.name}: {entry.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
-interface ActivityItem {
-  id: string;
-  time: string;
-  date: string;
-  userInitials: string;
-  userName: string;
-  action: string;
-  target: string;
-}
+// Paleta de colores vibrantes para gráficos
+const COLORS = ['#6366f1', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899'];
 
 export const Dashboard: React.FC = () => {
-  // --- ESTADOS ---
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [kpis, setKpis] = useState<KPI | null>(null);
-  const [areas, setAreas] = useState<AreaStat[]>([]);
-  const [difficulties, setDifficulties] = useState<DifficultyStat[]>([]);
-  const [topAreas, setTopAreas] = useState<TopArea[]>([]);
-  const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
+  // --- Estados ---
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // --- SIMULACIÓN DE FETCH (API) ---
+  // --- Fetch de Datos ---
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
+    const fetchStats = async () => {
       try {
-        // Simulación de retraso de red
-        await new Promise(resolve => setTimeout(resolve, 800));
-
-        setKpis({
-          totalQuestions: 1245,
-          activeAreas: 8,
-          generatedExams: 142,
-          pendingReview: 18,
-        });
-
-        setAreas([
-          { id: 'a1', name: 'Matemáticas', count: 450, percentage: 36 },
-          { id: 'a2', name: 'Comunicación', count: 320, percentage: 25 },
-          { id: 'a3', name: 'Ciencias Naturales', count: 280, percentage: 22 },
-        ]);
-
-        setDifficulties([
-          { id: 'd1', level: 'Fácil', count: 450, percentage: 36.1 },
-          { id: 'd2', level: 'Media', count: 600, percentage: 48.2 },
-          { id: 'd3', level: 'Difícil', count: 195, percentage: 15.7 },
-        ]);
-
-        setTopAreas([
-          { id: 't1', rank: 1, name: 'Matemáticas', examCount: 65 },
-          { id: 't2', rank: 2, name: 'Comunicación', examCount: 58 },
-          { id: 't3', rank: 3, name: 'Física', examCount: 34 },
-          { id: 't4', rank: 4, name: 'Química', examCount: 29 },
-          { id: 't5', rank: 5, name: 'Historia', examCount: 25 },
-        ]);
-
-        setRecentActivities([
-          { id: 'act1', time: '10:30', date: '12 Jun', userInitials: 'AD', userName: 'Admin', action: 'añadió 10 preguntas a', target: 'Matemáticas' },
-          { id: 'act2', time: '09:15', date: '12 Jun', userInitials: 'AD', userName: 'Admin', action: 'generó examen', target: 'EX-MAT-015' },
-          { id: 'act3', time: '16:45', date: '11 Jun', userInitials: 'US', userName: 'User', action: 'añadió 5 preguntas a', target: 'Comunicación' },
-        ]);
-
-      } catch (error) {
-        console.error("Error cargando la información del dashboard", error);
-      } finally {
-        setIsLoading(false);
+        const data = await obtenerStatsDashboard();
+        setStats(data);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error al cargar stats:", err);
+        setError("No se pudo conectar con el servidor. Verifique que el backend esté corriendo.");
+        setLoading(false);
       }
     };
-
-    fetchDashboardData();
+    fetchStats();
   }, []);
 
-  // --- RENDERIZADO ---
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="dashboard-container" style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
-        <p>Cargando métricas del sistema...</p>
+      <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#64748b' }}>
+        <div className="spinner" style={{ marginRight: '12px', width: '24px', height: '24px', border: '3px solid rgba(99,102,241,0.2)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        Cargando dashboard académico...
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '32px' }}>
+        <div style={{ background: '#fee2e2', color: '#dc2626', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #fecaca' }}>
+          <span>⚠️</span> {error}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Preparación de Datos ---
+  const kpis = {
+    totalPreguntas: stats?.totalPreguntas || 0,
+    totalAreas: stats?.totalAreas || 0,
+    totalExamenes: stats?.totalExamenes || 0,
+    pendientes: stats?.pendientesRevision || 0,
+  };
+
+  const distribucionAreas = (stats?.distribucionPorArea || []).map((area: any, index: number) => ({
+    name: area.name || area.nombre || `Área ${index + 1}`,
+    value: area.count || area.cantidad || 0,
+    percentage: area.percentage || 0,
+    color: COLORS[index % COLORS.length]
+  }));
+
+  const actividadesRecientes = stats?.actividadesRecientes || [];
+
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Dashboard Profesional</h1>
-        <p>Vista estratégica y analítica del sistema de gestión de exámenes.</p>
-      </header>
+    <div style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <main style={{ flex: 1, padding: "32px", overflowY: "auto" }}>
+        
+        {/* --- Header --- */}
+        <div style={{ marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h1 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "#0f172a" }}>
+              Resumen Académico
+            </h1>
+            <p style={{ fontSize: "14px", color: "#64748b", margin: "4px 0 0 0" }}>
+              Panel de Control del Sistema de Exámenes
+            </p>
+          </div>
+        </div>
 
-      {/* KPIs Totales */}
-      {kpis && (
-        <section className="kpi-grid">
-          <div className="kpi-card">
-            <span className="kpi-title">Total Preguntas</span>
-            <span className="kpi-value">{kpis.totalQuestions.toLocaleString()}</span>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-title">Áreas Activas</span>
-            <span className="kpi-value">{kpis.activeAreas}</span>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-title">Exámenes Generados</span>
-            <span className="kpi-value">{kpis.generatedExams}</span>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-title">Pendientes de Revisión</span>
-            <span className="kpi-value">{kpis.pendingReview}</span>
-          </div>
-        </section>
-      )}
-
-      <section className="content-charts">
-        {/* FILA 1 */}
-        <div className="charts-row">
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           
-          {/* Distribución por Área */}
-          <div className="panel">
-            <h2 className="panel-title">Distribución de Preguntas por Área</h2>
-            {areas.map((area) => (
-              <div className="area-stat" key={area.id}>
-                <div className="area-stat-header">
-                  <span>{area.name}</span>
-                  <span>{area.count} ({area.percentage}%)</span>
-                </div>
-                <div className="progress-bar-bg">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${area.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
+          {/* --- KPIs Globales --- */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
+            <KpiCard label="Total Preguntas" value={kpis.totalPreguntas.toLocaleString()} sub="en banco activo" trend={5.2} icon="📚" accentColor="linear-gradient(90deg,#6366f1,#8b5cf6)" />
+            <KpiCard label="Áreas de Admisión" value={kpis.totalAreas} sub="registradas" icon="🏫" accentColor="linear-gradient(90deg,#06b6d4,#3b82f6)" />
+            <KpiCard label="Exámenes Creados" value={kpis.totalExamenes} sub="este ciclo" trend={12.5} icon="📄" accentColor="linear-gradient(90deg,#10b981,#34d399)" />
+            <KpiCard label="Pendientes Revisión" value={kpis.pendientes} sub="requieren atención" trend={-2.1} icon="⚠️" accentColor="linear-gradient(90deg,#f59e0b,#ef4444)" />
           </div>
 
-          {/* Distribución por Dificultad */}
-          <div className="panel">
-            <h2 className="panel-title">Distribución por Dificultad</h2>
-            <div className="difficulty-chart">
-              {difficulties.map((diff) => (
-                <div className="difficulty-bar" key={diff.id}>
-                  <div className="bar-fill" style={{ height: `${diff.percentage}%` }}>
-                    {diff.count}
+          {/* --- Gráficos (Distribución por Área) --- */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px" }}>
+            <ChartCard>
+              <SectionTitle title="Distribución de Preguntas" subtitle="Volumen total de preguntas por área de admisión" />
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={distribucionAreas} barSize={40} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="100%" stopColor="#8b5cf6" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#64748b" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(99,102,241,0.04)" }} />
+                  <Bar dataKey="value" name="Preguntas" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard>
+              <SectionTitle title="Proporción por Área" subtitle="Participación relativa en el sistema" />
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={distribucionAreas} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
+                    {distribucionAreas.map((entry: any, index: number) => (
+                      <Cell key={index} fill={entry.color} strokeWidth={0} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "16px", maxHeight: "100px", overflowY: "auto" }}>
+                {distribucionAreas.map((item: any, i: number) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: item.color }} />
+                      <span style={{ fontSize: "13px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px" }} title={item.name}>
+                        {item.name}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "13px", fontWeight: "600", color: "#0f172a" }}>{item.percentage}%</span>
                   </div>
-                  <span className="bar-label">{diff.level} ({diff.percentage}%)</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-
-        {/* FILA 2 */}
-        <div className="charts-row">
-          
-          {/* Evolución Exámenes (SVG Simulado) */}
-          <div className="panel">
-            <h2 className="panel-title">Evolución de Exámenes Generados (Últimos 6 meses)</h2>
-            <div className="evolution-chart">
-              <svg className="evolution-chart-inner" viewBox="0 0 400 150" preserveAspectRatio="none">
-                <line x1="0" y1="0" x2="0" y2="150" stroke="var(--border-color)" strokeWidth="1"/>
-                <line x1="0" y1="150" x2="400" y2="150" stroke="var(--border-color)" strokeWidth="1"/>
-                <polyline 
-                  points="0,150 50,130 100,100 150,110 200,80 250,50 300,70 350,20 400,0" 
-                  fill="none" 
-                  stroke="var(--primary-blue)" 
-                  strokeWidth="3"
-                />
-              </svg>
-              <div className="evolution-labels">
-                <span>Ene</span><span>Feb</span><span>Mar</span><span>Abr</span><span>May</span><span>Jun</span>
+                ))}
               </div>
-            </div>
+            </ChartCard>
           </div>
 
-          {/* Top 5 Áreas */}
-          <div className="panel">
-            <h2 className="panel-title">Top 5 Áreas Más Usadas</h2>
-            <div className="top-areas-list">
-              {topAreas.map((area) => (
-                <div className="top-area-item" key={area.id}>
-                  <span className="area-rank">{area.rank}.</span>
-                  <span className="area-name">{area.name}</span>
-                  <span className="area-count">{area.examCount} exám.</span>
-                </div>
-              ))}
+          {/* --- Tabla: Historial de Acciones Recientes --- */}
+          <ChartCard>
+            <SectionTitle title="Historial de Actividades Recientes" subtitle="Registro de auditoría en tiempo real" />
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr>
+                    {["Usuario", "Acción", "Objetivo", "Fecha", "Hora"].map((h) => (
+                      <th key={h} style={{ textAlign: "left", padding: "12px", color: "#64748b", fontWeight: "600", borderBottom: "1px solid #e2e8f0" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {actividadesRecientes.length > 0 ? (
+                    actividadesRecientes.map((row: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "12px", color: "#334155" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <div style={{ background: "rgba(99,102,241,0.1)", color: "#4f46e5", width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "11px" }}>
+                              {row.iniciales || row.usuario?.charAt(0) || "U"}
+                            </div>
+                            <span>{row.usuario || "Usuario"}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "12px", color: "#64748b" }}>
+                          <span style={{
+                            padding: "3px 10px",
+                            borderRadius: "999px",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            background: row.accion?.toLowerCase().includes("crea") ? "rgba(34,197,94,0.1)" : row.accion?.toLowerCase().includes("elimina") ? "rgba(239,68,68,0.1)" : "rgba(99,102,241,0.1)",
+                            color: row.accion?.toLowerCase().includes("crea") ? "#16a34a" : row.accion?.toLowerCase().includes("elimina") ? "#dc2626" : "#4f46e5",
+                          }}>
+                            {row.accion}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px", color: "#0f172a", fontWeight: "500" }}>{row.objetivo}</td>
+                        <td style={{ padding: "12px", color: "#64748b" }}>{row.fecha}</td>
+                        <td style={{ padding: "12px", color: "#64748b" }}>{row.tiempo}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} style={{ padding: "24px", textAlign: "center", color: "#64748b" }}>
+                        No se han registrado actividades recientes todavía.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </ChartCard>
 
         </div>
-      </section>
-
-      {/* Actividad Reciente */}
-      <section className="content-full-width">
-        <div className="panel">
-          <h2 className="panel-title">Actividad Reciente en el Sistema</h2>
-          <div className="activity-list">
-            {recentActivities.map((act) => (
-              <div className="activity-item" key={act.id}>
-                <span className="activity-time">{act.time} ({act.date})</span>
-                <span className="user-icon">{act.userInitials}</span>
-                <div>
-                  <strong>{act.userName}</strong> {act.action} <strong>{act.target}</strong>.
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
+      </main>
     </div>
   );
 };
