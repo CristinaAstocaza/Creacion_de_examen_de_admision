@@ -1,6 +1,6 @@
 import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 'react';
 import './Configuracion.css';
-import { listarCategorias } from '../../../services/categoriaService';
+import { listarCategorias } from '../../services/categoriaService';
 
 interface CategoriaExamen {
   id: number;

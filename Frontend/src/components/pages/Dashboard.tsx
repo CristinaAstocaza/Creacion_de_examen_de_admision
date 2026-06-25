@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './Dashboard.css';
-import { obtenerStatsDashboard } from '../../../services/dashboardService';
+import { obtenerStatsDashboard } from '../../services/dashboardService';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell

@@ -7,8 +7,8 @@ import {
   descargarPdfVersion,
   descargarPdfSolucionario,
   descargarPdfsVersiones
-} from '../../../services/examenService';
-import { listarCategorias } from '../../../services/categoriaService';
+} from '../../services/examenService';
+import { listarCategorias } from '../../services/categoriaService';
 
 interface Version {
   id: number;

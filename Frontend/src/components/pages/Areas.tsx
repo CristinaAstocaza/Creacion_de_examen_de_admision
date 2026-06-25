@@ -9,8 +9,8 @@ import {
   crearConfigCurso,
   actualizarConfigCurso,
   eliminarConfigCurso
-} from '../../../services/categoriaService';
-import { listarCursos } from '../../../services/cursoService';
+} from '../../services/categoriaService';
+import { listarCursos } from '../../services/cursoService';
 
 interface Area {
   id: string;

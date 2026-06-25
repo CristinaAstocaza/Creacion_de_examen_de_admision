@@ -1,14 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Sidebar from './assets/components/Sidebar/Sidebar';
-import Areas from './assets/components/pages/Areas';
-import BancoPreguntas from './assets/components/pages/BancoPreguntas';
-import GenerarExamen from './assets/components/pages/GenerarExamen';
-import { HistorialExamenes } from './assets/components/pages/HistorialExamenes';
-import Cursos from './assets/components/pages/Cursos';
-import { ImportarPreguntas } from './assets/components/pages/ImportarPreguntas'; // <-- 1. Importamos el nuevo componente
+import Sidebar from './components/Sidebar/Sidebar';
+import Areas from './components/pages/Areas';
+import BancoPreguntas from './components/pages/BancoPreguntas';
+import GenerarExamen from './components/pages/GenerarExamen';
+import { HistorialExamenes } from './components/pages/HistorialExamenes';
+import Cursos from './components/pages/Cursos';
+import { ImportarPreguntas } from './components/pages/ImportarPreguntas'; // <-- 1. Importamos el nuevo componente
 import './App.css';
-import { Dashboard } from './assets/components/pages/Dashboard';
-import { Configuracion } from './assets/components/pages/Configuracion';
+import { Dashboard } from './components/pages/Dashboard';
+import { Configuracion } from './components/pages/Configuracion';
 
 export default function App() {
   return (

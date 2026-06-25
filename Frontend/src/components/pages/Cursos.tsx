@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import './Areas.css';
-import { actualizarCurso, crearCurso, eliminarCurso, listarCursos, obtenerCurso } from '../../../services/cursoService';
+import { actualizarCurso, crearCurso, eliminarCurso, listarCursos, obtenerCurso } from '../../services/cursoService';
 
 interface Curso {
   id: number;

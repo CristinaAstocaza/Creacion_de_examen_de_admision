@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './BancoPreguntas.css';
-import { listarCursos } from '../../../services/cursoService';
-import { actualizarPregunta, crearPregunta, listarPreguntas, eliminarPregunta, obtenerPregunta } from '../../../services/preguntaService';
+import { listarCursos } from '../../services/cursoService';
+import { actualizarPregunta, crearPregunta, listarPreguntas, eliminarPregunta, obtenerPregunta } from '../../services/preguntaService';
 
 interface Curso {
   id: number;

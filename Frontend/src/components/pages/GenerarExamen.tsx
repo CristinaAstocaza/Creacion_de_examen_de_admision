@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './GenerarExamen.css';
-import { listarCategorias, listarConfigCursos } from '../../../services/categoriaService';
-import { listarCursos } from '../../../services/cursoService';
-import { generarExamen } from '../../../services/examenService';
+import { listarCategorias, listarConfigCursos } from '../../services/categoriaService';
+import { listarCursos } from '../../services/cursoService';
+import { generarExamen } from '../../services/examenService';
 
 interface CategoriaExamen {
   id: number;

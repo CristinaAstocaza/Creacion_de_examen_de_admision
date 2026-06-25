@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import './ImportarPreguntas.css';
-import { crearPregunta } from '../../../services/preguntaService';
-import { listarCursos } from '../../../services/cursoService';
+import { crearPregunta } from '../../services/preguntaService';
+import { listarCursos } from '../../services/cursoService';
 
 // --- Interfaces ---
 interface ParsedOption {
@@ -346,7 +346,6 @@ export const ImportarPreguntas: React.FC = () => {
                 c) Arequipa<br/>
                 d) Trujillo<br/>
                 e) Piura<br/>
-                Respuesta: a
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.4 }}>
                 Asegúrate de incluir las 5 alternativas y marcar la respuesta con "Respuesta: [letra]" al final de cada bloque para una detección precisa.
