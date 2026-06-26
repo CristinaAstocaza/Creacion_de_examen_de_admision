@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './Areas.css';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { actualizarCurso, crearCurso, eliminarCurso, listarCursos, obtenerCurso } from '../../services/cursoService';
 
 interface Curso {
@@ -129,7 +130,7 @@ export default function Cursos() {
       )}
 
       <div className="table-card">
-        <table>
+        <table className="shadcn-table">
           <thead>
             <tr>
               <th>Curso</th>
@@ -210,15 +211,21 @@ export default function Cursos() {
               </div>
               <div className="form-group">
                 <label htmlFor="cursoEstado">Estado</label>
-                <select id="cursoEstado" className="form-control" value={activo ? 'Activo' : 'Inactivo'} onChange={(e) => setActivo(e.target.value === 'Activo')}>
-                  <option value="Activo">Activo</option>
-                  <option value="Inactivo">Inactivo</option>
-                </select>
+                <Select value={activo ? 'Activo' : 'Inactivo'} onValueChange={(value) => setActivo(value === 'Activo')}>
+                  <SelectTrigger id="cursoEstado" className="w-full">
+                    <SelectValue placeholder="Seleccione estado" />
+                  </SelectTrigger>
+                  {/* Se agregó z-[9999] para corregir el bug visual */}
+                  <SelectContent className="z-[9999]">
+                    <SelectItem value="Activo">Activo</SelectItem>
+                    <SelectItem value="Inactivo">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-outline" onClick={handleCloseModal}>Cancelar</button>
+            <div className="modal-footer stack">
+              <button className="btn-outline btn-cancel-alt" onClick={handleCloseModal}>Cancelar</button>
               <button className="btn-primary" onClick={handleSaveCurso}>{editingId ? 'Guardar Cambios' : 'Guardar Curso'}</button>
             </div>
           </div>

@@ -197,7 +197,7 @@ export const Dashboard: React.FC = () => {
           <ChartCard>
             <SectionTitle title="Historial de Actividades Recientes" subtitle="Registro de auditoría en tiempo real" />
             <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <table className="shadcn-table" style={{ width: "100%", fontSize: "13px" }}>
                 <thead>
                   <tr>
                     {["Usuario", "Acción", "Objetivo", "Fecha", "Hora"].map((h) => (

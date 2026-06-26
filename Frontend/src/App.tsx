@@ -13,12 +13,12 @@ import { Configuracion } from './components/pages/Configuracion';
 export default function App() {
   return (
     <BrowserRouter>
-      <div style={{ display: 'flex' }}>
+      <div className="app-shell">
         {/* El Sidebar se mantiene fijo a la izquierda */}
         <Sidebar />
         
         {/* El main content cambia dependiendo de la URL */}
-        <main style={{ marginLeft: '260px', padding: '32px', width: '100%' }}>
+        <main className="content-area main-shell">
           <Routes>
             {/* Si entras a la raíz, te redirige al Dashboard */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />

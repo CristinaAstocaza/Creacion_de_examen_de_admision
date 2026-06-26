@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './GenerarExamen.css';
+import CustomSelect from '../ui/CustomSelect';
 import { listarCategorias, listarConfigCursos } from '../../services/categoriaService';
 import { listarCursos } from '../../services/cursoService';
 import { generarExamen } from '../../services/examenService';
@@ -250,6 +251,7 @@ export default function GenerarExamen() {
 
       {error && <div className="card error-banner">{error}</div>}
 
+
       <div className="generator-layout">
         <div className="config-section">
           <div className="card">
@@ -258,12 +260,13 @@ export default function GenerarExamen() {
               <div className="form-group">
                 <label>Categoría del examen</label>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <select className="form-control" value={selectedCategoriaId} onChange={(e) => setSelectedCategoriaId(e.target.value ? Number(e.target.value) : '')} disabled={loading}>
-                    <option value="">Selecciona una categoría</option>
-                    {categorias.map((categoria) => (
-                      <option key={categoria.id} value={categoria.id}>{categoria.nombre}</option>
-                    ))}
-                  </select>
+                  <CustomSelect
+                    options={categorias.map((c) => ({ value: String(c.id), label: c.nombre }))}
+                    value={selectedCategoriaId !== '' ? String(selectedCategoriaId) : ''}
+                    onChange={(val) => setSelectedCategoriaId(val ? Number(val) : '')}
+                    placeholder="Selecciona una categoría"
+                    disabled={loading}
+                  />
                   <button type="button" className="btn-outline" onClick={cargarCategoriasYCursos} disabled={loading}>
                     Recargar
                   </button>
@@ -302,7 +305,7 @@ export default function GenerarExamen() {
               </div>
             </div>
 
-            <table>
+            <table className="shadcn-table">
               <thead>
                 <tr>
                   <th className="col-checkbox">Incluir</th>

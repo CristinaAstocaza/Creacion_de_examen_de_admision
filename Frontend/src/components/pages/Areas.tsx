@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import './Areas.css';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { 
   actualizarCategoria, 
   crearCategoria, 
@@ -230,7 +231,7 @@ export default function Areas() {
       )}
 
       <div className="table-card">
-        <table>
+        <table className="shadcn-table">
           <thead>
             <tr>
               <th>Nombre del Área</th>
@@ -330,20 +331,24 @@ export default function Areas() {
               </div>
               <div className="form-group">
                 <label htmlFor="areaStatus">Estado del Área</label>
-                <select 
-                  id="areaStatus" 
-                  className="form-control"
+                <Select
                   value={newAreaStatus}
-                  onChange={(e) => setNewAreaStatus(e.target.value as 'Activo' | 'Inactivo')}
+                  onValueChange={(value) => setNewAreaStatus(value as 'Activo' | 'Inactivo')}
                 >
-                  <option value="Activo">Activo</option>
-                  <option value="Inactivo">Inactivo</option>
-                </select>
+                  <SelectTrigger id="areaStatus" className="w-full">
+                    <SelectValue placeholder="Seleccione estado" />
+                  </SelectTrigger>
+                  {/* Se agregó z-[9999] para que el portal se renderice por encima del modal */}
+                  <SelectContent className="z-[9999]">
+                    <SelectItem value="Activo">Activo</SelectItem>
+                    <SelectItem value="Inactivo">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-outline" onClick={handleCloseModal}>Cancelar</button>
+            <div className="modal-footer stack">
+              <button className="btn-outline btn-cancel-alt" onClick={handleCloseModal}>Cancelar</button>
               <button className="btn-primary" onClick={handleSaveArea}>
                 {editingId ? 'Guardar Cambios' : 'Guardar Área'}
               </button>
@@ -366,16 +371,20 @@ export default function Areas() {
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', marginBottom: '20px' }}>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                   <label>Curso</label>
-                  <select 
-                    className="form-control"
+                  <Select
                     value={newConfigCursoId}
-                    onChange={(e) => setNewConfigCursoId(e.target.value)}
+                    onValueChange={(value) => setNewConfigCursoId(value)}
                   >
-                    <option value="">Seleccione...</option>
-                    {cursosDisponibles.map(c => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccione..." />
+                    </SelectTrigger>
+                    {/* Se agregó z-[9999] y se eliminó el SelectItem con value="" que rompe Radix UI */}
+                    <SelectContent className="z-[9999]">
+                      {cursosDisponibles.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="form-group" style={{ width: '100px', marginBottom: 0 }}>
                   <label>Preguntas</label>
@@ -395,7 +404,7 @@ export default function Areas() {
               {loadingConfig ? (
                 <p>Cargando configuración...</p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table className="shadcn-table" style={{ width: '100%' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #ccc', textAlign: 'left' }}>
                       <th style={{ padding: '8px' }}>Curso</th>

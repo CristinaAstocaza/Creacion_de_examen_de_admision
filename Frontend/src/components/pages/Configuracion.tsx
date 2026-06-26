@@ -1,6 +1,8 @@
 import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 'react';
 import './Configuracion.css';
 import { listarCategorias } from '../../services/categoriaService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
 
 interface CategoriaExamen {
   id: number;
@@ -123,19 +125,22 @@ export const Configuracion: React.FC = () => {
         <label htmlFor="catSelect" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>
           Seleccionar Categoría
         </label>
-        <select 
-          id="catSelect" 
-          value={selectedCategoriaId} 
-          onChange={(e) => setSelectedCategoriaId(e.target.value ? Number(e.target.value) : '')}
-          className="form-select"
+        <Select 
+          value={selectedCategoriaId === '' ? '' : String(selectedCategoriaId)}
+          onValueChange={(value) => setSelectedCategoriaId(value ? Number(value) : '')}
         >
-          <option value="">-- Elige una categoría --</option>
-          {categorias.map(cat => (
-            <option key={cat.id} value={cat.id}>
-              {cat.nombre}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="catSelect" className="w-full">
+            <SelectValue placeholder="-- Elige una categoría --" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">-- Elige una categoría --</SelectItem>
+            {categorias.map(cat => (
+              <SelectItem key={cat.id} value={String(cat.id)}>
+                {cat.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </section>
 
       {saveMessage && (

@@ -1,5 +1,6 @@
 import { useState, useEffect, type MouseEvent } from 'react';
 import './HistorialExamenes.css';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
   listarExamenes,
   obtenerExamen,
@@ -310,17 +311,19 @@ export const HistorialExamenes = () => {
               onChange={(e) => setFiltroCodigo(e.target.value)}
             />
           </div>
-          <div className="input-control">
+            <div className="input-control">
             <label>Filtrar por Área</label>
-            <select 
-              value={filtroArea} 
-              onChange={(e) => setFiltroArea(e.target.value)}
-            >
-              <option value="">Todas las áreas</option>
-              {categorias.map((cat) => (
-                <option key={cat.id} value={cat.nombre}>{cat.nombre}</option>
-              ))}
-            </select>
+            <Select value={filtroArea} onValueChange={(value) => setFiltroArea(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Todas las áreas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todas las áreas</SelectItem>
+                {categorias.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.nombre}>{cat.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
@@ -333,7 +336,7 @@ export const HistorialExamenes = () => {
         ) : examenesFiltrados.length === 0 ? (
           <p style={{ padding: '20px', textAlign: 'center' }}>No se encontraron exámenes con los filtros aplicados.</p>
         ) : (
-          <table>
+          <table className="shadcn-table">
             <thead>
               <tr>
                 <th>Código</th>
