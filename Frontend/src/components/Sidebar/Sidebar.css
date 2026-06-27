@@ -1,0 +1,148 @@
+.sidebar {
+  width: 280px;
+  min-height: 100vh;
+  padding: 30px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  background: linear-gradient(180deg, #1e40af 0%, #2563eb 100%);
+  color: white;
+  border-right: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 40px 90px rgba(15, 23, 42, 0.16);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.logo-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 16px;
+  color: white;
+  font-size: 24px;
+}
+
+.logo-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.logo-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Nuevo layout tipo shadcn manteniendo paleta */
+.sidebar-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+/* Estilos para los botones de navegación */
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: rgba(255, 255, 255, 0.95);
+  text-decoration: none;
+  border-radius: 12px;
+  transition: background 160ms ease, transform 120ms ease, box-shadow 160ms ease;
+}
+
+.sidebar-item:hover {
+  background: rgba(255,255,255,0.06);
+  transform: translateX(4px);
+}
+
+.sidebar-item.active {
+  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.04));
+  box-shadow: 0 10px 22px rgba(2,6,23,0.24);
+  font-weight: 700;
+}
+
+.sidebar .nav-item.active .material-icons-outlined,
+.sidebar .nav-item:hover .material-icons-outlined {
+  color: white;
+}
+
+.sidebar-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(96,165,250,1);
+  font-size: 20px;
+  transition: transform 120ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.sidebar-item:hover .sidebar-icon {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(59,130,246,0.16));
+  color: white;
+  box-shadow: 0 12px 30px rgba(2,6,23,0.18);
+}
+
+.sidebar-item.active .sidebar-icon {
+  background: linear-gradient(135deg, #60a5fa, #38bdf8);
+  color: white;
+}
+
+.sidebar-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.sidebar-badge {
+  background: rgba(255,255,255,0.08);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.sidebar-version {
+  color: rgba(255,255,255,0.7);
+  font-size: 12px;
+}

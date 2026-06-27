@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import './ImportarPreguntas.css';
-import { crearPregunta } from '../../../services/preguntaService';
-import { listarCursos } from '../../../services/cursoService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { crearPregunta } from '../../services/preguntaService';
+import { listarCursos } from '../../services/cursoService';
 
 // --- Interfaces ---
 interface ParsedOption {
@@ -304,16 +305,20 @@ export const ImportarPreguntas: React.FC = () => {
             
             <div className="curso-selector" style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Curso Destino:</label>
-              <select 
-                value={selectedCursoId} 
-                onChange={(e) => setSelectedCursoId(e.target.value ? Number(e.target.value) : '')}
-                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
+              <Select
+                value={selectedCursoId === '' ? '' : String(selectedCursoId)}
+                onValueChange={(value) => setSelectedCursoId(value ? Number(value) : '')}
               >
-                <option value="" disabled>Selecciona un curso</option>
-                {cursos.map(curso => (
-                  <option key={curso.id} value={curso.id}>{curso.nombre}</option>
-                ))}
-              </select>
+                <SelectTrigger  className="w-full">
+                  <SelectValue placeholder="Selecciona un curso" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Selecciona un curso</SelectItem>
+                  {cursos.map(curso => (
+                    <SelectItem key={curso.id} value={String(curso.id)}>{curso.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Input oculto para abrir el explorador de archivos */}
@@ -346,7 +351,6 @@ export const ImportarPreguntas: React.FC = () => {
                 c) Arequipa<br/>
                 d) Trujillo<br/>
                 e) Piura<br/>
-                Respuesta: a
               </div>
               <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px', lineHeight: 1.4 }}>
                 Asegúrate de incluir las 5 alternativas y marcar la respuesta con "Respuesta: [letra]" al final de cada bloque para una detección precisa.

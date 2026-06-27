@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import './BancoPreguntas.css';
-import { listarCursos } from '../../../services/cursoService';
-import { actualizarPregunta, crearPregunta, listarPreguntas, eliminarPregunta, obtenerPregunta } from '../../../services/preguntaService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { listarCursos } from '../../services/cursoService';
+import { actualizarPregunta, crearPregunta, listarPreguntas, eliminarPregunta, obtenerPregunta } from '../../services/preguntaService';
 
 interface Curso {
   id: number;
@@ -128,7 +130,7 @@ export default function BancoPreguntas() {
     if (!window.confirm('¿Está seguro de eliminar esta pregunta?')) return;
     try {
       await eliminarPregunta(id);
-      await cargarDatos(); // refrescar lista
+      await cargarDatos();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'No se pudo eliminar la pregunta');
     }
@@ -256,110 +258,195 @@ export default function BancoPreguntas() {
       {error && <div className="table-card" style={{ padding: '16px', color: 'var(--danger)' }}>{error}</div>}
 
       <div className="filters-bar">
-        <input type="text" className="filter-input" placeholder="Buscar por código o palabra clave..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-        <select className="filter-select" value={filterCursoId} onChange={(e) => setFilterCursoId(e.target.value)}>
-          <option value="">Todos los Cursos</option>
-          {cursos.map((curso) => <option key={curso.id} value={curso.id}>{curso.nombre}</option>)}
-        </select>
-        <select className="filter-select" value={filterDifficulty} onChange={(e) => setFilterDifficulty(e.target.value)}>
-          <option value="">Dificultad</option>
-          <option value="FACIL">Fácil</option>
-          <option value="MEDIO">Medio</option>
-          <option value="DIFICIL">Difícil</option>
-        </select>
+        <input
+          type="text"
+          className="filter-input"
+          placeholder="Buscar por código o palabra clave..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        
+        {/* Filtro Curso */}
+        <Select value={filterCursoId} onValueChange={setFilterCursoId}>
+          <SelectTrigger className="w-full px-3 py-2 text-left">
+            <SelectValue placeholder="Todos los Cursos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="" className="px-3 py-2 cursor-pointer">Todos los Cursos</SelectItem>
+            {cursos.map((curso) => (
+              <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
+                {curso.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Filtro Dificultad */}
+        <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+          <SelectTrigger className="w-full px-3 py-2 text-left">
+            <SelectValue placeholder="Dificultad" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="" className="px-3 py-2 cursor-pointer">Dificultad</SelectItem>
+            <SelectItem value="FACIL" className="px-3 py-2 cursor-pointer">Fácil</SelectItem>
+            <SelectItem value="MEDIO" className="px-3 py-2 cursor-pointer">Medio</SelectItem>
+            <SelectItem value="DIFICIL" className="px-3 py-2 cursor-pointer">Difícil</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Curso</th>
-              <th>Enunciado (Resumen)</th>
-              <th>Dificultad</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="table-card shadcn-table-wrapper">
+        <Table className="shadcn-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Código</TableHead>
+              <TableHead>Curso</TableHead>
+              <TableHead>Enunciado (Resumen)</TableHead>
+              <TableHead>Dificultad</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Acciones</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {loading && (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Cargando preguntas reales del backend...</td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                  Cargando preguntas reales del backend...
+                </TableCell>
+              </TableRow>
             )}
             {!loading && filteredQuestions.map((q) => (
-              <tr key={q.id}>
-                <td><strong>{q.codigo}</strong></td>
-                <td>{q.cursoNombre}</td>
-                <td className="truncate-text" title={q.enunciado}>{q.enunciado}</td>
-                <td><span className={`badge ${getDifficultyBadgeClass(q.dificultad)}`}>{dificultadLabel(q.dificultad)}</span></td>
-                <td><span className={`badge ${q.activo ? 'badge-active' : 'badge-inactive'}`}>{q.activo ? 'Activo' : 'Inactivo'}</span></td>
-                <td>
+              <TableRow key={q.id}>
+                <TableCell><strong>{q.codigo}</strong></TableCell>
+                <TableCell>{q.cursoNombre}</TableCell>
+                <TableCell className="truncate-text" title={q.enunciado}>{q.enunciado}</TableCell>
+                <TableCell>
+                  <span className={`badge ${getDifficultyBadgeClass(q.dificultad)}`}>{dificultadLabel(q.dificultad)}</span>
+                </TableCell>
+                <TableCell>
+                  <span className={`badge ${q.activo ? 'badge-active' : 'badge-inactive'}`}>{q.activo ? 'Activo' : 'Inactivo'}</span>
+                </TableCell>
+                <TableCell>
                   <div className="action-buttons">
-                    <button className="btn-icon" title="Ver Detalle" onClick={() => handleOpenDetail(q)}><span className="material-icons-outlined">visibility</span></button>
-                    <button className="btn-icon" title="Editar" onClick={() => handleOpenEditForm(q)}><span className="material-icons-outlined">edit</span></button>
-                    <button className="btn-icon" title="Eliminar" onClick={() => handleDeleteQuestion(q.id)} style={{ color: 'var(--danger)' }}><span className="material-icons-outlined">delete</span></button>
+                    <button className="btn-icon" title="Ver Detalle" onClick={() => handleOpenDetail(q)}>
+                      <span className="material-icons-outlined">visibility</span>
+                    </button>
+                    <button className="btn-icon" title="Editar" onClick={() => handleOpenEditForm(q)}>
+                      <span className="material-icons-outlined">edit</span>
+                    </button>
+                    <button className="btn-icon delete" title="Eliminar" onClick={() => handleDeleteQuestion(q.id)} style={{ color: 'var(--danger)' }}>
+                      <span className="material-icons-outlined">delete</span>
+                    </button>
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {!loading && filteredQuestions.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No hay preguntas registradas para los filtros seleccionados.</td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                  No hay preguntas registradas para los filtros seleccionados.
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
+      {/* ── Modal: Crear / Editar pregunta ── */}
       {isFormModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <h3>{editingId ? 'Editar Pregunta' : 'Crear Nueva Pregunta'}</h3>
-              <button className="btn-icon" onClick={() => setIsFormModalOpen(false)}><span className="material-icons-outlined">close</span></button>
+              <button className="btn-icon" onClick={() => setIsFormModalOpen(false)}>
+                <span className="material-icons-outlined">close</span>
+              </button>
             </div>
 
             <div className="modal-body">
               <div className="form-row">
                 <div className="form-group mb-0">
                   <label>Curso *</label>
-                  <select className="form-control" value={formData.cursoId} onChange={(e) => setFormData({ ...formData, cursoId: e.target.value })}>
-                    <option value="">Seleccione...</option>
-                    {cursos.map((curso) => <option key={curso.id} value={curso.id}>{curso.nombre}</option>)}
-                  </select>
+                  <Select
+                    value={formData.cursoId}
+                    onValueChange={(value) => setFormData({ ...formData, cursoId: value })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-2 text-left">
+                      <SelectValue placeholder="Seleccione..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {cursos.map((curso) => (
+                        <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
+                          {curso.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="form-group mb-0">
                   <label>Código</label>
-                  <input type="text" className="form-control" value={formData.codigo} onChange={(e) => setFormData({ ...formData, codigo: e.target.value })} placeholder="Opcional" />
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={formData.codigo}
+                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                    placeholder="Opcional"
+                  />
                 </div>
               </div>
 
               <div className="form-group">
                 <label>Enunciado *</label>
-                <textarea className="form-control" placeholder="Escribe la pregunta aquí..." value={formData.enunciado} onChange={(e) => setFormData({ ...formData, enunciado: e.target.value })} />
+                <textarea
+                  className="form-control"
+                  placeholder="Escribe la pregunta aquí..."
+                  value={formData.enunciado}
+                  onChange={(e) => setFormData({ ...formData, enunciado: e.target.value })}
+                />
               </div>
 
               <div className="form-group">
                 <label>URL de imagen del enunciado (Opcional)</label>
-                <input type="text" className="form-control" value={formData.imagenUrl} onChange={(e) => setFormData({ ...formData, imagenUrl: e.target.value })} placeholder="https://..." />
+                <input
+                  type="text"
+                  className="form-control"
+                  value={formData.imagenUrl}
+                  onChange={(e) => setFormData({ ...formData, imagenUrl: e.target.value })}
+                  placeholder="https://..."
+                />
               </div>
 
               <div className="form-row">
                 <div className="form-group mb-0">
                   <label>Dificultad *</label>
-                  <select className="form-control" value={formData.dificultad} onChange={(e) => setFormData({ ...formData, dificultad: e.target.value as FormDataPregunta['dificultad'] })}>
-                    <option value="FACIL">Fácil</option>
-                    <option value="MEDIO">Medio</option>
-                    <option value="DIFICIL">Difícil</option>
-                  </select>
+                  <Select
+                    value={formData.dificultad}
+                    onValueChange={(value) => setFormData({ ...formData, dificultad: value as FormDataPregunta['dificultad'] })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-2 text-left">
+                      <SelectValue placeholder="Seleccione dificultad" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      <SelectItem value="FACIL" className="px-3 py-2 cursor-pointer">Fácil</SelectItem>
+                      <SelectItem value="MEDIO" className="px-3 py-2 cursor-pointer">Medio</SelectItem>
+                      <SelectItem value="DIFICIL" className="px-3 py-2 cursor-pointer">Difícil</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="form-group mb-0">
                   <label>Estado</label>
-                  <select className="form-control" value={formData.activo ? 'Activo' : 'Inactivo'} onChange={(e) => setFormData({ ...formData, activo: e.target.value === 'Activo' })}>
-                    <option value="Activo">Activo</option>
-                    <option value="Inactivo">Inactivo</option>
-                  </select>
+                  <Select
+                    value={formData.activo ? 'Activo' : 'Inactivo'}
+                    onValueChange={(value) => setFormData({ ...formData, activo: value === 'Activo' })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-2 text-left">
+                      <SelectValue placeholder="Seleccione estado" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      <SelectItem value="Activo" className="px-3 py-2 cursor-pointer">Activo</SelectItem>
+                      <SelectItem value="Inactivo" className="px-3 py-2 cursor-pointer">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -370,17 +457,42 @@ export default function BancoPreguntas() {
                     <div className="option-input-group" key={alternativa.letra} style={{ alignItems: 'flex-start' }}>
                       <span className="option-letter" style={{ marginTop: '10px' }}>{alternativa.letra})</span>
                       <div className="option-input-wrapper">
-                        <select className="form-control" value={alternativa.tipo} onChange={(e) => handleAlternativaChange(idx, 'tipo', e.target.value)}>
-                          <option value="TEXTO">TEXTO</option>
-                          <option value="IMAGEN">IMAGEN</option>
-                        </select>
+                        <Select
+                          value={alternativa.tipo}
+                          onValueChange={(value) => handleAlternativaChange(idx, 'tipo', value)}
+                        >
+                          <SelectTrigger className="w-full px-3 py-2 text-left">
+                            <SelectValue placeholder="Tipo" />
+                          </SelectTrigger>
+                          <SelectContent className="z-[9999]">
+                            <SelectItem value="TEXTO" className="px-3 py-2 cursor-pointer">TEXTO</SelectItem>
+                            <SelectItem value="IMAGEN" className="px-3 py-2 cursor-pointer">IMAGEN</SelectItem>
+                          </SelectContent>
+                        </Select>
                         {alternativa.tipo === 'TEXTO' ? (
-                          <input type="text" className="form-control" placeholder={`Texto de la alternativa ${alternativa.letra}`} value={alternativa.contenidoTexto} onChange={(e) => handleAlternativaChange(idx, 'contenidoTexto', e.target.value)} />
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder={`Texto de la alternativa ${alternativa.letra}`}
+                            value={alternativa.contenidoTexto}
+                            onChange={(e) => handleAlternativaChange(idx, 'contenidoTexto', e.target.value)}
+                          />
                         ) : (
-                          <input type="text" className="form-control" placeholder={`URL de imagen alternativa ${alternativa.letra}`} value={alternativa.imagenUrl} onChange={(e) => handleAlternativaChange(idx, 'imagenUrl', e.target.value)} />
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder={`URL de imagen alternativa ${alternativa.letra}`}
+                            value={alternativa.imagenUrl}
+                            onChange={(e) => handleAlternativaChange(idx, 'imagenUrl', e.target.value)}
+                          />
                         )}
                         <label className="checkbox-label" style={{ marginTop: '4px' }}>
-                          <input type="radio" name="respuestaCorrecta" checked={alternativa.esCorrecta} onChange={() => handleCorrectaChange(idx)} />
+                          <input
+                            type="radio"
+                            name="respuestaCorrecta"
+                            checked={alternativa.esCorrecta}
+                            onChange={() => handleCorrectaChange(idx)}
+                          />
                           Alternativa correcta
                         </label>
                       </div>
@@ -390,39 +502,51 @@ export default function BancoPreguntas() {
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-outline" onClick={() => setIsFormModalOpen(false)}>Cancelar</button>
+            <div className="modal-footer stack">
+              <button className="btn-outline btn-cancel-alt" onClick={() => setIsFormModalOpen(false)}>Cancelar</button>
               <button className="btn-primary" onClick={handleSaveQuestion}>Guardar Pregunta</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── Modal: Detalle de pregunta ── */}
       {selectedQuestion && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="modal-header">
               <h3>Detalle de la Pregunta</h3>
-              <button className="btn-icon" onClick={() => setSelectedQuestion(null)}><span className="material-icons-outlined">close</span></button>
+              <button className="btn-icon" onClick={() => setSelectedQuestion(null)}>
+                <span className="material-icons-outlined">close</span>
+              </button>
             </div>
             <div className="modal-body">
               <div className="question-meta">
-                <span className={`badge ${getDifficultyBadgeClass(selectedQuestion.dificultad)}`}>{dificultadLabel(selectedQuestion.dificultad)}</span>
+                <span className={`badge ${getDifficultyBadgeClass(selectedQuestion.dificultad)}`}>
+                  {dificultadLabel(selectedQuestion.dificultad)}
+                </span>
                 <span style={{ fontSize: '13px', color: '#5f6368', display: 'flex', alignItems: 'center' }}>
                   <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '4px' }}>school</span>
                   {selectedQuestion.cursoNombre} ({selectedQuestion.codigo})
                 </span>
               </div>
               <div className="question-text">{selectedQuestion.enunciado}</div>
-              {selectedQuestion.imagenUrl && <img src={selectedQuestion.imagenUrl} alt="Apoyo visual" className="question-image" />}
+              {selectedQuestion.imagenUrl && (
+                <img src={selectedQuestion.imagenUrl} alt="Apoyo visual" className="question-image" />
+              )}
               <ul className="options-list">
                 {selectedQuestion.alternativas.map((opt) => {
                   const itemClass = isAnswerRevealed && opt.esCorrecta ? 'option-item correct' : 'option-item';
                   return (
                     <li key={opt.letra} className={itemClass}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <div><span className="option-letter">{opt.letra})</span> {opt.tipo === 'TEXTO' ? opt.contenidoTexto : opt.imagenUrl}</div>
-                        {opt.tipo === 'IMAGEN' && opt.imagenUrl && <img src={opt.imagenUrl} alt={`Opción ${opt.letra}`} className="option-image" />}
+                        <div>
+                          <span className="option-letter">{opt.letra})</span>{' '}
+                          {opt.tipo === 'TEXTO' ? opt.contenidoTexto : opt.imagenUrl}
+                        </div>
+                        {opt.tipo === 'IMAGEN' && opt.imagenUrl && (
+                          <img src={opt.imagenUrl} alt={`Opción ${opt.letra}`} className="option-image" />
+                        )}
                       </div>
                     </li>
                   );
@@ -432,11 +556,15 @@ export default function BancoPreguntas() {
                 <div className="hidden-answer-box">
                   <span className="material-icons-outlined" style={{ fontSize: '32px', color: '#9aa0a6' }}>lock</span>
                   <p>La respuesta correcta está oculta por seguridad.</p>
-                  <button className="btn-outline" style={{ marginTop: '8px' }} onClick={() => setIsAnswerRevealed(true)}><span className="material-icons-outlined">visibility</span>Revelar Respuesta</button>
+                  <button className="btn-outline" style={{ marginTop: '8px' }} onClick={() => setIsAnswerRevealed(true)}>
+                    <span className="material-icons-outlined">visibility</span>Revelar Respuesta
+                  </button>
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                  <button className="btn-outline" onClick={() => setIsAnswerRevealed(false)}><span className="material-icons-outlined">visibility_off</span>Ocultar Respuesta</button>
+                  <button className="btn-outline" onClick={() => setIsAnswerRevealed(false)}>
+                    <span className="material-icons-outlined">visibility_off</span>Ocultar Respuesta
+                  </button>
                 </div>
               )}
             </div>

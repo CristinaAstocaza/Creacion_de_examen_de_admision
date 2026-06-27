@@ -51,13 +51,13 @@
   overflow: hidden;
 }
 
-table {
+table:not(.shadcn-table) {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
 }
 
-th {
+table:not(.shadcn-table) th {
   background-color: #f8f9fa;
   color: #5f6368;
   font-weight: 600;
@@ -67,14 +67,14 @@ th {
   border-bottom: 2px solid #dadce0;
 }
 
-td {
+table:not(.shadcn-table) td {
   padding: 16px;
   border-bottom: 1px solid #dadce0;
   color: #202124;
   font-size: 0.95rem;
 }
 
-tbody tr:hover {
+table:not(.shadcn-table) tbody tr:hover {
   background-color: #f8fabb;
 }
 

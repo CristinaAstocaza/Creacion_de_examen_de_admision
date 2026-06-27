@@ -24,23 +24,28 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="logo-container">
         <span className="material-icons-outlined logo-icon">receipt_long</span>
-        <h1 className="logo-text">
-          Sistema de Gestión<br />de Exámenes
-        </h1>
+        <div>
+          <h1 className="logo-text">
+            Sistema de Gestión<br />de Exámenes
+          </h1>
+          <p className="logo-subtitle">Panel administrativo premium</p>
+        </div>
       </div>
 
-      <nav className="nav-menu">
-        {menuItems.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.path}
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <span className="material-icons-outlined">{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+      <div className="sidebar-body">
+        <nav className="sidebar-group">
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.path}
+              className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}
+            >
+              <span className="sidebar-icon material-icons-outlined">{item.icon}</span>
+              <span className="sidebar-label">{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </div>
     </aside>
   );
 }
