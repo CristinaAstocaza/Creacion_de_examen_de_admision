@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import './ImportarPreguntas.css';
-import { importarImagenes, guardarLotePreguntas, uploadRecorte } from '../../../services/preguntaService';
-import { listarCursos } from '../../../services/cursoService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { importarImagenes, guardarLotePreguntas, uploadRecorte } from '../../services/preguntaService';
+import { listarCursos } from '../../services/cursoService';
 import { ImageCropperModal } from './ImageCropperModal';
 import { ContentRenderer } from '../ui/ContentRenderer';
 
@@ -120,7 +121,7 @@ const isPdfScanned = (text: string): boolean => {
   return text.replace(/\s+/g, '').length < 100;
 };
 
-import { parseQuestionsHeuristically, type ParserResult } from '../../../utils/preguntaParser';
+import { parseQuestionsHeuristically, type ParserResult } from '../../utils/preguntaParser';
 
 // Componente
 // ─────────────────────────────────────────────
@@ -631,15 +632,21 @@ export const ImportarPreguntas: React.FC = () => {
 
       <div style={{ maxWidth: 400, margin: '0 auto 32px auto', textAlign: 'center' }}>
         <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, color: 'var(--text-main)' }}>Curso Destino:</label>
-        <select
-          value={selectedCursoId}
-          onChange={e => setSelectedCursoId(e.target.value ? Number(e.target.value) : '')}
-          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ccc', fontSize: 15 }}
+        <Select
+          value={selectedCursoId === '' ? '' : String(selectedCursoId)}
+          onValueChange={(value) => setSelectedCursoId(value ? Number(value) : '')}
           disabled={mode === 'pdf_analyzing'}
         >
-          <option value="" disabled>Selecciona un curso</option>
-          {cursos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-        </select>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Selecciona un curso" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Selecciona un curso</SelectItem>
+            {cursos.map(c => (
+              <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {mode === 'home' && (

@@ -60,13 +60,13 @@
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-table {
+table:not(.shadcn-table) {
   width: 100%;
   border-collapse: collapse;
   text-align: left;
 }
 
-th {
+table:not(.shadcn-table) th {
   background-color: #f8f9fa;
   color: var(--text-muted);
   font-size: 12px;
@@ -76,7 +76,7 @@ th {
   border-bottom: 1px solid var(--border-color);
 }
 
-td {
+table:not(.shadcn-table) td {
   padding: 16px;
   font-size: 14px;
   color: var(--text-main);
@@ -84,11 +84,11 @@ td {
   vertical-align: middle;
 }
 
-tr:last-child td {
+table:not(.shadcn-table) tr:last-child td {
   border-bottom: none;
 }
 
-tr:hover td {
+table:not(.shadcn-table) tr:hover td {
   background-color: #fcfcfc;
 }
 

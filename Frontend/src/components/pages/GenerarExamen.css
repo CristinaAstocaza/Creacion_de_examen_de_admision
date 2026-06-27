@@ -60,9 +60,9 @@
 .checkbox-label input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary-blue); }
 
 /* Tabla rediseñada para ocupar bien el espacio */
-table { width: 100%; border-collapse: collapse; text-align: left; }
-th { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; padding: 16px 12px; border-bottom: 2px solid var(--border-color); }
-td { padding: 16px 12px; font-size: 14px; color: var(--text-main); border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+table:not(.shadcn-table) { width: 100%; border-collapse: collapse; text-align: left; }
+table:not(.shadcn-table) th { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; padding: 16px 12px; border-bottom: 2px solid var(--border-color); }
+table:not(.shadcn-table) td { padding: 16px 12px; font-size: 14px; color: var(--text-main); border-bottom: 1px solid var(--border-color); vertical-align: middle; }
 
 /* Estilos para la nueva columna de selección */
 .col-checkbox { width: 50px; text-align: center; }
