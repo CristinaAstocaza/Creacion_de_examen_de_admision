@@ -9,6 +9,7 @@ import {
   descargarPdfsVersiones
 } from '../../../services/examenService';
 import { listarCategorias } from '../../../services/categoriaService';
+import { ContentRenderer } from '../ui/ContentRenderer';
 
 interface Version {
   id: number;
@@ -163,6 +164,21 @@ export const HistorialExamenes = () => {
     return '#ffffff';
   };
 
+  const removeLeadingNumber = (contentStr: string) => {
+    if (!contentStr) return '';
+    try {
+      const blocks = JSON.parse(contentStr);
+      if (Array.isArray(blocks)) {
+        const firstText = blocks.find((b: any) => b.tipo === 'texto');
+        if (firstText && typeof firstText.valor === 'string') {
+          firstText.valor = firstText.valor.replace(/^\d+[\.\-\)]\s*/, '');
+        }
+        return JSON.stringify(blocks);
+      }
+    } catch (e) {}
+    return contentStr.replace(/^\d+[\.\-\)]\s*/, '');
+  };
+
   // Renderizado de la Vista Previa A4 (Dos páginas)
   if (vistaActiva === 'previsualizacion') {
     const coverConfig = getCoverConfig();
@@ -262,13 +278,19 @@ export const HistorialExamenes = () => {
                       <div className="questions-list-by-course">
                         {listaPreguntas.map((p: any) => (
                           <div className="question-item-grouped" key={p.id || p.globalNumber}>
-                            <p className="question-text-grouped">
-                              <strong>{p.globalNumber}.</strong> {p.enunciado.replace(/^\d+[\.\-\)]\s*/, '')}
-                            </p>
+                            <div className="question-text-grouped" style={{ display: 'flex', gap: '8px' }}>
+                              <strong>{p.globalNumber}.</strong> 
+                              <div style={{ flex: 1 }}>
+                                <ContentRenderer contentStr={removeLeadingNumber(p.enunciado)} />
+                              </div>
+                            </div>
                             <div className="options-grid-grouped">
                               {p.alternativas?.map((alt: any) => (
-                                <div className="option-item-grouped" key={alt.id}>
-                                  <strong>{alt.letra})</strong> {alt.contenidoTexto}
+                                <div className="option-item-grouped" key={alt.id} style={{ display: 'flex', gap: '8px' }}>
+                                  <strong>{alt.letra})</strong> 
+                                  <div style={{ flex: 1 }}>
+                                    {alt.contenidoTexto ? <ContentRenderer contentStr={alt.contenidoTexto} /> : null}
+                                  </div>
                                 </div>
                               ))}
                             </div>

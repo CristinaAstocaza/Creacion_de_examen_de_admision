@@ -60,7 +60,7 @@ export default function GenerarExamen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
-  const [examenGenerado, setExamenGenerado] = useState<ExamenGenerado | null>(null);
+  const [_examenGenerado, setExamenGenerado] = useState<ExamenGenerado | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const cargarCategoriasYCursos = async () => {

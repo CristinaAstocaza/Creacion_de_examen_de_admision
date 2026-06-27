@@ -10,9 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/katex": "^0.16.8",
     "axios": "^1.17.0",
+    "katex": "^0.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "react-image-crop": "^11.1.2",
     "react-router-dom": "^7.17.0",
     "recharts": "^3.8.1"
   },
