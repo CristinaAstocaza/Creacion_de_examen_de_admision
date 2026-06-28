@@ -59,50 +59,56 @@ def procesar_pdf_texto(pdf_path, api_key_gemini):
     
     doc.close()
     
-    prompt = f"""
-    Aquí tienes el texto extraído de un examen en formato PDF.
+    prompt = """
+    Aqui tienes el texto extraido de un examen en formato PDF.
     Extrae cuidadosamente todas las preguntas y sus alternativas correspondientes.
+    Analiza cada pregunta como una unidad completa (enunciado + simbolos + alternativas).
     
-    REGLAS MUY IMPORTANTES PARA EXPRESIONES MATEMÁTICAS Y BLOQUES:
+    REGLAS MUY IMPORTANTES PARA EXPRESIONES MATEMATICAS Y BLOQUES:
     - Extrae el texto del enunciado y cada alternativa (A, B, C, D, E).
     - Asigna la "dificultad" (FACIL, MEDIO, DIFICIL).
     - Asigna el "area_tematica".
     - NO indiques la respuesta correcta en ninguna parte.
     - Si detectas texto que NO es pregunta (ej. lecturas largas de contexto, encabezados), agrúpalos como un bloque separador si deseas (tipo_bloque: "contexto").
     
+    REGLAS PARA CONTENIDO CIENTIFICO, MATEMATICO Y QUIMICO:
+    - Preserva rigurosamente toda la notacion cientifica, matematica, fisica y quimica.
+    - Detecta superindices/subindices, isotopos y formulas quimicas aunque el texto plano de origen no tenga formato especial.
+    - Convierte simbolos como 6Li, 7Li a un formato renderizable. Usa bloques de tipo "latex" o HTML inline con tags sup/sub en bloques de tipo "texto".
+    - Ejemplos: isotopo 6Li -> bloque latex {}^{6}\\text{Li}. Formula H2O -> bloque latex \\text{H}_2\\text{O} o texto H<sub>2</sub>O.
+    
     REGLAS DE FORMATO (BLOQUES Y LATEX):
     - Debes separar el contenido en "bloques" secuenciales que respeten EXACTAMENTE el orden visual.
-    - TODA expresión matemática (fracciones, potencias, raíces, integrales, variables con subíndices, matrices, etc.) debe extraerse en formato LaTeX válido compatible con KaTeX, y asignarse a un bloque de tipo "latex".
-    - El texto normal, sin fórmulas matemáticas complejas, debe ir en bloques de tipo "texto". NO conviertas texto normal a LaTeX.
+    - TODA expresion matematica (fracciones, potencias, raices, integrales, variables con subindices, matrices, etc.) debe extraerse en formato LaTeX valido compatible con KaTeX, asignado a bloque tipo "latex".
+    - El texto normal va en bloques tipo "texto". NO conviertas texto normal a LaTeX.
     
-    Texto extraído:
-    {texto_completo}
+    Texto extraido:
+    """ + texto_completo + """
     
-    Devuelve ÚNICAMENTE un JSON con el siguiente formato exacto, sin texto adicional:
-    {{
+    Devuelve UNICAMENTE un JSON con el siguiente formato exacto, sin texto adicional:
+    {
       "preguntas": [
-        {{
+        {
           "numero": 1,
           "tipo_bloque": "pregunta",
           "enunciado_bloques": [
-            {{ "tipo": "texto", "valor": "texto del enunciado normal" }},
-            {{ "tipo": "latex", "valor": "\\\\int_0^1 x dx" }}
+            { "tipo": "texto", "valor": "El enunciado de la pregunta" }
           ],
           "dificultad": "MEDIO",
-          "area_tematica": "MATEMATICA",
+          "area_tematica": "QUIMICA",
           "tiene_imagen_enunciado": false,
           "alternativas": [
-            {{
+            {
               "letra": "A",
               "contenido_bloques": [
-                {{ "tipo": "latex", "valor": "\\\\frac{1}{2}" }}
+                { "tipo": "texto", "valor": "Contenido de la alternativa" }
               ],
               "tipo": "texto"
-            }}
+            }
           ]
-        }}
+        }
       ]
-    }}
+    }
     """
     
     print("Enviando texto a Gemini...", file=sys.stderr)

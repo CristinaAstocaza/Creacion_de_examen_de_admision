@@ -159,7 +159,7 @@ export const ImportarPreguntas: React.FC = () => {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [geminiCount, setGeminiCount] = useState<number>(() => {
     const stored = localStorage.getItem('gemini_queries_count');
-    return stored ? parseInt(stored) : 4;
+    return stored ? parseInt(stored) : 0;
   });
 
   const incrementGeminiCount = () => {
@@ -168,6 +168,11 @@ export const ImportarPreguntas: React.FC = () => {
       localStorage.setItem('gemini_queries_count', newVal.toString());
       return newVal;
     });
+  };
+
+  const resetGeminiCount = () => {
+    localStorage.removeItem('gemini_queries_count');
+    setGeminiCount(0);
   };
 
   useEffect(() => {
@@ -762,8 +767,13 @@ export const ImportarPreguntas: React.FC = () => {
             onDrop={handleImageDrop}
             onPaste={handleImagePaste}
           >
-            <div className="gemini-badge">
-              Consultas • {geminiCount}/20
+            <div
+              className="gemini-badge"
+              onClick={resetGeminiCount}
+              title="Haz clic para reiniciar el contador (usa esto al cambiar la API Key)"
+              style={{ cursor: 'pointer' }}
+            >
+              Consultas • {Math.max(0, 20 - geminiCount)}/20 🔄
             </div>
 
             <div className="import-card-header">

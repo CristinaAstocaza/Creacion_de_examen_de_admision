@@ -137,11 +137,10 @@ export const Dashboard: React.FC = () => {
         <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           
           {/* --- KPIs Globales --- */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
-            <KpiCard label="Total Preguntas" value={kpis.totalPreguntas.toLocaleString()} sub="en banco activo" trend={5.2} icon="📚" accentColor="linear-gradient(90deg,#6366f1,#8b5cf6)" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+            <KpiCard label="Total Preguntas" value={kpis.totalPreguntas.toLocaleString()} sub="en banco activo" icon="📚" accentColor="linear-gradient(90deg,#6366f1,#8b5cf6)" />
             <KpiCard label="Áreas de Admisión" value={kpis.totalAreas} sub="registradas" icon="🏫" accentColor="linear-gradient(90deg,#06b6d4,#3b82f6)" />
-            <KpiCard label="Exámenes Creados" value={kpis.totalExamenes} sub="este ciclo" trend={12.5} icon="📄" accentColor="linear-gradient(90deg,#10b981,#34d399)" />
-            <KpiCard label="Pendientes Revisión" value={kpis.pendientes} sub="requieren atención" trend={-2.1} icon="⚠️" accentColor="linear-gradient(90deg,#f59e0b,#ef4444)" />
+            <KpiCard label="Exámenes Creados" value={kpis.totalExamenes} sub="este ciclo" icon="📄" accentColor="linear-gradient(90deg,#10b981,#34d399)" />
           </div>
 
           {/* --- Gráficos (Distribución por Área) --- */}

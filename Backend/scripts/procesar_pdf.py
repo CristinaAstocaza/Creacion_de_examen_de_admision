@@ -147,33 +147,40 @@ def procesar_pdf(pdf_path, api_key_gemini, folder_name, c_cloud_name, c_api_key,
                 recorte_bytes = buf.getvalue()
                 
                 # Enviar recorte a Gemini para extraer texto
-                prompt_fase_2 = f"""
-                Esta imagen contiene UNA única pregunta de examen completa (enunciado y alternativas) o un bloque de contexto.
-                Analiza el contenido y extrae la información textualmente.
+                num_pregunta = str(bloque.get("numero_pregunta", 0))
+                prompt_fase_2 = """
+                Esta imagen contiene UNA unica pregunta de examen completa (enunciado + simbolos + alternativas) o un bloque de contexto.
+                Analiza el contenido y extrae la informacion procesandola como una unidad completa.
                 
                 REGLAS:
                 - Extrae el texto del enunciado o bloque.
                 - Si es una pregunta, extrae el texto de cada alternativa A, B, C, D, E.
                 - NO indiques ni busques la respuesta correcta.
-                - Asigna un valor de 'confianza_extraccion' de 0 a 100 indicando qué tan seguro estás de haber extraído todo correctamente.
+                - Asigna un valor de 'confianza_extraccion' de 0 a 100 indicando que tan seguro estas de haber extraido todo correctamente.
                 
+                REGLAS PARA CONTENIDO CIENTIFICO, MATEMATICO Y QUIMICO:
+                - Preserva rigurosamente toda la notacion cientifica, matematica, fisica y quimica.
+                - Detecta superindices/subindices, isotopos y formulas quimicas aunque el origen visual parezca texto plano.
+                - Convierte simbolos como 6Li, 7Li a un formato renderizable. Usa bloques de tipo "latex" o HTML inline con tags sup/sub.
+                - Ejemplos: isotopo 6Li -> {}^{6}\\text{Li} (latex) o <sup>6</sup>Li (texto). Formula H2O -> \\text{H}_2\\text{O} (latex) o H<sub>2</sub>O (texto).
+
                 Responde SOLO JSON puro:
-                {{
-                  "numero": {bloque.get("numero_pregunta", 0)},
+                {
+                  "numero": """ + num_pregunta + """,
                   "enunciado": "texto del enunciado",
-                  "area_tematica": "MATEMATICA",
+                  "area_tematica": "QUIMICA",
                   "dificultad": "MEDIO",
                   "tiene_imagen_enunciado": true,
                   "confianza_extraccion": 95,
                   "alternativas": [
-                    {{
+                    {
                       "letra": "A",
                       "contenido_texto": "texto de la alternativa",
                       "tiene_imagen": false,
                       "imagen_url": null
-                    }}
+                    }
                   ]
-                }}
+                }
                 """
                 
                 print(f"Página {num_pagina+1} - FASE 2: Extrayendo contenido bloque...", file=sys.stderr)

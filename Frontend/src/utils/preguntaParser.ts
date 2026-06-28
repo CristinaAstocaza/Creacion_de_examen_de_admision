@@ -16,6 +16,94 @@ export interface ParserResult {
   diagnostics: DiagnosticReport;
 }
 
+const unicodeSupers = {
+  '⁰':'0', '¹':'1', '²':'2', '³':'3', '⁴':'4', '⁵':'5', '⁶':'6', '⁷':'7', '⁸':'8', '⁹':'9'
+};
+const unicodeSubs = {
+  '₀':'0', '₁':'1', '₂':'2', '₃':'3', '₄':'4', '₅':'5', '₆':'6', '₇':'7', '₈':'8', '₉':'9'
+};
+
+const normalizeUnicodeDigits = (str: string): string => {
+  return str.split('').map(char => {
+    if (char in unicodeSupers) return unicodeSupers[char as keyof typeof unicodeSupers];
+    if (char in unicodeSubs) return unicodeSubs[char as keyof typeof unicodeSubs];
+    return char;
+  }).join('');
+};
+
+export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor: string }[] => {
+  if (!text) return [];
+
+  let formatted = text;
+  const commonElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|Al|Si|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb|U|Pu|Br|I';
+
+  // Auxiliar para convertir fórmulas químicas complejas o elementos a LaTeX correcto sin \mathrm
+  const toChemicalKatex = (str: string): string => {
+    let result = str.replace(
+      new RegExp(`(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)`, 'g'),
+      (_, element, num) => `${element}_{${normalizeUnicodeDigits(num)}}`
+    );
+    return result;
+  };
+
+  // 1. Iones (ej: Na+, Fe3+, Fe³⁺, Cl-)
+  formatted = formatted.replace(
+    new RegExp(`\\b(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]*)([\\+\\-\\⁺\\⁻])\\b`, 'g'),
+    (_, element, num, charge) => {
+      const normNum = num ? normalizeUnicodeDigits(num) : '';
+      const normCharge = charge === '⁺' || charge === '+' ? '+' : '-';
+      return `$ ${element}^{${normNum}${normCharge}} $`;
+    }
+  );
+
+  // 2. Isótopos (ej: ⁶Li, ⁷Li, 6Li, 235U)
+  formatted = formatted.replace(
+    new RegExp(`([⁰¹²³⁴⁵⁶⁷⁸⁹]+|\\b\\d+)(${commonElements})\\b`, 'g'),
+    (_, num, element) => {
+      const normNum = normalizeUnicodeDigits(num);
+      return `$ {}^{${normNum}}\\mathrm{${element}} $`;
+    }
+  );
+
+  // 3. Fórmulas químicas multi-elemento (ej: H2O, H₂O, CO2, H2SO4, NaCl)
+  formatted = formatted.replace(
+    new RegExp(`\\b((?:${commonElements})(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?(?:${commonElements})+(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?)\\b`, 'g'),
+    (_, formula) => `$ ${toChemicalKatex(formula)} $`
+  );
+
+  // 4. Elementos individuales con números (ej: O2, N2, H2) - Excluimos Si y Al para evitar colisiones con "Si" y "Al" en español
+  const singleElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb|U|Pu|Br|I';
+  formatted = formatted.replace(
+    new RegExp(`\\b(${singleElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)\\b`, 'g'),
+    (_, element, num) => {
+      const normNum = normalizeUnicodeDigits(num);
+      return `$ ${element}_{${normNum}} $`;
+    }
+  );
+
+  // 5. Exponentes algebraicos y unidades (ej: x2, m2, x², m², y³, k⁴)
+  const mathVariables = 'x|y|z|n|a|b|c|k|m|X|Y|Z';
+  formatted = formatted.replace(
+    new RegExp(`\\b(${mathVariables})([²³⁴⁵⁶⁷⁸⁹⁰]+|\\^?\\d+)\\b`, 'g'),
+    (_, variable, num) => {
+      const normNum = normalizeUnicodeDigits(num.replace('^', ''));
+      return `$ ${variable}^{${normNum}} $`;
+    }
+  );
+
+  // Dividir por $ para separar texto normal y bloques de LaTeX
+  const parts = formatted.split('$');
+  const blocks = parts.map((part, index) => {
+    if (index % 2 === 0) {
+      return { tipo: 'texto' as const, valor: part };
+    } else {
+      return { tipo: 'latex' as const, valor: part.trim() };
+    }
+  }).filter(block => block.valor.length > 0);
+
+  return blocks;
+};
+
 /**
  * Normaliza el texto eliminando saltos de línea duplicados excesivos,
  * retornos de carro (\r), y espacios innecesarios al final de las líneas,
@@ -83,13 +171,14 @@ export const formatScientificAndOCR = (text: string): string => {
   // Nota: ELIMINAMOS la contracción "dígito + espacio + elemento" porque produce
   // falsos positivos en valores físicos como "9,81 i" → "9,81I" → "9,₈₁I"
   // Solo contraemos cuando el ELEMENTO precede al número (dirección semántica correcta)
-  const commonElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|Al|Si|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb';
+  // Excluimos Si y Al para evitar falsas contracciones con "Si" y "al" en español
+  const contractionElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb';
   
   for (let k = 0; k < 3; k++) {
     // Contraer Elemento + Espacio + Número (ej. H 2 -> H2) - restringido a espacios horizontales
-    formatted = formatted.replace(new RegExp(`(${commonElements})[ \\t]+(\\d+)`, 'g'), '$1$2');
+    formatted = formatted.replace(new RegExp(`(${contractionElements})[ \\t]+(\\d+)`, 'g'), '$1$2');
     // Contraer Elemento + Espacio + Elemento (ej. S O -> SO)
-    formatted = formatted.replace(new RegExp(`(${commonElements})[ \\t]+(${commonElements})`, 'g'), '$1$2');
+    formatted = formatted.replace(new RegExp(`(${contractionElements})[ \\t]+(${contractionElements})`, 'g'), '$1$2');
   }
 
   // 3. Convertir a Subíndices en fórmulas químicas (ej. H2SO3 -> H₂SO₃)
@@ -100,7 +189,7 @@ export const formatScientificAndOCR = (text: string): string => {
   //   - un paréntesis de apertura (para grupos como (OH)2)
   // NO debe activarse cuando el número va precedido de: coma, punto decimal, guión/negativo, espacio.
   formatted = formatted.replace(
-    new RegExp(`(${commonElements})(\\d+)`, 'g'),
+    new RegExp(`(${contractionElements})(\\d+)`, 'g'),
     (match, element, num, offset, str) => {
       // Verificar el carácter que precede al elemento
       const prevChar = offset > 0 ? str[offset - 1] : '';
@@ -117,7 +206,7 @@ export const formatScientificAndOCR = (text: string): string => {
   // Esto resuelve "H₂ SO₄" → "H₂SO₄" tras la conversión de subíndices
   const subDigits = '₀₁₂₃₄₅₆₇₈₉';
   formatted = formatted.replace(
-    new RegExp(`([${subDigits}])[ \\t]+(${commonElements})`, 'g'),
+    new RegExp(`([${subDigits}])[ \\t]+(${contractionElements})`, 'g'),
     '$1$2'
   );
 
@@ -268,10 +357,10 @@ export const parseQuestionsHeuristically = (text: string): ParserResult => {
       const enunciadoText = currentEnunciadoLines.join('\n').trim();
       questions.push({
         numero: currentNumber,
-        enunciado: JSON.stringify([{ tipo: 'texto', valor: enunciadoText }]),
+        enunciado: JSON.stringify(convertToBlocks(enunciadoText)),
         alternativas: currentAlternatives.map(alt => ({
           letra: alt.letra,
-          contenido: JSON.stringify([{ tipo: 'texto', valor: alt.text }])
+          contenido: JSON.stringify(convertToBlocks(alt.text))
         }))
       });
     }

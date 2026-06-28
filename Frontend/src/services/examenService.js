@@ -76,13 +76,25 @@ export const obtenerVersionExamen = async (examenId, version) => {
 };
 
 const descargarArchivo = async (url, nombreFallback, config = {}) => {
-  const { method = 'get', body = null } = config;
+  const { method = 'get', body = null, customName = '' } = config;
   const response = method === 'post'
     ? await api.post(url, body, { responseType: 'blob' })
     : await api.get(url, { responseType: 'blob' });
   const disposition = response.headers['content-disposition'];
   const match = disposition?.match(/filename="?([^";]+)"?/i);
-  const filename = match?.[1] || nombreFallback;
+  const backendFilename = match?.[1] || nombreFallback;
+  
+  // Extract extension
+  const extMatch = backendFilename.match(/\.[0-9a-z]+$/i);
+  const extension = extMatch ? extMatch[0] : '';
+  
+  let filename = backendFilename;
+  if (customName && customName.trim()) {
+    filename = `${customName.trim()}${extension}`;
+  } else {
+    filename = `Examen${extension}`;
+  }
+
   const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = blobUrl;
@@ -93,21 +105,28 @@ const descargarArchivo = async (url, nombreFallback, config = {}) => {
   window.URL.revokeObjectURL(blobUrl);
 };
 
-export const descargarPdfVersion = (examenId, version) => descargarArchivo(
+export const descargarPdfVersion = (examenId, version, customName) => descargarArchivo(
   `/examenes/${examenId}/versiones/${version}/pdf`,
   `examen_version_${version}.pdf`,
   {
     method: 'post',
     body: leerConfiguracionCaratula(),
+    customName,
   },
 );
 
-export const descargarPdfsVersiones = (examenId) => descargarArchivo(
+export const descargarPdfsVersiones = (examenId, customName) => descargarArchivo(
   `/examenes/${examenId}/pdfs`,
   'examen_versiones.zip',
+  {
+    customName,
+  }
 );
 
-export const descargarPdfSolucionario = (examenId, version) => descargarArchivo(
+export const descargarPdfSolucionario = (examenId, version, customName) => descargarArchivo(
   `/examenes/${examenId}/versiones/${version}/solucionario-pdf`,
   `solucionario_version_${version}.pdf`,
+  {
+    customName,
+  }
 );

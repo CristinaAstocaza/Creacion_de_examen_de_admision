@@ -67,29 +67,32 @@ def procesar_imagenes(api_key_gemini, folder_name, c_cloud_name, c_api_key, c_ap
             with open(img_path, "rb") as f:
                 img_bytes = f.read()
                 
-            prompt = f"""
+            prompt = """
             Analiza esta imagen.
-            La imagen contiene exactamente UNA pregunta de examen.
-            Extrae fielmente toda la información.
-            No inventes texto ni completes información. Conserva exactamente el contenido.
+            La imagen contiene exactamente UNA pregunta de examen completa (enunciado + simbolos + alternativas).
+            Extrae fielmente toda la informacion procesandola como una unidad completa.
+            No inventes texto ni completes informacion. Conserva exactamente el contenido.
             
-            REGLAS MUY IMPORTANTES PARA EXPRESIONES MATEMÁTICAS Y BLOQUES:
-            - Debes separar el contenido en "bloques" secuenciales que respeten EXACTAMENTE el orden visual original de la imagen (ej: Texto -> Fórmula -> Imagen -> Texto). No reagrupes ni muevas el contenido.
-            - TODA expresión matemática (fracciones, potencias, raíces, integrales, variables con subíndices, matrices, etc.) debe extraerse en formato LaTeX válido compatible con KaTeX, y asignarse a un bloque de tipo "latex".
-            - NO conviertas fracciones a texto lineal. NO simplifiques. NO reemplaces exponentes por caracteres Unicode. NO elimines paréntesis.
-            - El texto normal, sin fórmulas matemáticas complejas, debe ir en bloques de tipo "texto". NO conviertas texto normal a LaTeX (ej. "Calcule el área" debe ser tipo "texto", no "latex").
-            - Si encuentras un gráfico o tabla dentro del enunciado o alternativa, crea un bloque de tipo "imagen" con "url": null.
+            REGLAS MUY IMPORTANTES PARA EXPRESIONES MATEMATICAS Y BLOQUES:
+            - Debes separar el contenido en "bloques" secuenciales que respeten EXACTAMENTE el orden visual original de la imagen. No reagrupes ni muevas el contenido.
+            - TODA expresion matematica (fracciones, potencias, raices, integrales, variables con subindices, matrices, etc.) debe extraerse en formato LaTeX valido compatible con KaTeX, y asignarse a un bloque de tipo "latex".
+            - NO conviertas fracciones a texto lineal. NO simplifiques. NO reemplaces exponentes por caracteres Unicode. NO elimines parentesis.
+            - El texto normal, sin formulas matematicas complejas, debe ir en bloques de tipo "texto". NO conviertas texto normal a LaTeX.
+            - Si encuentras un grafico o tabla dentro del enunciado o alternativa, crea un bloque de tipo "imagen" con "url": null.
             - NO indiques la respuesta correcta.
 
-            Devuelve únicamente JSON válido con este formato exacto:
-            {{
-              "numero": {idx + 1},
+            REGLAS PARA CONTENIDO CIENTIFICO, MATEMATICO Y QUIMICO:
+            - Preserva rigurosamente toda la notacion cientifica, matematica, fisica y quimica.
+            - Detecta superindices/subindices, isotopos y formulas quimicas aunque el origen visual parezca texto plano.
+            - Convierte simbolos como 6Li, 7Li a un formato renderizable. Usa bloques de tipo "latex" para formulas o HTML inline con tags sup/sub en bloques de tipo "texto".
+            - Ejemplos: isotopo 6Li -> bloque latex con valor {}^{6}\\text{Li}. Formula H2O -> bloque latex con \\text{H}_2\\text{O} o texto con H<sub>2</sub>O.
+            
+            Devuelve unicamente JSON valido con este formato exacto (reemplaza NUMERO_PREGUNTA con """ + str(idx + 1) + """):
+            {
+              "numero": """ + str(idx + 1) + """,
               "tipo_bloque": "pregunta",
               "enunciado_bloques": [
-                {{ "tipo": "texto", "valor": "Si se cumple que:" }},
-                {{ "tipo": "latex", "valor": "\\\\cos(\\\\alpha)(1-\\\\cos(\\\\alpha))^2 / 2" }},
-                {{ "tipo": "texto", "valor": "Halle el valor de x." }},
-                {{ "tipo": "imagen", "url": null }}
+                { "tipo": "texto", "valor": "El enunciado de la pregunta aqui" }
               ],
               "dificultad": "MEDIO",
               "tiene_imagen_enunciado": true,
@@ -97,17 +100,17 @@ def procesar_imagenes(api_key_gemini, folder_name, c_cloud_name, c_api_key, c_ap
               "posible_incompleta": false,
               "confianza_extraccion": 95,
               "alternativas": [
-                {{
+                {
                   "letra": "A",
                   "contenido_bloques": [
-                    {{ "tipo": "latex", "valor": "\\\\frac{1}{2}" }}
+                    { "tipo": "texto", "valor": "Contenido de la alternativa" }
                   ],
                   "tipo": "texto"
-                }}
+                }
               ]
-            }}
-            Si alguna alternativa está vacía, devuelve contenido_bloques vacío.
-            Si existe un gráfico o tabla indica tiene_imagen_enunciado=true.
+            }
+            Si alguna alternativa esta vacia, devuelve contenido_bloques vacio.
+            Si existe un grafico o tabla indica tiene_imagen_enunciado=true.
             NO responder absolutamente nada fuera del JSON.
             """
             

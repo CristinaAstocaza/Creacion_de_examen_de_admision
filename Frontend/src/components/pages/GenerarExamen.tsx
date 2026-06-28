@@ -123,9 +123,6 @@ export default function GenerarExamen() {
   const cursosProcesados = useMemo(() => cursos.map((curso) => {
     const config = configs.find((item) => item.cursoId === curso.id);
     const req = quantities[curso.id] || emptyQuantities();
-    const dificultadTotal = req.facil + req.medio + req.dificil;
-    const usaDificultades = dificultadTotal > 0;
-    const errorDificultad = selectedCourses[curso.id] && usaDificultades && dificultadTotal !== req.total;
 
     return {
       ...curso,
@@ -133,17 +130,17 @@ export default function GenerarExamen() {
       cantidadSugerida: config?.cantidadSugerida || null,
       isSelected: Boolean(selectedCourses[curso.id]),
       req,
-      errorDificultad,
+      errorDificultad: false,
     };
   }), [configs, cursos, quantities, selectedCourses]);
 
   const totalSelected = cursosProcesados.reduce((total, curso) => total + (curso.isSelected ? curso.req.total : 0), 0);
-  const hasErrors = cursosProcesados.some((curso) => curso.errorDificultad || (curso.isSelected && curso.req.total <= 0));
+  const hasErrors = cursosProcesados.some((curso) => curso.isSelected && curso.req.total <= 0);
   const isGenerateDisabled = !selectedCategoriaId || hasErrors || totalSelected !== 100 || numVersions < 1 || generating;
   const summaryMessage = totalSelected !== 100
     ? 'El total debe ser exactamente 100 preguntas.'
     : hasErrors
-      ? 'Revisa las cantidades por curso y la suma por dificultad.'
+      ? 'Revisa las cantidades por curso.'
       : 'Configuración válida para generar el examen.';
   const summaryMessageColor = totalSelected === 100 && !hasErrors ? 'var(--success-text)' : 'var(--danger)';
 
@@ -197,13 +194,12 @@ export default function GenerarExamen() {
     const cursosPayload = cursosProcesados
       .filter((curso) => curso.isSelected)
       .map((curso) => {
-        const dificultadTotal = curso.req.facil + curso.req.medio + curso.req.dificil;
         return {
           idCurso: curso.id,
           cantidadTotal: curso.req.total,
-          cantidadFacil: dificultadTotal > 0 ? curso.req.facil : null,
-          cantidadMedio: dificultadTotal > 0 ? curso.req.medio : null,
-          cantidadDificil: dificultadTotal > 0 ? curso.req.dificil : null,
+          cantidadFacil: 0,
+          cantidadMedio: curso.req.total,
+          cantidadDificil: 0,
         };
       });
 
@@ -310,49 +306,49 @@ export default function GenerarExamen() {
               <thead>
                 <tr>
                   <th className="col-checkbox">Incluir</th>
-                  <th>Curso</th>
+                  <th style={{ textAlign: 'center' }}>Curso</th>
                   <th style={{ textAlign: 'right' }}>Cantidad total</th>
-                  <th style={{ textAlign: 'right' }}>Dificultad opcional</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                    <td colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
                       Cargando cursos desde el backend...
                     </td>
                   </tr>
                 )}
                 {!loading && cursosProcesados.map((curso) => (
-                  <tr key={curso.id} style={{ backgroundColor: curso.isSelected ? '#f8fbff' : 'transparent' }}>
+                  <tr 
+                    key={curso.id} 
+                    style={{ backgroundColor: curso.isSelected ? '#f8fbff' : 'transparent', cursor: 'pointer' }}
+                    onClick={() => handleToggleCourse(curso.id, !curso.isSelected)}
+                  >
                     <td className="col-checkbox">
-                      <input type="checkbox" className="row-checkbox" checked={curso.isSelected} onChange={(e) => handleToggleCourse(curso.id, e.target.checked)} />
+                      <input 
+                        type="checkbox" 
+                        className="row-checkbox" 
+                        checked={curso.isSelected} 
+                        onChange={(e) => handleToggleCourse(curso.id, e.target.checked)} 
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'center' }}>
                       <strong style={{ color: curso.isSelected ? 'var(--primary-blue)' : 'var(--text-main)', display: 'block', marginBottom: '4px' }}>
                         {curso.nombre}
                       </strong>
                       <span className="category-badge">{curso.sugerido ? `Sugerido${curso.cantidadSugerida ? `: ${curso.cantidadSugerida}` : ''}` : 'Curso global'}</span>
                     </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <input type="number" className="input-number" min="0" disabled={!curso.isSelected} value={curso.isSelected && curso.req.total ? curso.req.total : ''} placeholder="0" onChange={(e) => handleQuantityChange(curso.id, 'total', e.target.value)} />
-                    </td>
-                    <td>
-                      <div className="difficulty-group">
-                        <div className="diff-item">
-                          <span className="diff-label">Fácil</span>
-                          <input type="number" className="input-number-sm" value={curso.isSelected && curso.req.facil ? curso.req.facil : ''} placeholder="0" min="0" disabled={!curso.isSelected} onChange={(e) => handleQuantityChange(curso.id, 'facil', e.target.value)} />
-                        </div>
-                        <div className="diff-item">
-                          <span className="diff-label">Medio</span>
-                          <input type="number" className="input-number-sm" value={curso.isSelected && curso.req.medio ? curso.req.medio : ''} placeholder="0" min="0" disabled={!curso.isSelected} onChange={(e) => handleQuantityChange(curso.id, 'medio', e.target.value)} />
-                        </div>
-                        <div className="diff-item">
-                          <span className="diff-label">Difícil</span>
-                          <input type="number" className="input-number-sm" value={curso.isSelected && curso.req.dificil ? curso.req.dificil : ''} placeholder="0" min="0" disabled={!curso.isSelected} onChange={(e) => handleQuantityChange(curso.id, 'dificil', e.target.value)} />
-                        </div>
-                      </div>
-                      {curso.errorDificultad && <span className="error-text">La dificultad debe sumar {curso.req.total}.</span>}
+                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="number" 
+                        className="input-number" 
+                        min="0" 
+                        disabled={!curso.isSelected} 
+                        value={curso.isSelected && curso.req.total ? curso.req.total : ''} 
+                        placeholder="0" 
+                        onChange={(e) => handleQuantityChange(curso.id, 'total', e.target.value)} 
+                      />
                     </td>
                   </tr>
                 ))}
@@ -367,12 +363,9 @@ export default function GenerarExamen() {
             <div style={{ marginTop: '24px' }}>
               {cursosProcesados.map((curso) => (
                 curso.isSelected && curso.req.total > 0 && (
-                  <div className="summary-row" key={curso.id} style={{ color: curso.errorDificultad ? 'var(--danger)' : 'inherit' }}>
+                  <div className="summary-row" key={curso.id}>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <span>{curso.nombre}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {curso.req.facil} F - {curso.req.medio} M - {curso.req.dificil} D
-                      </span>
                     </div>
                     <strong style={{ display: 'flex', alignItems: 'center' }}>{curso.req.total}</strong>
                   </div>

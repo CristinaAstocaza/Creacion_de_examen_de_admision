@@ -102,12 +102,6 @@ const isBlockFormat = (contentStr: string): boolean => {
   }
 };
 
-const dificultadLabel = (dificultad: string) => {
-  if (dificultad === 'FACIL') return 'Fácil';
-  if (dificultad === 'MEDIO') return 'Medio';
-  return 'Difícil';
-};
-
 export default function BancoPreguntas() {
   const [preguntas, setPreguntas] = useState<PreguntaResponse[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -115,29 +109,11 @@ export default function BancoPreguntas() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCursoId, setFilterCursoId] = useState('');
-  const [filterDifficulty, setFilterDifficulty] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState<PreguntaResponse | null>(null);
-  const [isAnswerRevealed, setIsAnswerRevealed] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormDataPregunta>(crearFormVacio());
   const [isSaving, setIsSaving] = useState(false);
-
-  const getDifficultyBadgeClass = (diff: string) => {
-    if (diff === 'FACIL') return 'badge-easy';
-    if (diff === 'MEDIO') return 'badge-medium';
-    return 'badge-hard';
-  };
-
-  const handleCorrectaChange = (index: number) => {
-    setFormData({
-      ...formData,
-      alternativas: formData.alternativas.map((alternativa, currentIndex) => ({
-        ...alternativa,
-        esCorrecta: currentIndex === index,
-      })),
-    });
-  };
 
   // ── Enunciado image state ──
   const [enunciadoImageFile, setEnunciadoImageFile] = useState<File | null>(null);
@@ -176,10 +152,9 @@ export default function BancoPreguntas() {
           q.enunciado.toLowerCase().includes(searchTerm.toLowerCase()) ||
           q.codigo.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCurso = filterCursoId ? q.cursoId === Number(filterCursoId) : true;
-        const matchesDiff = filterDifficulty ? q.dificultad === filterDifficulty : true;
-        return matchesSearch && matchesCurso && matchesDiff;
+        return matchesSearch && matchesCurso;
       }),
-    [filterCursoId, filterDifficulty, preguntas, searchTerm]
+    [filterCursoId, preguntas, searchTerm]
   );
 
   // ── Auto-generate PREG-XXXXX code ──
@@ -208,7 +183,6 @@ export default function BancoPreguntas() {
     try {
       const data = await obtenerPregunta(question.id);
       setSelectedQuestion(data);
-      setIsAnswerRevealed(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Error al obtener detalle de la pregunta');
     }
@@ -238,7 +212,7 @@ export default function BancoPreguntas() {
     setFormData({
       codigo: question.codigo || '',
       cursoId: String(question.cursoId),
-      enunciado: question.enunciado,
+      enunciado: extractTextFromBlocks(question.enunciado),
       imagenUrl: question.imagenUrl || '',
       dificultad: question.dificultad || 'MEDIO',
       activo: question.activo,
@@ -247,7 +221,7 @@ export default function BancoPreguntas() {
         return {
           letra,
           tipo: alt?.tipo || 'TEXTO',
-          contenidoTexto: alt?.contenidoTexto || '',
+          contenidoTexto: extractTextFromBlocks(alt?.contenidoTexto || ''),
           imagenUrl: alt?.imagenUrl || '',
           esCorrecta: alt?.esCorrecta || false,
           ordenVisualizacion: alt?.ordenVisualizacion || index + 1,
@@ -385,9 +359,18 @@ export default function BancoPreguntas() {
         })
       );
 
+      const wrapInTextBlock = (text: string): string => {
+        if (!text) return '';
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) return text;
+        } catch (e) {}
+        return JSON.stringify([{ tipo: 'texto', valor: text }]);
+      };
+
       const payload = {
         codigo: formData.codigo.trim() || null,
-        enunciado: formData.enunciado.trim(),
+        enunciado: wrapInTextBlock(formData.enunciado.trim()),
         imagenUrl: enunciadoFinalUrl.trim() || null,
         tieneImagen: !!enunciadoFinalUrl.trim(),
         dificultad: formData.dificultad,
@@ -396,7 +379,7 @@ export default function BancoPreguntas() {
         alternativas: alternativasFinales.map((alt) => ({
           letra: alt.letra,
           tipo: alt.tipo,
-          contenidoTexto: alt.contenidoTexto.trim() || null,
+          contenidoTexto: alt.contenidoTexto.trim() ? wrapInTextBlock(alt.contenidoTexto.trim()) : null,
           imagenUrl: alt.imagenUrl.trim() || null,
           esCorrecta: alt.esCorrecta,
           ordenVisualizacion: alt.ordenVisualizacion,
@@ -435,7 +418,7 @@ export default function BancoPreguntas() {
         <input
           type="text"
           className="filter-input"
-          placeholder="Buscar por código o palabra clave..."
+          placeholder="Buscar por palabra clave..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -453,53 +436,30 @@ export default function BancoPreguntas() {
             ))}
           </SelectContent>
         </Select>
-
-        {/* Filtro Dificultad */}
-        <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
-          <SelectTrigger className="w-full px-3 py-2 text-left">
-            <SelectValue placeholder="Dificultad" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="" className="px-3 py-2 cursor-pointer">Dificultad</SelectItem>
-            <SelectItem value="FACIL" className="px-3 py-2 cursor-pointer">Fácil</SelectItem>
-            <SelectItem value="MEDIO" className="px-3 py-2 cursor-pointer">Medio</SelectItem>
-            <SelectItem value="DIFICIL" className="px-3 py-2 cursor-pointer">Difícil</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       <div className="table-card shadcn-table-wrapper">
         <Table className="shadcn-table">
           <TableHeader>
             <TableRow>
-              <TableHead>Código</TableHead>
               <TableHead>Curso</TableHead>
-              <TableHead>Enunciado (Resumen)</TableHead>
-              <TableHead>Dificultad</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Pregunta</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
                   Cargando preguntas...
                 </TableCell>
               </TableRow>
             )}
             {!loading && filteredQuestions.map((q) => (
               <TableRow key={q.id}>
-                <TableCell><strong>{q.codigo}</strong></TableCell>
                 <TableCell>{q.cursoNombre}</TableCell>
                 <TableCell className="truncate-text" title={extractTextFromBlocks(q.enunciado)}>
                   {extractTextFromBlocks(q.enunciado)}
-                </TableCell>
-                <TableCell>
-                  <span className={`badge ${getDifficultyBadgeClass(q.dificultad)}`}>{dificultadLabel(q.dificultad)}</span>
-                </TableCell>
-                <TableCell>
-                  <span className={`badge ${q.activo ? 'badge-active' : 'badge-inactive'}`}>{q.activo ? 'Activo' : 'Inactivo'}</span>
                 </TableCell>
                 <TableCell>
                   <div className="action-buttons">
@@ -518,7 +478,7 @@ export default function BancoPreguntas() {
             ))}
             {!loading && filteredQuestions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
                   No hay preguntas registradas para los filtros seleccionados.
                 </TableCell>
               </TableRow>
@@ -539,33 +499,24 @@ export default function BancoPreguntas() {
             </div>
 
             <div className="modal-body">
-              {/* Fila: Curso + Código (readonly) */}
-              <div className="form-row">
-                <div className="form-group mb-0" style={{ flex: 2 }}>
-                  <label>Curso *</label>
-                  <Select
-                    value={formData.cursoId}
-                    onValueChange={(value) => setFormData({ ...formData, cursoId: value })}
-                  >
-                    <SelectTrigger className="w-full px-3 py-2 text-left">
-                      <SelectValue placeholder="Seleccione..." />
-                    </SelectTrigger>
-                    <SelectContent className="z-[9999]">
-                      {cursos.map((curso) => (
-                        <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
-                          {curso.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="form-group mb-0" style={{ flex: 1 }}>
-                  <label>Código</label>
-                  <div className="code-readonly-box">
-                    <span className="material-icons-outlined" style={{ fontSize: '16px', color: 'var(--text-muted)' }}>tag</span>
-                    <span className="code-readonly-text">{formData.codigo || '—'}</span>
-                  </div>
-                </div>
+              {/* Fila: Curso */}
+              <div className="form-group mb-0">
+                <label>Curso *</label>
+                <Select
+                  value={formData.cursoId}
+                  onValueChange={(value) => setFormData({ ...formData, cursoId: value })}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 text-left">
+                    <SelectValue placeholder="Seleccione..." />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    {cursos.map((curso) => (
+                      <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
+                        {curso.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Enunciado */}
@@ -652,38 +603,20 @@ export default function BancoPreguntas() {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group mb-0">
-                  <label>Dificultad *</label>
-                  <Select
-                    value={formData.dificultad}
-                    onValueChange={(value) => setFormData({ ...formData, dificultad: value as FormDataPregunta['dificultad'] })}
-                  >
-                    <SelectTrigger className="w-full px-3 py-2 text-left">
-                      <SelectValue placeholder="Seleccione dificultad" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[9999]">
-                      <SelectItem value="FACIL" className="px-3 py-2 cursor-pointer">Fácil</SelectItem>
-                      <SelectItem value="MEDIO" className="px-3 py-2 cursor-pointer">Medio</SelectItem>
-                      <SelectItem value="DIFICIL" className="px-3 py-2 cursor-pointer">Difícil</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="form-group mb-0">
-                  <label>Estado</label>
-                  <Select
-                    value={formData.activo ? 'Activo' : 'Inactivo'}
-                    onValueChange={(value) => setFormData({ ...formData, activo: value === 'Activo' })}
-                  >
-                    <SelectTrigger className="w-full px-3 py-2 text-left">
-                      <SelectValue placeholder="Seleccione estado" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[9999]">
-                      <SelectItem value="Activo" className="px-3 py-2 cursor-pointer">Activo</SelectItem>
-                      <SelectItem value="Inactivo" className="px-3 py-2 cursor-pointer">Inactivo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="form-group mb-0">
+                <label>Estado</label>
+                <Select
+                  value={formData.activo ? 'Activo' : 'Inactivo'}
+                  onValueChange={(value) => setFormData({ ...formData, activo: value === 'Activo' })}
+                >
+                  <SelectTrigger className="w-full px-3 py-2 text-left">
+                    <SelectValue placeholder="Seleccione estado" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[9999]">
+                    <SelectItem value="Activo" className="px-3 py-2 cursor-pointer">Activo</SelectItem>
+                    <SelectItem value="Inactivo" className="px-3 py-2 cursor-pointer">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Alternativas */}
@@ -761,16 +694,6 @@ export default function BancoPreguntas() {
                             onChange={(e) => handleAltFileSelect(idx, e)}
                           />
 
-                          {/* Alternativa correcta */}
-                          <label className="checkbox-label" style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <input
-                              type="radio"
-                              name="respuestaCorrecta"
-                              checked={alt.esCorrecta}
-                              onChange={() => handleCorrectaChange(idx)}
-                            />
-                            Alternativa correcta
-                          </label>
                         </div>
                       </div>
                     );
@@ -813,15 +736,9 @@ export default function BancoPreguntas() {
             </div>
             <div className="modal-body">
               <div className="question-meta" style={{ marginBottom: 12 }}>
-                <span className={`badge ${getDifficultyBadgeClass(selectedQuestion.dificultad)}`}>
-                  {dificultadLabel(selectedQuestion.dificultad)}
-                </span>
                 <span style={{ fontSize: '13px', color: '#5f6368', display: 'flex', alignItems: 'center' }}>
                   <span className="material-icons-outlined" style={{ fontSize: '16px', marginRight: '4px' }}>school</span>
                   {selectedQuestion.cursoNombre}
-                </span>
-                <span style={{ fontSize: '12px', color: '#9aa0a6', background: '#f1f3f4', padding: '2px 10px', borderRadius: '12px' }}>
-                  {selectedQuestion.codigo}
                 </span>
               </div>
               <div className="question-text" style={{ marginBottom: 16 }}>
@@ -841,47 +758,30 @@ export default function BancoPreguntas() {
 
               <ul className="options-list">
                 {selectedQuestion.alternativas.map((opt) => {
-                  const itemClass = isAnswerRevealed && opt.esCorrecta ? 'option-item correct' : 'option-item';
                   return (
-                    <li key={opt.letra} className={itemClass}>
+                    <li key={opt.letra} className="option-item">
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                         <span className="option-letter">{opt.letra})</span>
                         <div style={{ flex: 1 }}>
-                          {/* Renderizar texto si existe */}
-                          {opt.contenidoTexto && (
-                            <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
-                          )}
-                          {/* Renderizar imagen si existe */}
-                          {opt.imagenUrl && !isBlockFormat(opt.contenidoTexto || '') && (
-                            <img
-                              src={opt.imagenUrl}
-                              alt={`Alternativa ${opt.letra}`}
-                              className="option-image-detail"
-                              onError={(e) => (e.currentTarget.style.display = 'none')}
-                            />
-                          )}
+                           {/* Renderizar texto si existe */}
+                           {opt.contenidoTexto && (
+                             <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
+                           )}
+                           {/* Renderizar imagen si existe */}
+                           {opt.imagenUrl && !isBlockFormat(opt.contenidoTexto || '') && (
+                             <img
+                               src={opt.imagenUrl}
+                               alt={`Alternativa ${opt.letra}`}
+                               className="option-image-detail"
+                               onError={(e) => (e.currentTarget.style.display = 'none')}
+                             />
+                           )}
                         </div>
                       </div>
                     </li>
                   );
                 })}
               </ul>
-
-              {!isAnswerRevealed ? (
-                <div className="hidden-answer-box" style={{ marginTop: '16px' }}>
-                  <span className="material-icons-outlined" style={{ fontSize: '32px', color: '#9aa0a6' }}>lock</span>
-                  <p>La respuesta correcta está oculta por seguridad.</p>
-                  <button className="btn-outline" style={{ marginTop: '8px' }} onClick={() => setIsAnswerRevealed(true)}>
-                    <span className="material-icons-outlined">visibility</span>Revelar Respuesta
-                  </button>
-                </div>
-              ) : (
-                <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                  <button className="btn-outline" onClick={() => setIsAnswerRevealed(false)}>
-                    <span className="material-icons-outlined">visibility_off</span>Ocultar Respuesta
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>

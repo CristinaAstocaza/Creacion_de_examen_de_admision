@@ -13,6 +13,7 @@ import pe.edu.utp.sistemaexamenes.model.Alternativa;
 import pe.edu.utp.sistemaexamenes.model.Examen;
 import pe.edu.utp.sistemaexamenes.model.ExamenPregunta;
 import pe.edu.utp.sistemaexamenes.model.ExamenVersion;
+import pe.edu.utp.sistemaexamenes.model.Pregunta;
 import pe.edu.utp.sistemaexamenes.repository.ExamenRepository;
 import pe.edu.utp.sistemaexamenes.repository.ExamenVersionRepository;
 import pe.edu.utp.sistemaexamenes.service.ExamenPdfService;
@@ -21,7 +22,12 @@ import pe.edu.utp.sistemaexamenes.util.ContenidoBloqueUtil;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.net.URL;
+import java.net.HttpURLConnection;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -317,6 +323,178 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         return null;
     }
 
+    private Image cargarImagen(String urlString, float maxWidth, float maxHeight) {
+        System.out.println("[DIAG] URL imagen que ingresa a cargarImagen: " + urlString);
+        if (urlString == null || urlString.isBlank()) {
+            System.out.println("[DIAG] URL nula o vacía en cargarImagen.");
+            return null;
+        }
+        try {
+            byte[] bytes = null;
+            if (urlString.startsWith("http://") || urlString.startsWith("https://")) {
+                bytes = descargarBytesImagen(urlString);
+            } else {
+                bytes = decodificarImagenBase64(urlString);
+            }
+
+            if (bytes == null || bytes.length == 0) {
+                System.out.println("[DIAG] Los bytes de imagen obtenidos son nulos o vacíos.");
+                return null;
+            }
+
+            Image img = null;
+            try {
+                // Intento 1: Carga directa
+                img = Image.getInstance(bytes);
+                System.out.println("[DIAG] Imagen creada correctamente (Intento 1)");
+                System.out.println("[DIAG] Ancho (width): " + img.getWidth());
+                System.out.println("[DIAG] Alto (height): " + img.getHeight());
+                System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
+            } catch (Exception e1) {
+                System.out.println("[DIAG] Falló Intento 1 (Carga directa). Excepción:");
+                e1.printStackTrace();
+
+                // Intento 2: Fallback para Cloudinary forzando conversión a PNG en CDN
+                if (urlString.contains("cloudinary.com")) {
+                    String fallbackUrl = urlString.replace("/upload/", "/upload/f_png/");
+                    System.out.println("[DIAG] Aplicando fallback Cloudinary (Intento 2). URL: " + fallbackUrl);
+                    byte[] fallbackBytes = descargarBytesImagen(fallbackUrl);
+                    if (fallbackBytes != null) {
+                        try {
+                            img = Image.getInstance(fallbackBytes);
+                            System.out.println("[DIAG] Imagen creada correctamente (Intento 2 - Cloudinary PNG)");
+                            System.out.println("[DIAG] Ancho (width): " + img.getWidth());
+                            System.out.println("[DIAG] Alto (height): " + img.getHeight());
+                            System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
+                        } catch (Exception e2) {
+                            System.out.println("[DIAG] Falló Intento 2 (Cloudinary PNG). Excepción:");
+                            e2.printStackTrace();
+                        }
+                    }
+                }
+                
+                // Intento 3: Conversión en memoria usando ImageIO
+                if (img == null) {
+                    System.out.println("[DIAG] Aplicando fallback en memoria (Intento 3).");
+                    byte[] convertedBytes = convertirAPngEnMemoria(bytes);
+                    if (convertedBytes != null) {
+                        try {
+                            img = Image.getInstance(convertedBytes);
+                            System.out.println("[DIAG] Imagen creada correctamente (Intento 3 - Conversión ImageIO)");
+                            System.out.println("[DIAG] Ancho (width): " + img.getWidth());
+                            System.out.println("[DIAG] Alto (height): " + img.getHeight());
+                            System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
+                        } catch (Exception e3) {
+                            System.out.println("[DIAG] Falló Intento 3 (Conversión ImageIO). Excepción:");
+                            e3.printStackTrace();
+                        }
+                    }
+                }
+            }
+
+            if (img != null) {
+                escalarImagen(img, maxWidth, maxHeight);
+                return img;
+            } else {
+                System.out.println("[DIAG] Objeto Image no pudo ser creado en ningún intento.");
+            }
+        } catch (Exception e) {
+            System.out.println("[DIAG] Excepción general en cargarImagen:");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private void escalarImagen(Image img, float maxWidth, float maxHeight) {
+        float originalWidth = img.getWidth();
+        float originalHeight = img.getHeight();
+        if (originalWidth > 0 && originalHeight > 0) {
+            float ratioWidth = maxWidth / originalWidth;
+            float ratioHeight = maxHeight / originalHeight;
+            float scaleRatio = Math.min(ratioWidth, ratioHeight);
+            if (scaleRatio < 1.0f) {
+                img.scaleAbsolute(originalWidth * scaleRatio, originalHeight * scaleRatio);
+            } else {
+                img.scaleAbsolute(originalWidth, originalHeight);
+            }
+        }
+    }
+
+    private byte[] descargarBytesImagen(String urlString) {
+        System.out.println("[DIAG] Descargando: " + urlString);
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
+            conn.setConnectTimeout(8000);
+            conn.setReadTimeout(8000);
+            conn.setInstanceFollowRedirects(true);
+            
+            int status = conn.getResponseCode();
+            System.out.println("[DIAG] HTTP Status: " + status);
+            if (status == HttpURLConnection.HTTP_OK) {
+                String contentType = conn.getContentType();
+                System.out.println("[DIAG] Content-Type: " + contentType);
+                if (contentType != null && contentType.startsWith("image/")) {
+                    try (InputStream is = conn.getInputStream(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = is.read(buffer)) != -1) {
+                            baos.write(buffer, 0, bytesRead);
+                        }
+                        byte[] bytes = baos.toByteArray();
+                        System.out.println("[DIAG] Content-Length (header): " + conn.getContentLength());
+                        System.out.println("[DIAG] Bytes realmente descargados: " + bytes.length);
+                        if (bytes.length > 0) {
+                            return bytes;
+                        } else {
+                            System.out.println("[DIAG] Descarga completada pero con 0 bytes de contenido.");
+                        }
+                    }
+                } else {
+                    System.out.println("[DIAG] Rechazado por Content-Type no es imagen para la URL " + urlString + ": " + contentType);
+                }
+            } else if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == 307 || status == 308) {
+                String newUrl = conn.getHeaderField("Location");
+                System.out.println("[DIAG] Redireccionando descarga de " + urlString + " a: " + newUrl);
+                return descargarBytesImagen(newUrl);
+            } else {
+                System.out.println("[DIAG] Fallo en descarga. Respuesta HTTP no fue 200 para la URL " + urlString + ": " + status);
+            }
+        } catch (Exception e) {
+            System.out.println("[DIAG] Excepción al descargar bytes de la imagen para " + urlString + ":");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private byte[] convertirAPngEnMemoria(byte[] bytes) {
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            BufferedImage bi = ImageIO.read(bais);
+            if (bi != null) {
+                boolean success = ImageIO.write(bi, "png", baos);
+                if (success) {
+                    return baos.toByteArray();
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("[DIAG] Excepción en convertirAPngEnMemoria:");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private String clasificarUrl(String url) {
+        if (url == null) return "NULL";
+        if (url.isBlank()) return "VACÍA";
+        if (url.startsWith("data:")) return "Base64";
+        if (url.contains("cloudinary.com")) return "Cloudinary";
+        if (url.contains("localhost") || url.contains("127.0.0.1")) return "Localhost";
+        return "Otro servidor/desconocido";
+    }
+
     private byte[] decodificarImagenBase64(String logoUrl) {
         try {
             if (logoUrl.startsWith("data:")) {
@@ -357,6 +535,13 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         MultiColumnText mct = new MultiColumnText();
         mct.addRegularColumns(document.left(), document.right(), 24f, 2);
 
+        float pageWidth = document.right() - document.left();
+        float columnWidth = (pageWidth - 24f) / 2f;
+        float maxEnunciadoWidth = columnWidth * 0.55f;
+        float maxEnunciadoHeight = 100f;
+        float maxAlternativaWidth = columnWidth * 0.45f;
+        float maxAlternativaHeight = 70f;
+
         for (Map.Entry<String, List<ExamenPregunta>> entry : porCurso.entrySet()) {
             // --- Cabecera del curso ---
             PdfPTable cabeceraCurso = new PdfPTable(1);
@@ -373,25 +558,78 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
             // --- Preguntas del curso ---
             for (ExamenPregunta examenPregunta : entry.getValue()) {
-                Phrase contenidoPregunta = new Phrase();
-                String enunciadoLimpio = ContenidoBloqueUtil.extraerEnunciado(
-                        examenPregunta.getPregunta().getEnunciado());
-                contenidoPregunta.add(new Chunk(numeroVisual + ". " + enunciadoLimpio + "\n",
-                        fuente(9, Font.BOLD)));
+                Pregunta pregunta = examenPregunta.getPregunta();
+                
+                System.out.println("========== DIAGNÓSTICO PREGUNTA ID: " + pregunta.getId() + " ==========");
+                System.out.println("[DIAG] URL del enunciado: " + pregunta.getImagenUrl());
+                System.out.println("[DIAG] Clasificación URL enunciado: " + clasificarUrl(pregunta.getImagenUrl()));
+                System.out.println("[DIAG] Cantidad de alternativas: " + (pregunta.getAlternativas() != null ? pregunta.getAlternativas().size() : 0));
+                if (pregunta.getAlternativas() != null) {
+                    for (Alternativa a : pregunta.getAlternativas()) {
+                        System.out.println("[DIAG] Alternativa " + a.getLetra() + " -> tipo: " + a.getTipo() + ", imagenUrl: " + a.getImagenUrl() + ", tipo de URL: " + clasificarUrl(a.getImagenUrl()));
+                    }
+                }
+                
+                Paragraph pEnunciado = new Paragraph();
+                pEnunciado.setSpacingAfter(4f);
+
+                String enunciadoLimpio = ContenidoBloqueUtil.extraerEnunciado(pregunta.getEnunciado());
+                pEnunciado.add(new Chunk(numeroVisual + ". " + enunciadoLimpio, fuente(9, Font.BOLD)));
                 numeroVisual++;
+                mct.addElement(pEnunciado);
+
+                // If question has image:
+                if (pregunta.getImagenUrl() != null && !pregunta.getImagenUrl().isBlank()) {
+                    Image img = cargarImagen(pregunta.getImagenUrl(), maxEnunciadoWidth, maxEnunciadoHeight);
+                    if (img != null) {
+                        System.out.println("[DIAG] Agregando imagen del enunciado al PDF");
+                        img.setAlignment(Image.ALIGN_CENTER);
+                        img.setSpacingBefore(4f);
+                        img.setSpacingAfter(6f);
+                        mct.addElement(img);
+                    } else {
+                        System.out.println("[DIAG] FAILED: No se pudo agregar la imagen del enunciado al PDF.");
+                        Paragraph pErr = new Paragraph("   [No se pudo cargar la imagen]", fuenteColor(8, Font.ITALIC, Color.GRAY));
+                        pErr.setSpacingAfter(4f);
+                        mct.addElement(pErr);
+                    }
+                }
 
                 for (Alternativa alternativa : ordenarAlternativas(examenPregunta)) {
-                    String contenido = alternativa.getTipo().name().equals("IMAGEN")
-                            ? Objects.toString(alternativa.getImagenUrl(), "")
-                            : ContenidoBloqueUtil.extraerTextoPlano(alternativa.getContenidoTexto());
-                    contenidoPregunta.add(new Chunk("   " + alternativa.getLetra() + ") " + contenido + "\n",
-                            fuente(8, Font.NORMAL)));
-                }
-                contenidoPregunta.add(new Chunk("\n", fuente(4, Font.NORMAL)));
+                    Paragraph pAlt = new Paragraph();
+                    pAlt.setSpacingAfter(2f);
+                    pAlt.add(new Chunk("   " + alternativa.getLetra() + ") ", fuente(8, Font.NORMAL)));
 
-                Paragraph p = new Paragraph(contenidoPregunta);
-                p.setSpacingAfter(2f);
-                mct.addElement(p);
+                    boolean hasText = false;
+                    if (alternativa.getContenidoTexto() != null && !alternativa.getContenidoTexto().isBlank()) {
+                        String texto = ContenidoBloqueUtil.extraerTextoPlano(alternativa.getContenidoTexto());
+                        if (!texto.isBlank() && !texto.equals("[Imagen]")) {
+                            pAlt.add(new Chunk(texto, fuente(8, Font.NORMAL)));
+                            hasText = true;
+                        }
+                    }
+                    mct.addElement(pAlt);
+
+                    if (alternativa.getImagenUrl() != null && !alternativa.getImagenUrl().isBlank()) {
+                        Image img = cargarImagen(alternativa.getImagenUrl(), maxAlternativaWidth, maxAlternativaHeight);
+                        if (img != null) {
+                            System.out.println("[DIAG] Agregando imagen de alternativa " + alternativa.getLetra() + " al PDF");
+                            img.setAlignment(Image.ALIGN_LEFT);
+                            img.setSpacingBefore(3f);
+                            img.setSpacingAfter(4f);
+                            mct.addElement(img);
+                        } else {
+                            System.out.println("[DIAG] FAILED: No se pudo agregar la imagen de alternativa " + alternativa.getLetra() + " al PDF.");
+                            Paragraph pErr = new Paragraph("   [No se pudo cargar la imagen]", fuenteColor(8, Font.ITALIC, Color.GRAY));
+                            pErr.setSpacingAfter(2f);
+                            mct.addElement(pErr);
+                        }
+                    }
+                }
+                
+                Paragraph pSpacing = new Paragraph(" ", fuente(4, Font.NORMAL));
+                pSpacing.setSpacingAfter(4f);
+                mct.addElement(pSpacing);
             }
         }
 

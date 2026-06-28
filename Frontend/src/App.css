@@ -321,3 +321,58 @@ select.select::-ms-expand { display: none; }
   color: var(--primary-blue);
   font-weight: 600;
 }
+
+/* --- MEJORAS GLOBALES DE HOVER EN BOTONES --- */
+button:hover,
+.btn:hover,
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-outline:hover,
+.btn-icon:hover,
+.btn-action:hover,
+.btn-action-outline:hover,
+.btn-action-primary:hover,
+.btn-cancel-alt:hover,
+.btn-upload-sm:hover,
+.btn-upload-action:hover,
+.btn-upload-url:hover,
+.btn-delete-action:hover {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Botones principales (fondo azul/indigo/degradado): mantener letra blanca y notoria */
+.btn-primary:hover,
+.btn-action-primary:hover,
+[class*="btn-primary"]:hover {
+  color: #ffffff !important;
+  opacity: 0.95;
+  filter: brightness(1.05);
+}
+
+/* Botones secundarios u outlines (fondo claro): mantener texto oscuro y notorio */
+.btn-secondary:hover,
+.btn-outline:hover,
+.btn-action-outline:hover,
+.btn-cancel-alt:hover,
+.btn-upload-action:hover,
+.btn-upload-url:hover,
+[class*="btn-secondary"]:hover,
+[class*="btn-outline"]:hover {
+  color: var(--text-primary) !important;
+  background-color: rgba(37, 99, 235, 0.08) !important;
+  border-color: var(--accent-blue) !important;
+}
+
+/* Botones pequeños o de iconos */
+.btn-small:hover,
+.btn-upload-sm:hover {
+  color: var(--text-primary) !important;
+  background-color: #f1f3f4 !important;
+}
+
+.btn-small.danger:hover,
+.btn-delete-action:hover {
+  color: var(--error-color) !important;
+  background-color: var(--error-bg) !important;
+  border-color: #fad2cf !important;
+}

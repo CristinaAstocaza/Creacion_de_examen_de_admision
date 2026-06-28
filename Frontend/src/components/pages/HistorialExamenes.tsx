@@ -117,8 +117,10 @@ export const HistorialExamenes = () => {
   };
 
   const handleDescargarZip = async (examenId: number) => {
+    const exam = examenes.find((e) => e.id === examenId);
+    const customName = exam ? exam.nombre : '';
     try {
-      await descargarPdfsVersiones(examenId);
+      await descargarPdfsVersiones(examenId, customName);
     } catch (err) {
       console.error('Error al descargar ZIP:', err);
       alert('Hubo un error al intentar descargar el paquete ZIP de versiones.');
@@ -212,7 +214,11 @@ export const HistorialExamenes = () => {
             {versionData && (
               <button
                 className="btn btn-primary"
-                onClick={() => descargarPdfVersion(versionData.examenId, versionData.codigoVersion)}
+                onClick={() => {
+                  const exam = examenes.find((e) => e.id === versionData.examenId);
+                  const customName = exam ? exam.nombre : '';
+                  descargarPdfVersion(versionData.examenId, versionData.codigoVersion, customName);
+                }}
               >
                 Descargar PDF
               </button>
@@ -482,13 +488,13 @@ export const HistorialExamenes = () => {
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.codigoVersion)}
+                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
                       >
                         Solucionario
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfVersion(examenSeleccionado.id, v.codigoVersion)}
+                        onClick={() => descargarPdfVersion(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
                       >
                         PDF
                       </button>

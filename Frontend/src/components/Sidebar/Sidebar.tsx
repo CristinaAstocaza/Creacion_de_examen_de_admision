@@ -28,7 +28,6 @@ export default function Sidebar() {
           <h1 className="logo-text">
             Sistema de Gestión<br />de Exámenes
           </h1>
-          <p className="logo-subtitle">Panel administrativo premium</p>
         </div>
       </div>
 

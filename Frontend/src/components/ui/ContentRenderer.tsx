@@ -34,40 +34,39 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
 
   const wrapperStyle: React.CSSProperties = inline 
     ? { display: 'inline', gap: '4px' }
-    : { display: 'flex', flexDirection: 'column', gap: '8px' };
+    : { display: 'block', width: '100%' };
 
   return (
     <div className={`content-renderer ${className || ''}`} style={wrapperStyle}>
       {blocks.map((b, i) => {
         if (b.tipo === 'texto') {
-          return inline ? (
+          return (
             <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
               {b.valor}
             </span>
-          ) : (
-            <div key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-              {b.valor}
-            </div>
           );
         }
         if (b.tipo === 'latex') {
           try {
-            // Si es inline, displayMode es false para alinearse bien con el texto de la alternativa
-            const isDisplay = !inline;
-            const html = katex.renderToString(b.valor || '', { throwOnError: true, displayMode: isDisplay });
-            return inline ? (
+            // Un bloque LaTeX es de tipo display (bloque entero centrado) solo si contiene marcadores de display math
+            const hasDisplayMarker = b.valor?.includes('$$') || b.valor?.includes('\\begin{');
+            const isDisplay = !inline && hasDisplayMarker;
+            const cleanValor = b.valor?.replace(/\$\$/g, '') || '';
+            const html = katex.renderToString(cleanValor, { throwOnError: true, displayMode: isDisplay });
+            
+            return isDisplay ? (
+              <div 
+                key={i} 
+                className="latex-block" 
+                dangerouslySetInnerHTML={{ __html: html }} 
+                style={{ overflowX: 'auto', padding: '8px 0', textAlign: 'center' }}
+              />
+            ) : (
               <span 
                 key={i} 
                 className="latex-inline" 
                 dangerouslySetInnerHTML={{ __html: html }} 
                 style={{ padding: '0 4px', display: 'inline-block', verticalAlign: 'middle' }}
-              />
-            ) : (
-              <div 
-                key={i} 
-                className="latex-block" 
-                dangerouslySetInnerHTML={{ __html: html }} 
-                style={{ overflowX: 'auto', padding: '8px 0' }}
               />
             );
           } catch (e) {
