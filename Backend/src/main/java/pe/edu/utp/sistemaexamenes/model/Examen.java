@@ -88,6 +88,9 @@ public class Examen {
     @Column(name = "logo_url", columnDefinition = "TEXT")
     private String logoUrl;
 
+    @Column(name = "instrucciones_portada", columnDefinition = "TEXT")
+    private String instruccionesPortada;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "categoria_examen_id", nullable = false)
     private CategoriaExamen categoriaExamen;

@@ -216,7 +216,8 @@ export default function GenerarExamen() {
         tituloExamen: parsedConfig.headerText.trim(),
         modalidad: parsedConfig.modalidad.trim(),
         colorPortada: parsedConfig.colorPortada,
-        logoUrl: parsedConfig.logoUrl || null
+        logoUrl: parsedConfig.logoUrl || null,
+        instruccionesPortada: parsedConfig.instructions?.trim() || null,
       };
 
       const examen = await generarExamen({

@@ -34,6 +34,7 @@ public record GenerarExamenRequest(
         String modalidad,
         /** Color de fondo de la portada en formato HEX (ej: "#FF5733"). Usa blanco si es null. */
         String colorPortada,
-        String logoUrl
+        String logoUrl,
+        String instruccionesPortada
 ) {
 }
