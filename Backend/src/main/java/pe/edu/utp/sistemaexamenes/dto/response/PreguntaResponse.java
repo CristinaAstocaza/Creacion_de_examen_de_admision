@@ -10,6 +10,7 @@ public record PreguntaResponse(
         String codigo,
         String enunciado,
         String imagenUrl,
+        Boolean tieneImagen,
         NivelDificultad dificultad,
         Boolean activo,
         LocalDateTime fechaCreacion,

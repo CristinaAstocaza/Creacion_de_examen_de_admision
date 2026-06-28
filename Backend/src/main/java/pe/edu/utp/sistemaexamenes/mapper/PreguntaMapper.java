@@ -21,6 +21,7 @@ public class PreguntaMapper {
                 .codigo(codigo)
                 .enunciado(request.enunciado())
                 .imagenUrl(request.imagenUrl())
+                .tieneImagen(request.tieneImagen() != null ? request.tieneImagen() : false)
                 .dificultad(request.dificultad())
                 .activo(request.activo() == null || request.activo())
                 .curso(curso)
@@ -38,6 +39,7 @@ public class PreguntaMapper {
         pregunta.setCodigo(codigo);
         pregunta.setEnunciado(request.enunciado());
         pregunta.setImagenUrl(request.imagenUrl());
+        pregunta.setTieneImagen(request.tieneImagen() != null ? request.tieneImagen() : false);
         pregunta.setDificultad(request.dificultad());
         pregunta.setCurso(curso);
         if (request.activo() != null) {
@@ -61,6 +63,7 @@ public class PreguntaMapper {
                 pregunta.getCodigo(),
                 pregunta.getEnunciado(),
                 pregunta.getImagenUrl(),
+                pregunta.getTieneImagen(),
                 pregunta.getDificultad(),
                 pregunta.getActivo(),
                 pregunta.getFechaCreacion(),
@@ -76,7 +79,7 @@ public class PreguntaMapper {
                 .tipo(request.tipo())
                 .contenidoTexto(request.contenidoTexto())
                 .imagenUrl(request.imagenUrl())
-                .esCorrecta(request.esCorrecta())
+                .esCorrecta(false)
                 .ordenVisualizacion(request.ordenVisualizacion())
                 .pregunta(pregunta)
                 .build();

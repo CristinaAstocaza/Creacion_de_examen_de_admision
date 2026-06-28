@@ -46,6 +46,10 @@ public class Pregunta {
     @Column(name = "imagen_url", length = 1000)
     private String imagenUrl;
 
+    @Column(name = "tiene_imagen", nullable = false)
+    @Builder.Default
+    private Boolean tieneImagen = false;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private NivelDificultad dificultad;

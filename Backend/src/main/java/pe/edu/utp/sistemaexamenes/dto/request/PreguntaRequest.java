@@ -19,6 +19,8 @@ public record PreguntaRequest(
         @Size(max = 1000, message = "La URL de imagen no debe superar los 1000 caracteres")
         String imagenUrl,
 
+        Boolean tieneImagen,
+
         @NotNull(message = "La dificultad de la pregunta es obligatoria")
         NivelDificultad dificultad,
 

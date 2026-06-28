@@ -19,7 +19,6 @@ public record AlternativaRequest(
         @Size(max = 1000, message = "La URL de imagen no debe superar los 1000 caracteres")
         String imagenUrl,
 
-        @NotNull(message = "Debe indicar si la alternativa es correcta")
         Boolean esCorrecta,
 
         Integer ordenVisualizacion

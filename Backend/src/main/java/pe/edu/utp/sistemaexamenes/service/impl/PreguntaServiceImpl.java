@@ -117,13 +117,6 @@ public class PreguntaServiceImpl implements PreguntaService {
             throw new BusinessException("Las alternativas deben tener exactamente las letras A, B, C, D y E");
         }
 
-        long correctas = alternativas.stream()
-                .filter(alternativa -> Boolean.TRUE.equals(alternativa.esCorrecta()))
-                .count();
-        if (correctas != 1) {
-            throw new BusinessException("Debe existir solo una alternativa correcta");
-        }
-
         alternativas.forEach(this::validarContenidoAlternativa);
     }
 
