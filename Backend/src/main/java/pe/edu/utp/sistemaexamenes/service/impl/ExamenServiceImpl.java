@@ -87,6 +87,7 @@ public class ExamenServiceImpl implements ExamenService {
                 .modalidad(request.modalidad())
                 .colorPortada(request.colorPortada())
                 .logoUrl(request.logoUrl())
+                .instruccionesPortada(request.instruccionesPortada())
                 .build();
 
         agregarConfiguraciones(examen, request.cursos(), cursos);

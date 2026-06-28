@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import pe.edu.utp.sistemaexamenes.dto.request.CaratulaPdfRequest;
 import pe.edu.utp.sistemaexamenes.dto.request.GenerarExamenRequest;
 import pe.edu.utp.sistemaexamenes.dto.response.ArchivoDescargaResponse;
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenResponse;
@@ -58,6 +59,14 @@ public class ExamenController {
     @GetMapping("/{id}/versiones/{version}/pdf")
     public ResponseEntity<byte[]> descargarPdfVersion(@PathVariable Long id, @PathVariable String version) {
         return descargar(examenPdfService.generarPdfVersion(id, version));
+    }
+
+    @PostMapping("/{id}/versiones/{version}/pdf")
+    public ResponseEntity<byte[]> descargarPdfVersionConCaratula(
+            @PathVariable Long id,
+            @PathVariable String version,
+            @RequestBody(required = false) CaratulaPdfRequest caratula) {
+        return descargar(examenPdfService.generarPdfVersion(id, version, caratula));
     }
 
     @GetMapping("/{id}/pdfs")

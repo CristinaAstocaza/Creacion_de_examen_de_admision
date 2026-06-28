@@ -1,5 +1,23 @@
 import api from './api';
 
+const leerConfiguracionCaratula = () => {
+  const savedConfig = localStorage.getItem('configuracionExamen');
+  if (!savedConfig) return null;
+  try {
+    const parsed = JSON.parse(savedConfig);
+    return {
+      nombreUniversidad: parsed.institutionName?.trim() || null,
+      tituloExamen: parsed.headerText?.trim() || null,
+      modalidad: parsed.modalidad?.trim() || null,
+      colorPortada: parsed.colorPortada || null,
+      logoUrl: parsed.logoUrl || null,
+      instruccionesPortada: parsed.instructions?.trim() || null,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export const listarExamenes = async () => {
   const { data } = await api.get('/examenes');
   return data;
@@ -22,11 +40,12 @@ export const generarExamen = async ({
   aleatorizarPreguntas,
   aleatorizarAlternativas,
   cursos,
-  // Campos opcionales de la carátula
   nombreUniversidad,
   tituloExamen,
   modalidad,
-  colorPortada
+  colorPortada,
+  logoUrl,
+  instruccionesPortada,
 }) => {
   const { data } = await api.post('/examenes/generar', {
     idCategoria,
@@ -44,7 +63,9 @@ export const generarExamen = async ({
     nombreUniversidad: nombreUniversidad || null,
     tituloExamen: tituloExamen || null,
     modalidad: modalidad || null,
-    colorPortada: colorPortada || null
+    colorPortada: colorPortada || null,
+    logoUrl: logoUrl || null,
+    instruccionesPortada: instruccionesPortada || null,
   });
   return data;
 };
@@ -54,8 +75,11 @@ export const obtenerVersionExamen = async (examenId, version) => {
   return data;
 };
 
-const descargarArchivo = async (url, nombreFallback) => {
-  const response = await api.get(url, { responseType: 'blob' });
+const descargarArchivo = async (url, nombreFallback, config = {}) => {
+  const { method = 'get', body = null } = config;
+  const response = method === 'post'
+    ? await api.post(url, body, { responseType: 'blob' })
+    : await api.get(url, { responseType: 'blob' });
   const disposition = response.headers['content-disposition'];
   const match = disposition?.match(/filename="?([^";]+)"?/i);
   const filename = match?.[1] || nombreFallback;
@@ -72,6 +96,10 @@ const descargarArchivo = async (url, nombreFallback) => {
 export const descargarPdfVersion = (examenId, version) => descargarArchivo(
   `/examenes/${examenId}/versiones/${version}/pdf`,
   `examen_version_${version}.pdf`,
+  {
+    method: 'post',
+    body: leerConfiguracionCaratula(),
+  },
 );
 
 export const descargarPdfsVersiones = (examenId) => descargarArchivo(
