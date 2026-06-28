@@ -167,70 +167,114 @@ table:not(.shadcn-table) tbody tr:hover {
   display: flex;
 }
 
+/* --- MODAL BODY & SUMMARY SECTION --- */
 .modal-body {
   padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch; /* Obliga a los hijos a ocupar el 100% del ancho */
+}
+
+/* Contenedor gris sutil para agrupar la información */
+/* Contenedor gris sutil a 3 columnas */
+.summary-section {
+  width: 100%;
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
+  /* minmax(0, 1fr) evita que las palabras largas deformen la columna y las obliga a ser exactamente iguales */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 16px;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: #f8fafc; 
+  padding: 20px 24px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0; 
+  margin-bottom: 28px;
+}
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left; /* Alineación a la izquierda para mejor lectura */
 }
 
 .summary-label {
   font-size: 0.75rem;
-  color: #5f6368;
+  color: #64748b; /* Texto secundario (slate-500) */
   text-transform: uppercase;
   font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 .summary-value {
   font-size: 0.95rem;
-  color: #202124;
+  color: #0f172a; /* Texto principal oscuro (slate-900) */
   font-weight: 500;
+  line-height: 1.4;
 }
 
+/* --- VERSIONS SECTION --- */
 .versions-section {
-  border-top: 1px solid #dadce0;
-  padding-top: 20px;
+  /* Quitamos el borde superior porque el contenedor gris de arriba ya separa visualmente */
+  padding-top: 0; 
+}
+
+.versions-section h4 {
+  font-size: 0.95rem;
+  color: #0f172a;
+  margin: 0 0 16px 0;
+  font-weight: 600;
 }
 
 .version-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border: 1px solid #dadce0;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  background-color: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.version-item:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.02);
 }
 
 .version-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .version-icon {
-  color: #1a73e8;
-  background-color: #e8f0fe;
-  padding: 8px;
-  border-radius: 50%;
+  color: #3b82f6; /* blue-500 */
+  background-color: #eff6ff; /* blue-50 */
+  padding: 10px;
+  border-radius: 8px; /* Cuadrado con bordes redondeados en lugar de círculo */
   display: flex;
 }
 
 .version-name {
   font-weight: 600;
-  margin: 0;
+  color: #0f172a;
+  margin: 0 0 2px 0;
 }
 
 .version-meta {
   font-size: 0.85rem;
-  color: #5f6368;
+  color: #64748b;
   margin: 0;
 }
 
+/* --- BUTTONS INSIDE VERSION --- */
 .version-actions {
   display: flex;
   gap: 8px;
@@ -238,23 +282,34 @@ table:not(.shadcn-table) tbody tr:hover {
 
 .btn-action {
   height: 36px;
-  padding: 0 12px;
+  padding: 0 14px;
   border-radius: 6px;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  border: none;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .btn-action-outline {
   background: transparent;
-  border: 1px solid #dadce0;
-  color: #5f6368;
+  border-color: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-action-outline:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
 .btn-action-primary {
-  background-color: #e8f0fe;
-  color: #1a73e8;
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.btn-action-primary:hover {
+  background-color: #dbeafe;
 }
 
 /* --- VISTA PREVIA (SIMULACIÓN DE VISOR PDF A4) --- */
