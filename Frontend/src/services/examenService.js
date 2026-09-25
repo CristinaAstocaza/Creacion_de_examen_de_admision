@@ -152,18 +152,257 @@ const cover = () => {
   try { return JSON.parse(localStorage.getItem('configuracionExamen') || '{}'); } catch { return {}; }
 };
 
+const contrastColor = (hex = '#ffffff') => {
+  const clean = String(hex).replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return '#111827';
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? '#111827' : '#ffffff';
+};
+
 const htmlVersion = (exam, version, solucionario = false) => {
   const cfg = cover();
-  const questions = version.preguntas.map(p => {
-    const alts = p.alternativas.map(a => `<div style="margin:5px 0 7px 22px;break-inside:avoid"><b>${a.letra})</b> ${contentHtml(a.contenidoTexto, 170, 85)}${a.imagenUrl ? `<br><img src="${escapeHtml(a.imagenUrl)}" style="max-width:170px;max-height:85px;display:block;margin:5px auto;object-fit:contain">` : ''}</div>`).join('');
-    const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
-    return `<section style="break-inside:avoid;margin:0 0 14px"><div><b>${p.numeroOrden}.</b> ${contentHtml(p.enunciado, 250, 125)}</div>${p.imagenUrl ? `<img src="${escapeHtml(p.imagenUrl)}" style="max-width:250px;max-height:125px;display:block;margin:6px auto;object-fit:contain">` : ''}${solucionario ? `<div style="margin-left:22px"><b>Respuesta: ${correct}</b></div>` : alts}</section>`;
+  const coverBg = cfg.colorPortada || '#6366f1';
+  const coverFg = contrastColor(coverBg);
+
+  const grouped = {};
+  version.preguntas.forEach(p => {
+    const curso = p.cursoNombre || 'OTROS';
+    if (!grouped[curso]) grouped[curso] = [];
+    grouped[curso].push(p);
+  });
+
+  const courseSections = Object.entries(grouped).map(([curso, preguntas]) => {
+    const items = preguntas.map(p => {
+      const alts = p.alternativas.map(a => `
+        <div class="alt">
+          <span class="alt-letter">${a.letra})</span>
+          <div class="alt-content">
+            ${contentHtml(a.contenidoTexto, 160, 80)}
+            ${a.imagenUrl ? `<img src="${escapeHtml(a.imagenUrl)}" class="alt-image">` : ''}
+          </div>
+        </div>`
+      ).join('');
+
+      const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
+
+      return `
+        <article class="question">
+          <div class="question-line">
+            <span class="q-number">${p.numeroOrden}.</span>
+            <div class="q-body">
+              <div class="q-statement">
+                ${contentHtml(p.enunciado, 235, 120)}
+              </div>
+              ${p.imagenUrl ? `<img src="${escapeHtml(p.imagenUrl)}" class="question-image">` : ''}
+              ${solucionario
+                ? `<div class="solution">Respuesta: ${correct}</div>`
+                : `<div class="alternatives">${alts}</div>`
+              }
+            </div>
+          </div>
+        </article>`;
+    }).join('');
+
+    return `
+      <section class="course-block">
+        <div class="course-title">${escapeHtml(String(curso).toUpperCase())}</div>
+        ${items}
+      </section>`;
   }).join('');
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${exam.nombre}</title>
-  <style>@page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111}.cover{height:250mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;page-break-after:always}.q{column-count:2;column-gap:22px}h1{font-size:22px}h2{font-size:16px}</style></head><body>
-  ${!solucionario ? `<div class="cover"><h2>${cfg.institutionName || 'SISTEMA DE ADMISIÓN'}</h2>${cfg.logoUrl ? `<img src="${cfg.logoUrl}" style="max-width:120px;max-height:120px">` : ''}<h1>${cfg.headerText || exam.nombre}</h1><h2>VERSIÓN ${version.codigoVersion}</h2><p>${cfg.modalidad || ''}</p><p>${cfg.instructions || 'Lea cuidadosamente cada pregunta y marque una alternativa.'}</p></div>` : `<h1>Solucionario - ${exam.nombre} - ${version.codigoVersion}</h1>`}
-  <div class="q">${questions}</div></body></html>`;
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(exam.nombre)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #111827; }
+    body { font-family: Arial, Helvetica, sans-serif; }
+
+    .cover {
+      width: 100%;
+      min-height: 1080px;
+      page-break-after: always;
+      break-after: page;
+      background: ${coverBg};
+      color: ${coverFg};
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 70px 90px;
+      position: relative;
+    }
+    .cover-inner { width: 100%; max-width: 620px; }
+    .cover-institution {
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .cover-logo {
+      max-width: 115px;
+      max-height: 115px;
+      object-fit: contain;
+      margin: 0 auto 26px;
+      display: block;
+      background: rgba(255,255,255,.92);
+      padding: 6px;
+      border-radius: 10px;
+    }
+    .cover-title {
+      font-size: 31px;
+      line-height: 1.15;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin: 0 0 20px;
+    }
+    .cover-version {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 140px;
+      padding: 10px 22px;
+      margin: 4px 0 18px;
+      border: 2px solid currentColor;
+      border-radius: 10px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .cover-modality {
+      font-size: 15px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 26px;
+    }
+    .cover-instructions {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 16px 18px;
+      border: 1px solid currentColor;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1.55;
+      background: rgba(255,255,255,.08);
+    }
+    .cover-footer {
+      position: absolute;
+      left: 70px;
+      right: 70px;
+      bottom: 42px;
+      font-size: 12px;
+      opacity: .88;
+    }
+
+    .exam-pages {
+      padding: 20px 26px 26px;
+      background: #fff;
+    }
+    .exam-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 2px solid #111827;
+      padding-bottom: 7px;
+      margin-bottom: 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .questions-columns {
+      column-count: 2;
+      column-gap: 24px;
+      column-rule: 1px solid #e5e7eb;
+    }
+    .course-block { break-inside: auto; margin-bottom: 12px; }
+    .course-title {
+      break-after: avoid;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .8px;
+      color: #1e3a8a;
+      border-bottom: 1px solid #cbd5e1;
+      padding: 3px 0 5px;
+      margin: 5px 0 9px;
+    }
+    .question {
+      break-inside: avoid;
+      margin: 0 0 12px;
+      font-size: 10.2px;
+      line-height: 1.35;
+    }
+    .question-line { display: flex; align-items: flex-start; gap: 5px; }
+    .q-number { font-weight: 800; min-width: 19px; }
+    .q-body { flex: 1; min-width: 0; }
+    .q-statement { font-weight: 500; }
+    .question-image {
+      display: block;
+      max-width: 230px;
+      max-height: 120px;
+      object-fit: contain;
+      margin: 6px auto;
+    }
+    .alternatives { margin-top: 5px; }
+    .alt {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      margin: 3px 0;
+      break-inside: avoid;
+    }
+    .alt-letter { font-weight: 800; min-width: 18px; }
+    .alt-content { flex: 1; min-width: 0; }
+    .alt-image {
+      display: block;
+      max-width: 155px;
+      max-height: 76px;
+      object-fit: contain;
+      margin: 4px 0 4px 3px;
+    }
+    .solution {
+      margin-top: 6px;
+      font-weight: 800;
+      color: #166534;
+    }
+  </style>
+</head>
+<body>
+  ${!solucionario ? `
+    <section class="cover">
+      <div class="cover-inner">
+        <div class="cover-institution">${escapeHtml(cfg.institutionName || 'INSTITUCIÓN EDUCATIVA')}</div>
+        ${cfg.logoUrl ? `<img src="${escapeHtml(cfg.logoUrl)}" class="cover-logo">` : ''}
+        <div class="cover-title">${escapeHtml(cfg.headerText || exam.nombre || 'EXAMEN DE ADMISIÓN')}</div>
+        <div class="cover-version">VERSIÓN ${escapeHtml(version.codigoVersion)}</div>
+        <div class="cover-modality">${escapeHtml(cfg.modalidad || 'MODALIDAD ORDINARIO')}</div>
+        <div class="cover-instructions">
+          <strong>Instrucciones</strong><br>
+          ${escapeHtml(cfg.instructions || 'Lea cuidadosamente cada pregunta y marque solo una alternativa.')}
+        </div>
+      </div>
+      <div class="cover-footer">${escapeHtml(cfg.footerText || exam.nombre || 'Examen de admisión')}</div>
+    </section>
+  ` : ''}
+
+  <main class="exam-pages">
+    <div class="exam-topbar">
+      <span>${escapeHtml(cfg.institutionName || 'INSTITUCIÓN EDUCATIVA')}</span>
+      <span>${escapeHtml(cfg.headerText || exam.nombre)} · VERSIÓN ${escapeHtml(version.codigoVersion)}</span>
+    </div>
+    <div class="questions-columns">
+      ${courseSections}
+    </div>
+  </main>
+</body>
+</html>`;
 };
 
 const safeName = (value = 'examen') => String(value)
