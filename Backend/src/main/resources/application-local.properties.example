@@ -1,0 +1,6 @@
+# Copiar como application-local.properties solo para desarrollo local.
+# No subir credenciales reales a Git.
+cloudinary.cloud-name=TU_CLOUD_NAME
+cloudinary.api-key=TU_API_KEY
+cloudinary.api-secret=TU_API_SECRET
+gemini.api.key=TU_GEMINI_API_KEY
