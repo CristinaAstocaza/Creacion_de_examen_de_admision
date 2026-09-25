@@ -74,6 +74,11 @@ const readNetlifyResponse = async (response) => {
   }
 
   if (!response.ok) {
+    if (data?.code === 'GEMINI_BUSY') {
+      const err = new Error('GEMINI_BUSY');
+      err.userMessage = data?.error;
+      throw err;
+    }
     if (response.status === 504) {
       throw new Error('TIMEOUT_NETLIFY');
     }
@@ -95,7 +100,7 @@ export const importarImagenes = async (files, cursoId) => {
   })));
 
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const response = await fetch('/.netlify/functions/ai-import', {
         method: 'POST',
@@ -106,13 +111,20 @@ export const importarImagenes = async (files, cursoId) => {
     } catch (error) {
       lastError = error;
       const code = error instanceof Error ? error.message : '';
-      const retryable = code === 'TIMEOUT_NETLIFY' || code === 'TEMPORARY_NETLIFY';
-      if (!retryable || attempt === 1) break;
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      const retryable = code === 'GEMINI_BUSY' || code === 'TIMEOUT_NETLIFY' || code === 'TEMPORARY_NETLIFY';
+      if (!retryable || attempt === 2) break;
+
+      const waitMs = code === 'GEMINI_BUSY'
+        ? 2500 + attempt * 1500
+        : 1200 + attempt * 800;
+      await new Promise(resolve => setTimeout(resolve, waitMs));
     }
   }
 
   const code = lastError instanceof Error ? lastError.message : '';
+  if (code === 'GEMINI_BUSY') {
+    throw new Error('Gemini sigue saturado después de varios intentos. Espera unos segundos y vuelve a procesar la imagen.');
+  }
   if (code === 'TIMEOUT_NETLIFY') {
     throw new Error('La IA tardó demasiado en responder. Se intentó nuevamente, pero Netlify agotó el tiempo de espera.');
   }
