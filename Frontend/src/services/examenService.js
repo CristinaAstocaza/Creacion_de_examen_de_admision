@@ -228,10 +228,11 @@ const htmlToPdfBlob = async (html) => {
   wrapper.style.width = '794px';
   wrapper.style.minHeight = '1123px';
   wrapper.style.background = '#fff';
-  wrapper.style.zIndex = '1';
-  wrapper.style.opacity = '0.01';
+  wrapper.style.zIndex = '999999';
+  wrapper.style.opacity = '1';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.overflow = 'visible';
+  wrapper.style.boxShadow = 'none';
 
   const styles = [...parsed.head.querySelectorAll('style')].map(s => s.outerHTML).join('');
   wrapper.innerHTML = styles + parsed.body.innerHTML;
@@ -247,21 +248,21 @@ const htmlToPdfBlob = async (html) => {
     const worker = html2pdf()
       .set({
         margin: [8, 8, 8, 8],
-        image: { type: 'jpeg', quality: 0.97 },
+        image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
-          scale: 1.7,
+          scale: 1.8,
           useCORS: true,
           allowTaint: false,
           backgroundColor: '#ffffff',
           scrollX: 0,
           scrollY: 0,
-          windowWidth: 794
+          windowWidth: 794,
+          logging: false
         },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
         pagebreak: { mode: ['css', 'legacy'] }
       })
-      .from(wrapper)
-      .toPdf();
+      .from(wrapper);
 
     return await worker.outputPdf('blob');
   } finally {
