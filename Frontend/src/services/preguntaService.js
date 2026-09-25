@@ -1,166 +1,127 @@
-import api from './api';
+import { getPreguntas, setPreguntas, getCursos, nextId, isoNow } from './demoStore';
+
+const normalizarDificultad = (dificultad) => {
+  const diffUpper = String(dificultad || 'MEDIO').toUpperCase().trim();
+  if (['FACIL', 'MEDIO', 'DIFICIL'].includes(diffUpper)) return diffUpper;
+  return 'MEDIO';
+};
+
+const normalizarLetra = (letra) => String(letra || '').toUpperCase().trim();
+const normalizarTipo = (tipo) => String(tipo || 'TEXTO').toUpperCase() === 'IMAGEN' ? 'IMAGEN' : 'TEXTO';
+
+const cursoNombre = (cursoId) => getCursos().find(c => Number(c.id) === Number(cursoId))?.nombre || 'Sin curso';
+
+const mapPregunta = (payload, existingId = null) => ({
+  id: existingId ?? nextId(getPreguntas()),
+  codigo: payload.codigo || `PREG-${String(existingId ?? nextId(getPreguntas())).padStart(5, '0')}`,
+  enunciado: payload.enunciado || '',
+  imagenUrl: payload.imagenUrl || null,
+  tieneImagen: Boolean(payload.tieneImagen || payload.imagenUrl),
+  dificultad: normalizarDificultad(payload.dificultad),
+  activo: payload.activo !== false,
+  fechaCreacion: payload.fechaCreacion || isoNow(),
+  cursoId: Number(payload.cursoId),
+  cursoNombre: cursoNombre(payload.cursoId),
+  alternativas: (payload.alternativas || []).map((alt, index) => ({
+    id: alt.id ?? Number(`${existingId ?? Date.now()}${index + 1}`),
+    letra: normalizarLetra(alt.letra) || ['A','B','C','D','E'][index],
+    tipo: normalizarTipo(alt.tipo || (alt.imagenUrl ? 'IMAGEN' : 'TEXTO')),
+    contenidoTexto: alt.contenidoTexto || null,
+    imagenUrl: alt.imagenUrl || null,
+    esCorrecta: Boolean(alt.esCorrecta),
+    ordenVisualizacion: alt.ordenVisualizacion ?? index + 1,
+    preguntaId: existingId,
+  })),
+});
 
 export const listarPreguntas = async (params = {}) => {
-  const { data } = await api.get('/preguntas', { params });
-  return data;
+  let items = getPreguntas();
+  const search = String(params.search || params.busqueda || '').toLowerCase().trim();
+  if (search) items = items.filter(p => String(p.codigo).toLowerCase().includes(search) || String(p.enunciado).toLowerCase().includes(search));
+  if (params.cursoId) items = items.filter(p => Number(p.cursoId) === Number(params.cursoId));
+  if (params.dificultad) items = items.filter(p => p.dificultad === params.dificultad);
+  return items;
 };
 
 export const obtenerPregunta = async (id) => {
-  const { data } = await api.get(`/preguntas/${id}`);
-  return data;
+  const item = getPreguntas().find(p => Number(p.id) === Number(id));
+  if (!item) throw new Error('Pregunta no encontrada');
+  return item;
 };
 
 export const eliminarPregunta = async (id) => {
-  await api.delete(`/preguntas/${id}`);
+  setPreguntas(getPreguntas().filter(p => Number(p.id) !== Number(id)));
 };
 
-export const importarPdfTexto = async (file, cursoId) => {
-  const formData = new FormData();
-  formData.append('pdf', file);
-  formData.append('cursoId', cursoId);
-  
-  const { data } = await api.post('/preguntas/importar/pdf-texto', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
-  });
-  return data;
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+export const importarPdfTexto = async () => {
+  throw new Error('Para PDF de texto usa la tarjeta Documento: el procesamiento se realiza localmente en el navegador.');
 };
 
 export const importarImagenes = async (files, cursoId) => {
-  const formData = new FormData();
-  for (let i = 0; i < files.length; i++) {
-    formData.append('imagenes', files[i]);
-  }
-  formData.append('cursoId', cursoId);
-  
-  const { data } = await api.post('/preguntas/importar/imagenes', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+  const images = await Promise.all(files.map(async file => ({
+    name: file.name,
+    type: file.type || 'image/jpeg',
+    data: await fileToDataUrl(file),
+  })));
+
+  const response = await fetch('/.netlify/functions/ai-import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ images, cursoId }),
   });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || 'No se pudieron procesar las imágenes');
   return data;
 };
 
 export const uploadRecorte = async (blob) => {
-  const formData = new FormData();
-  formData.append('file', blob, 'recorte.png');
-  const { data } = await api.post('/preguntas/importar/upload-recorte', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+  const dataUrl = await fileToDataUrl(blob);
+  const response = await fetch('/.netlify/functions/ai-import', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ action: 'upload', data: dataUrl }),
   });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || 'No se pudo subir el recorte');
   return data.url;
 };
 
-// Validar y normalizar NivelDificultad enum
-const normalizarDificultad = (dificultad) => {
-  const diffUpper = String(dificultad).toUpperCase().trim();
-  if (['FACIL', 'MEDIO', 'DIFICIL'].includes(diffUpper)) {
-    return diffUpper;
-  }
-  throw new Error(`Dificultad inválida: ${dificultad}. Debe ser FACIL, MEDIO o DIFICIL.`);
-};
-
-// Validar y normalizar LetraAlternativa enum
-const normalizarLetra = (letra) => {
-  const letraUpper = String(letra).toUpperCase().trim();
-  if (['A', 'B', 'C', 'D', 'E'].includes(letraUpper)) {
-    return letraUpper;
-  }
-  throw new Error(`Letra de alternativa inválida: ${letra}. Debe ser A, B, C, D o E.`);
-};
-
-// Validar y normalizar TipoAlternativa enum
-const normalizarTipo = (tipo) => {
-  const tipoUpper = String(tipo).toUpperCase().trim();
-  if (['TEXTO', 'IMAGEN'].includes(tipoUpper)) {
-    return tipoUpper;
-  }
-  throw new Error(`Tipo de alternativa inválido: ${tipo}. Debe ser TEXTO o IMAGEN.`);
-};
-
-export const crearPregunta = async ({
-  codigo,
-  enunciado,
-  imagenUrl,
-  tieneImagen,
-  dificultad,
-  activo,
-  cursoId,
-  alternativas
-}) => {
-  const payload = {
-    codigo: codigo || null,
-    enunciado,
-    imagenUrl: imagenUrl || null,
-    tieneImagen: tieneImagen === true,
-    dificultad: normalizarDificultad(dificultad),
-    activo: activo !== false,
-    cursoId: Number(cursoId),
-    alternativas: alternativas.map(alt => ({
-      letra: normalizarLetra(alt.letra),
-      tipo: normalizarTipo(alt.tipo || 'TEXTO'),
-      contenidoTexto: alt.contenidoTexto || null,
-      imagenUrl: alt.imagenUrl || null,
-      esCorrecta: false,   // forzar false en importaciones
-      ordenVisualizacion: alt.ordenVisualizacion !== undefined ? Number(alt.ordenVisualizacion) : null
-    }))
-  };
-
-  const { data } = await api.post('/preguntas', payload);
-  return data;
+export const crearPregunta = async (payload) => {
+  const items = getPreguntas();
+  const id = nextId(items);
+  const item = mapPregunta(payload, id);
+  item.alternativas = item.alternativas.map(a => ({ ...a, preguntaId: id }));
+  setPreguntas([...items, item]);
+  return item;
 };
 
 export const guardarLotePreguntas = async (preguntas) => {
-  const payload = preguntas.map(pregunta => ({
-    codigo: pregunta.codigo || null,
-    enunciado: pregunta.enunciado,
-    imagenUrl: pregunta.imagenUrl || null,
-    tieneImagen: pregunta.tieneImagen === true,
-    dificultad: normalizarDificultad(pregunta.dificultad || 'MEDIO'),
-    activo: pregunta.activo !== false,
-    cursoId: Number(pregunta.cursoId),
-    alternativas: pregunta.alternativas.map((alt, index) => ({
-      letra: normalizarLetra(alt.letra),
-      tipo: normalizarTipo(alt.tipo || (alt.imagenUrl ? 'IMAGEN' : 'TEXTO')),
-      contenidoTexto: alt.contenidoTexto || null,
-      imagenUrl: alt.imagenUrl || null,
-      esCorrecta: false,
-      ordenVisualizacion: index + 1
-    }))
-  }));
-
-  const { data } = await api.post('/preguntas/guardar', payload);
-  return data;
+  const items = getPreguntas();
+  let next = nextId(items);
+  const nuevas = preguntas.map(payload => {
+    const id = next++;
+    const item = mapPregunta(payload, id);
+    item.alternativas = item.alternativas.map(a => ({ ...a, preguntaId: id }));
+    return item;
+  });
+  setPreguntas([...items, ...nuevas]);
+  return nuevas;
 };
 
-export const actualizarPregunta = async (id, {
-  codigo,
-  enunciado,
-  imagenUrl,
-  dificultad,
-  activo,
-  cursoId,
-  alternativas
-}) => {
-  const payload = {
-    codigo: codigo || null,
-    enunciado,
-    imagenUrl: imagenUrl || null,
-    dificultad: normalizarDificultad(dificultad),
-    activo: activo !== false,
-    cursoId: Number(cursoId),
-    alternativas: alternativas.map(alt => ({
-      letra: normalizarLetra(alt.letra),
-      tipo: normalizarTipo(alt.tipo),
-      contenidoTexto: alt.contenidoTexto || null,
-      imagenUrl: alt.imagenUrl || null,
-      esCorrecta: Boolean(alt.esCorrecta),
-      ordenVisualizacion: alt.ordenVisualizacion !== undefined ? Number(alt.ordenVisualizacion) : null
-    }))
-  };
-
-  const { data } = await api.put(`/preguntas/${id}`, payload);
-  return data;
+export const actualizarPregunta = async (id, payload) => {
+  const items = getPreguntas();
+  const idx = items.findIndex(p => Number(p.id) === Number(id));
+  if (idx < 0) throw new Error('Pregunta no encontrada');
+  const item = mapPregunta({ ...items[idx], ...payload, fechaCreacion: items[idx].fechaCreacion }, Number(id));
+  item.alternativas = item.alternativas.map(a => ({ ...a, preguntaId: Number(id) }));
+  items[idx] = item;
+  setPreguntas(items);
+  return item;
 };
