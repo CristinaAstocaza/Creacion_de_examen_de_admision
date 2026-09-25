@@ -67,6 +67,29 @@ const looksLikeLatex = (value = '') => {
   return /\\[a-zA-Z]+|[_^]\{?[^\s]+|\\frac|\\sqrt|\\rho|\\theta|\\pi|\\Delta/.test(text);
 };
 
+const looksLikePureLatex = (value = '') => {
+  const text = String(value).trim();
+  if (!looksLikeLatex(text)) return false;
+  const proseWords = text.match(/[A-Za-zÁÉÍÓÚáéíóúÑñ]{4,}/g) || [];
+  return proseWords.length <= 2 || /^[\\A-Za-z0-9_{}^=+\-*/().,<>\s]+$/.test(text);
+};
+
+const renderMixedText = (value = '') => {
+  let html = escapeHtml(String(value));
+  html = html
+    .replace(/\\,/g, ' ')
+    .replace(/\\text\s*\{([^{}]+)\}/g, '$1')
+    .replace(/\\rho/g, 'ρ')
+    .replace(/\\theta/g, 'θ')
+    .replace(/\\pi/g, 'π')
+    .replace(/\\Delta/g, 'Δ')
+    .replace(/_\{([^{}]+)\}/g, '<sub>$1</sub>')
+    .replace(/_([A-Za-z0-9]+)/g, '<sub>$1</sub>')
+    .replace(/\^\{([^{}]+)\}/g, '<sup>$1</sup>')
+    .replace(/\^([A-Za-z0-9]+)/g, '<sup>$1</sup>');
+  return html;
+};
+
 const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
   const { allowImages = true } = options;
   return parseBlocks(value).map(b => {
@@ -88,10 +111,10 @@ const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
       }
     }
 
-    if (b.tipo === 'latex' || looksLikeLatex(val)) {
+    if (b.tipo === 'latex' || looksLikePureLatex(val)) {
       return `<span class="math-inline">${renderLatex(val)}</span>`;
     }
-    return `<span>${escapeHtml(val)}</span>`;
+    return `<span>${renderMixedText(val)}</span>`;
   }).join('');
 };
 
@@ -235,18 +258,34 @@ const htmlVersion = (exam, version, solucionario = false) => {
 
   const courseSections = Object.entries(grouped).map(([curso, preguntas]) => {
     const items = preguntas.map(p => {
-      const alts = p.alternativas.map(a => {
+      const altItems = p.alternativas.map(a => {
         const blockImage = getFirstImageFromBlocks(a.contenidoTexto);
         const finalAltImage = a.imagenUrl || blockImage;
-        return `
-          <div class="alt">
-            <span class="alt-letter">${a.letra})</span>
-            <div class="alt-content">
-              ${contentHtml(a.contenidoTexto, 160, 80, { allowImages: false })}
-              ${finalAltImage ? `<img src="${escapeHtml(finalAltImage)}" class="alt-image">` : ''}
-            </div>
-          </div>`;
-      }).join('');
+        return {
+          html: `
+            <div class="alt">
+              <span class="alt-letter">${a.letra})</span>
+              <div class="alt-content">
+                ${contentHtml(a.contenidoTexto, 160, 80, { allowImages: false })}
+                ${finalAltImage ? `<img src="${escapeHtml(finalAltImage)}" class="alt-image">` : ''}
+              </div>
+            </div>`,
+          hasImage: Boolean(finalAltImage),
+          length: plain(a.contenidoTexto).length
+        };
+      });
+
+      const useCompactColumns =
+        altItems.length === 5 &&
+        altItems.every(a => !a.hasImage && a.length <= 58);
+
+      const alts = useCompactColumns
+        ? `
+          <div class="alternatives-columns">
+            <div class="alt-column">${altItems.slice(0, 3).map(a => a.html).join('')}</div>
+            <div class="alt-column">${altItems.slice(3).map(a => a.html).join('')}</div>
+          </div>`
+        : altItems.map(a => a.html).join('');
 
       const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
 
@@ -304,7 +343,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
 
     .cover {
       width: 100%;
-      min-height: 1080px;
+      min-height: 1123px;
       page-break-after: always;
       break-after: page;
       background: ${coverBg};
@@ -397,9 +436,8 @@ const htmlVersion = (exam, version, solucionario = false) => {
       text-transform: uppercase;
     }
     .questions-columns {
-      column-count: 2;
-      column-gap: 24px;
-      column-rule: 1px solid #e5e7eb;
+      display: block;
+      width: 100%;
     }
     .course-block { break-inside: auto; margin-bottom: 12px; }
     .course-title {
@@ -414,9 +452,11 @@ const htmlVersion = (exam, version, solucionario = false) => {
     }
     .question {
       break-inside: avoid;
-      margin: 0 0 12px;
-      font-size: 10.2px;
-      line-height: 1.35;
+      page-break-inside: avoid;
+      margin: 0 0 14px;
+      padding-bottom: 2px;
+      font-size: 10.7px;
+      line-height: 1.4;
     }
     .question-line { display: flex; align-items: flex-start; gap: 5px; }
     .q-number { font-weight: 800; min-width: 19px; }
@@ -472,13 +512,31 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .question-images.images-2 .question-image {
       max-height: 105px;
     }
-    .alternatives { margin-top: 5px; }
+    .alternatives {
+      margin-top: 6px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .alternatives-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0 22px;
+      align-items: start;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .alt-column {
+      min-width: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     .alt {
       display: flex;
       align-items: flex-start;
-      gap: 4px;
-      margin: 3px 0;
+      gap: 5px;
+      margin: 4px 0;
       break-inside: avoid;
+      page-break-inside: avoid;
     }
     .alt-letter { font-weight: 800; min-width: 18px; }
     .alt-content { flex: 1; min-width: 0; }
@@ -575,6 +633,25 @@ const waitForImages = async (root) => {
   }));
 };
 
+const insertPdfPageSpacers = (root, pageHeight = 1123) => {
+  const questions = [...root.querySelectorAll('.question')];
+  for (const question of questions) {
+    const rootTop = root.getBoundingClientRect().top;
+    const rect = question.getBoundingClientRect();
+    const top = rect.top - rootTop;
+    const height = rect.height;
+    const pageBottom = (Math.floor(top / pageHeight) + 1) * pageHeight;
+
+    if (height < pageHeight * 0.9 && top + height > pageBottom - 8) {
+      const spacer = document.createElement('div');
+      spacer.className = 'pdf-page-spacer';
+      spacer.style.height = `${Math.max(0, pageBottom - top + 10)}px`;
+      spacer.style.breakBefore = 'page';
+      question.parentNode?.insertBefore(spacer, question);
+    }
+  }
+};
+
 const htmlToPdfBlob = async (html) => {
   const html2canvas = await loadScript(
     'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
@@ -618,6 +695,8 @@ const htmlToPdfBlob = async (html) => {
       try { await document.fonts.ready; } catch {}
     }
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    insertPdfPageSpacers(wrapper, 1123);
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const canvas = await html2canvas(wrapper, {
       scale: 1.5,
@@ -638,9 +717,8 @@ const htmlToPdfBlob = async (html) => {
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     const pageWidth = 210;
     const pageHeight = 297;
-    const margin = 8;
-    const usableWidth = pageWidth - margin * 2;
-    const usableHeight = pageHeight - margin * 2;
+    const usableWidth = pageWidth;
+    const usableHeight = pageHeight;
 
     const pxPerMm = canvas.width / usableWidth;
     const sliceHeightPx = Math.floor(usableHeight * pxPerMm);
@@ -668,7 +746,7 @@ const htmlToPdfBlob = async (html) => {
       const renderedHeightMm = currentSliceHeight / pxPerMm;
 
       if (pageIndex > 0) pdf.addPage();
-      pdf.addImage(imgData, 'JPEG', margin, margin, usableWidth, renderedHeightMm, undefined, 'FAST');
+      pdf.addImage(imgData, 'JPEG', 0, 0, usableWidth, renderedHeightMm, undefined, 'FAST');
 
       offsetY += currentSliceHeight;
       pageIndex += 1;
