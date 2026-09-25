@@ -256,8 +256,11 @@ const htmlVersion = (exam, version, solucionario = false) => {
     grouped[curso].push(p);
   });
 
+  let displayQuestionNumber = 1;
+
   const courseSections = Object.entries(grouped).map(([curso, preguntas]) => {
     const items = preguntas.map(p => {
+      const numeroMostrar = displayQuestionNumber++;
       const altItems = p.alternativas.map(a => {
         const blockImage = getFirstImageFromBlocks(a.contenidoTexto);
         const finalAltImage = a.imagenUrl || blockImage;
@@ -288,7 +291,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
       return `
         <article class="question">
           <div class="question-line">
-            <span class="q-number">${p.numeroOrden}.</span>
+            <span class="q-number">${numeroMostrar}.</span>
             <div class="q-body">
               <div class="q-statement">
                 ${contentHtml(p.enunciado, 235, 120, { allowImages: false })}
