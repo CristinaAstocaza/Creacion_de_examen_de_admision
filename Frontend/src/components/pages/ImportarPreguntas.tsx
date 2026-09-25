@@ -663,6 +663,16 @@ export const ImportarPreguntas: React.FC = () => {
     return false;
   };
 
+  const hasPendingEnunciadoImage = (content: string | null | undefined) => {
+    if (!content) return false;
+    try {
+      const blocks = JSON.parse(content);
+      return Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'imagen' && !b?.url);
+    } catch(e) {
+      return false;
+    }
+  };
+
 
   const commitAlternativeText = (questionId: string, altIndex: number, value: string) => {
     setQuestions(prev => prev.map(q => {
@@ -1133,14 +1143,6 @@ export const ImportarPreguntas: React.FC = () => {
                         style={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: 'white' }}
                       />
                       <div style={{ fontSize: 11, color: '#7a8699', marginTop: 6 }}>Haz clic sobre la imagen para verla completa.</div>
-                      <button
-                        type="button"
-                        className="btn-small"
-                        onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
-                        style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
-                      >
-                        ➕✂️ Añadir otro recorte / figura
-                      </button>
                     </div>
                   )}
 
@@ -1151,12 +1153,23 @@ export const ImportarPreguntas: React.FC = () => {
                       onImageClick={setModalImage}
                       onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'enunciado', undefined, blockIdx) : undefined} 
                     />
+                    {q.originalImageUrl && !hasPendingEnunciadoImage(q.enunciado) && (
+                      <button
+                        type="button"
+                        className="btn-small"
+                        onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
+                        style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
+                      >
+                        ➕✂️ Añadir otro recorte / figura
+                      </button>
+                    )}
                   </div>
 
                   <div className="q-options" style={{ marginTop: 16 }}>
                     {q.parsedAlternativas?.map((alt, idx) => {
                       const plainValue = contentToPlainText(alt.contenidoTexto);
-                      const isMissing = !plainValue.trim();
+                      const hasImageContent = alternativeHasContent(alt) && !plainValue.trim();
+                      const isMissing = !alternativeHasContent(alt);
                       const isEditing = altEditor?.questionId === q.id && altEditor.altIndex === idx;
                       const editorValue = isEditing ? altEditor.value : plainValue;
 
@@ -1255,11 +1268,18 @@ export const ImportarPreguntas: React.FC = () => {
                           ) : (
                             <div style={{ marginTop: 6 }}>
                               {!isMissing ? (
-                                <ContentRenderer 
-                                  contentStr={alt.contenidoTexto} 
-                                  onImageClick={setModalImage}
-                                  onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
-                                />
+                                <>
+                                  {alt.contenidoTexto && (
+                                    <ContentRenderer 
+                                      contentStr={alt.contenidoTexto} 
+                                      onImageClick={setModalImage}
+                                      onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
+                                    />
+                                  )}
+                                  {hasImageContent && (
+                                    <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 600 }}>🖼️ Alternativa gráfica</span>
+                                  )}
+                                </>
                               ) : (
                                 <span style={{ color: '#9a6700', fontStyle: 'italic' }}>Vacío — haz clic para completar</span>
                               )}
