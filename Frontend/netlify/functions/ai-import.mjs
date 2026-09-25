@@ -113,13 +113,7 @@ Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
       message.includes('resource exhausted');
   };
 
-  let result = await callGemini('gemini-3.5-flash-lite');
-
-  // Fallback corto: otra familia, sin bucles largos dentro de Netlify.
-  if (!result.response.ok && isBusy(result.response, result.payload)) {
-    result = await callGemini('gemini-3.8-flash');
-  }
-
+  const result = await callGemini('gemini-3.5-flash-lite');
   const { response, payload } = result;
 
   if (!response.ok) {
