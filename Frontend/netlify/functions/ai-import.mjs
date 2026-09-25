@@ -94,17 +94,42 @@ Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
         body: JSON.stringify(requestBody),
       },
     );
-    const payload = await response.json();
-    return { response, payload };
+
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+    return { response, payload, model };
   };
 
-  let { response, payload } = await callGemini('gemini-3.5-flash-lite');
+  const isBusy = (response, payload) => {
+    const message = String(payload?.error?.message || '').toLowerCase();
+    return response.status === 429 ||
+      response.status === 503 ||
+      message.includes('high demand') ||
+      message.includes('temporarily unavailable') ||
+      message.includes('resource exhausted');
+  };
 
-  if (!response.ok && response.status >= 500) {
-    ({ response, payload } = await callGemini('gemini-3.8-flash'));
+  let result = await callGemini('gemini-3.5-flash-lite');
+
+  // Fallback corto: otra familia, sin bucles largos dentro de Netlify.
+  if (!result.response.ok && isBusy(result.response, result.payload)) {
+    result = await callGemini('gemini-3.8-flash');
   }
 
-  if (!response.ok) throw new Error(payload?.error?.message || 'Gemini no pudo analizar la imagen');
+  const { response, payload } = result;
+
+  if (!response.ok) {
+    if (isBusy(response, payload)) {
+      const error = new Error('GEMINI_BUSY');
+      error.code = 'GEMINI_BUSY';
+      throw error;
+    }
+    throw new Error(payload?.error?.message || 'Gemini no pudo analizar la imagen');
+  }
   const text = payload?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
   const parsed = JSON.parse(stripFence(text));
   return parsed;
@@ -142,6 +167,14 @@ export default async (request) => {
     return json({ total_preguntas: preguntas.length, preguntas });
   } catch (error) {
     console.error(error);
+
+    if (error?.code === 'GEMINI_BUSY' || error?.message === 'GEMINI_BUSY') {
+      return json({
+        code: 'GEMINI_BUSY',
+        error: 'Gemini está temporalmente saturado. El sistema volverá a intentarlo automáticamente.'
+      }, 503);
+    }
+
     return json({ error: error instanceof Error ? error.message : 'Error procesando la solicitud' }, 500);
   }
 };
