@@ -79,27 +79,50 @@ const crearFormVacio = (): FormDataPregunta => ({
   })),
 });
 
-const extractTextFromBlocks = (contentStr: string): string => {
-  if (!contentStr) return '';
-  try {
-    const blocks = JSON.parse(contentStr);
-    if (Array.isArray(blocks)) {
-      return blocks
-        .filter((b: any) => b.tipo === 'texto' || b.tipo === 'latex')
-        .map((b: any) => b.valor || '')
-        .join(' ');
+const parseContentBlocks = (contentStr: string): any[] => {
+  if (!contentStr) return [];
+  let value: any = contentStr;
+  for (let i = 0; i < 3; i += 1) {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') break;
+    try {
+      value = JSON.parse(value);
+    } catch {
+      break;
     }
-  } catch (_e) {}
-  return contentStr;
+  }
+  if (Array.isArray(value)) return value;
+  return [{ tipo: 'texto', valor: String(value ?? contentStr) }];
+};
+
+const extractTextFromBlocks = (contentStr: string): string =>
+  parseContentBlocks(contentStr)
+    .filter((b: any) => b?.tipo === 'texto' || b?.tipo === 'latex')
+    .map((b: any) => b?.valor ?? b?.contenido ?? b?.texto ?? '')
+    .join('\n')
+    .trim();
+
+const extractImageUrlsFromBlocks = (contentStr: string): string[] =>
+  [...new Set(
+    parseContentBlocks(contentStr)
+      .filter((b: any) => b?.tipo === 'imagen' && b?.url)
+      .map((b: any) => String(b.url))
+  )];
+
+const normalizeBlocksString = (contentStr: string): string => {
+  const blocks = parseContentBlocks(contentStr);
+  return JSON.stringify(blocks.map((b: any) => {
+    if (b?.tipo === 'texto' || b?.tipo === 'latex') {
+      return { ...b, valor: b.valor ?? b.contenido ?? b.texto ?? '' };
+    }
+    return b;
+  }));
 };
 
 const isBlockFormat = (contentStr: string): boolean => {
   if (!contentStr) return false;
-  try {
-    return Array.isArray(JSON.parse(contentStr));
-  } catch (_e) {
-    return false;
-  }
+  const blocks = parseContentBlocks(contentStr);
+  return blocks.length > 0 && blocks.some((b: any) => ['texto', 'latex', 'imagen'].includes(b?.tipo));
 };
 
 export default function BancoPreguntas() {
@@ -116,9 +139,10 @@ export default function BancoPreguntas() {
   const [isSaving, setIsSaving] = useState(false);
 
   // ── Enunciado image state ──
-  const [enunciadoImageFile, setEnunciadoImageFile] = useState<File | null>(null);
-  const [enunciadoImagePreview, setEnunciadoImagePreview] = useState('');
+  const [enunciadoImageFiles, setEnunciadoImageFiles] = useState<File[]>([]);
+  const [enunciadoImagePreviews, setEnunciadoImagePreviews] = useState<string[]>([]);
   const [enunciadoUrlMode, setEnunciadoUrlMode] = useState(false);
+  const [enunciadoUrlDraft, setEnunciadoUrlDraft] = useState('');
   const enunciadoFileRef = useRef<HTMLInputElement>(null);
 
   // ── Alternativas image state (5 slots A-E) ──
@@ -169,9 +193,10 @@ export default function BancoPreguntas() {
   };
 
   const resetImageState = () => {
-    setEnunciadoImageFile(null);
-    setEnunciadoImagePreview('');
+    setEnunciadoImageFiles([]);
+    setEnunciadoImagePreviews([]);
     setEnunciadoUrlMode(false);
+    setEnunciadoUrlDraft('');
     setAltImageFiles([null, null, null, null, null]);
     setAltImagePreviews(['', '', '', '', '']);
     setAltUrlModes([false, false, false, false, false]);
@@ -222,17 +247,21 @@ export default function BancoPreguntas() {
           letra,
           tipo: alt?.tipo || 'TEXTO',
           contenidoTexto: extractTextFromBlocks(alt?.contenidoTexto || ''),
-          imagenUrl: alt?.imagenUrl || '',
+          imagenUrl: alt?.imagenUrl || extractImageUrlsFromBlocks(alt?.contenidoTexto || '')[0] || '',
           esCorrecta: alt?.esCorrecta || false,
           ordenVisualizacion: alt?.ordenVisualizacion || index + 1,
         };
       }),
     });
     resetImageState();
-    if (question.imagenUrl) setEnunciadoImagePreview(question.imagenUrl);
+    const blockImages = extractImageUrlsFromBlocks(question.enunciado);
+    const allImages = [...new Set([...blockImages, ...(question.imagenUrl ? [question.imagenUrl] : [])])];
+    setEnunciadoImagePreviews(allImages);
+    setFormData((prev) => ({ ...prev, imagenUrl: allImages[0] || '' }));
     const existingPreviews = letras.map((l) => {
       const a = question.alternativas.find((alt) => alt.letra === l);
-      return a?.imagenUrl || '';
+      const blockImage = extractImageUrlsFromBlocks(a?.contenidoTexto || '')[0] || '';
+      return a?.imagenUrl || blockImage;
     });
     setAltImagePreviews(existingPreviews);
     setIsFormModalOpen(true);
@@ -246,28 +275,33 @@ export default function BancoPreguntas() {
 
   // ── Enunciado image handlers ──
   const handleEnunciadoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setEnunciadoImageFile(file);
-    setEnunciadoImagePreview(preview);
-    setFormData((prev) => ({ ...prev, imagenUrl: '' }));
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const previews = files.map(file => URL.createObjectURL(file));
+    setEnunciadoImageFiles(prev => [...prev, ...files]);
+    setEnunciadoImagePreviews(prev => [...prev, ...previews]);
     setEnunciadoUrlMode(false);
-  };
-
-  const handleEnunciadoUrlChange = (url: string) => {
-    setFormData((prev) => ({ ...prev, imagenUrl: url }));
-    setEnunciadoImagePreview(url);
-    setEnunciadoImageFile(null);
-  };
-
-  const handleClearEnunciadoImage = () => {
-    setEnunciadoImageFile(null);
-    setEnunciadoImagePreview('');
-    setEnunciadoUrlMode(false);
-    setFormData((prev) => ({ ...prev, imagenUrl: '' }));
     if (enunciadoFileRef.current) enunciadoFileRef.current.value = '';
   };
+
+  const handleAddEnunciadoUrl = () => {
+    const url = enunciadoUrlDraft.trim();
+    if (!url) return;
+    setEnunciadoImagePreviews(prev => [...prev, url]);
+    setEnunciadoUrlDraft('');
+    setEnunciadoUrlMode(false);
+  };
+
+  const handleRemoveEnunciadoImage = (index: number) => {
+    setEnunciadoImagePreviews(prev => prev.filter((_, i) => i !== index));
+    setEnunciadoImageFiles(prev => {
+      // Newly selected files are appended to the end; remove matching file slot when applicable.
+      const existingCount = Math.max(0, enunciadoImagePreviews.length - prev.length);
+      const fileIndex = index - existingCount;
+      return fileIndex >= 0 ? prev.filter((_, i) => i !== fileIndex) : prev;
+    });
+  };
+
 
   // ── Alternativa image handlers ──
   const handleAltFileSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -338,11 +372,10 @@ export default function BancoPreguntas() {
     if (!validarFormulario()) return;
     setIsSaving(true);
     try {
-      // 1. Upload enunciado image file if present
-      let enunciadoFinalUrl = formData.imagenUrl;
-      if (enunciadoImageFile) {
-        enunciadoFinalUrl = await uploadRecorte(enunciadoImageFile);
-      }
+      // 1. Conservar recortes existentes y subir nuevos recortes del enunciado
+      const existingUrls = enunciadoImagePreviews.filter((url) => !url.startsWith('blob:'));
+      const uploadedUrls = await Promise.all(enunciadoImageFiles.map(file => uploadRecorte(file)));
+      const enunciadoFinalUrls = [...new Set([...existingUrls, ...uploadedUrls])];
 
       // 2. Upload alternativa image files if present, auto-compute tipo
       const alternativasFinales = await Promise.all(
@@ -368,11 +401,16 @@ export default function BancoPreguntas() {
         return JSON.stringify([{ tipo: 'texto', valor: text }]);
       };
 
+      const enunciadoBlocks = [
+        { tipo: 'texto', valor: formData.enunciado.trim() },
+        ...enunciadoFinalUrls.map(url => ({ tipo: 'imagen', url }))
+      ];
+
       const payload = {
         codigo: formData.codigo.trim() || null,
-        enunciado: wrapInTextBlock(formData.enunciado.trim()),
-        imagenUrl: enunciadoFinalUrl.trim() || null,
-        tieneImagen: !!enunciadoFinalUrl.trim(),
+        enunciado: JSON.stringify(enunciadoBlocks),
+        imagenUrl: enunciadoFinalUrls[0] || null,
+        tieneImagen: enunciadoFinalUrls.length > 0,
         dificultad: formData.dificultad,
         activo: formData.activo,
         cursoId: Number(formData.cursoId),
@@ -530,76 +568,61 @@ export default function BancoPreguntas() {
                 />
               </div>
 
-              {/* Imagen del enunciado */}
+              {/* Imágenes del enunciado */}
               <div className="form-group">
-                <label>Imagen del enunciado <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opcional)</span></label>
-                <div className="image-upload-zone">
-                  {!enunciadoImagePreview ? (
-                    <div className="image-upload-placeholder">
-                      <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--text-muted)' }}>image</span>
-                      <div className="image-upload-actions">
-                        <button
-                          type="button"
-                          className="btn-upload-action"
-                          onClick={() => enunciadoFileRef.current?.click()}
-                        >
-                          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>upload</span>
-                          Subir imagen
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-upload-action btn-upload-url"
-                          onClick={() => setEnunciadoUrlMode((v) => !v)}
-                        >
-                          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>link</span>
-                          Ingresar URL
-                        </button>
-                      </div>
-                      {enunciadoUrlMode && (
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="https://..."
-                          value={formData.imagenUrl}
-                          onChange={(e) => handleEnunciadoUrlChange(e.target.value)}
-                          style={{ marginTop: '8px' }}
-                        />
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={enunciadoFileRef}
-                        style={{ display: 'none' }}
-                        onChange={handleEnunciadoFileSelect}
-                      />
-                    </div>
-                  ) : (
-                    <div className="image-preview-zone">
+                <label>
+                  Imágenes / recortes del enunciado
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}> (Opcional, permite varias)</span>
+                </label>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 10 }}>
+                  {enunciadoImagePreviews.map((src, index) => (
+                    <div key={src + index} style={{ border: '1px solid #d9e0ea', borderRadius: 10, padding: 8, background: '#f8fafc', position: 'relative' }}>
                       <img
-                        src={enunciadoImagePreview}
-                        alt="Preview enunciado"
-                        className="image-preview-img"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                        src={src}
+                        alt={`Recorte ${index + 1}`}
+                        style={{ width: '100%', height: 150, objectFit: 'contain', borderRadius: 8, background: '#fff' }}
                       />
-                      <div className="image-preview-actions">
-                        <button type="button" className="btn-upload-action" onClick={() => enunciadoFileRef.current?.click()}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
-                          Reemplazar
-                        </button>
-                        <button type="button" className="btn-upload-action btn-delete-action" onClick={handleClearEnunciadoImage}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>delete</span>
-                          Eliminar
-                        </button>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={enunciadoFileRef}
-                        style={{ display: 'none' }}
-                        onChange={handleEnunciadoFileSelect}
-                      />
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 6 }}>Recorte {index + 1}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEnunciadoImage(index)}
+                        style={{ position: 'absolute', top: 6, right: 6, border: 0, borderRadius: 999, width: 28, height: 28, background: '#fee2e2', color: '#b91c1c', cursor: 'pointer', fontWeight: 700 }}
+                        title="Eliminar este recorte"
+                      >×</button>
                     </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button type="button" className="btn-upload-action" onClick={() => enunciadoFileRef.current?.click()}>
+                    <span className="material-icons-outlined" style={{ fontSize: 16 }}>add_photo_alternate</span>
+                    Añadir imagen
+                  </button>
+                  <button type="button" className="btn-upload-action btn-upload-url" onClick={() => setEnunciadoUrlMode(v => !v)}>
+                    <span className="material-icons-outlined" style={{ fontSize: 16 }}>link</span>
+                    Añadir por URL
+                  </button>
+                  {enunciadoUrlMode && (
+                    <>
+                      <input
+                        className="form-control"
+                        style={{ flex: 1, minWidth: 240 }}
+                        placeholder="https://..."
+                        value={enunciadoUrlDraft}
+                        onChange={(e) => setEnunciadoUrlDraft(e.target.value)}
+                      />
+                      <button type="button" className="btn-primary" onClick={handleAddEnunciadoUrl}>Agregar</button>
+                    </>
                   )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    ref={enunciadoFileRef}
+                    style={{ display: 'none' }}
+                    onChange={handleEnunciadoFileSelect}
+                  />
                 </div>
               </div>
 
@@ -742,7 +765,7 @@ export default function BancoPreguntas() {
                 </span>
               </div>
               <div className="question-text" style={{ marginBottom: 16 }}>
-                <ContentRenderer contentStr={selectedQuestion.enunciado} />
+                <ContentRenderer contentStr={normalizeBlocksString(selectedQuestion.enunciado)} />
               </div>
               {/* Solo mostrar imagen legacy si no es formato de bloques */}
               {selectedQuestion.imagenUrl && !isBlockFormat(selectedQuestion.enunciado) && (
@@ -765,17 +788,24 @@ export default function BancoPreguntas() {
                         <div style={{ flex: 1 }}>
                            {/* Renderizar texto si existe */}
                            {opt.contenidoTexto && (
-                             <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
-                           )}
-                           {/* Renderizar imagen si existe */}
-                           {opt.imagenUrl && !isBlockFormat(opt.contenidoTexto || '') && (
-                             <img
-                               src={opt.imagenUrl}
-                               alt={`Alternativa ${opt.letra}`}
-                               className="option-image-detail"
-                               onError={(e) => (e.currentTarget.style.display = 'none')}
+                             <ContentRenderer
+                               contentStr={JSON.stringify(parseContentBlocks(opt.contenidoTexto).filter((b: any) => b?.tipo !== 'imagen'))}
+                               inline={true}
                              />
                            )}
+                           {(() => {
+                             const blockImage = extractImageUrlsFromBlocks(opt.contenidoTexto || '')[0] || '';
+                             const image = opt.imagenUrl || blockImage;
+                             return image ? (
+                               <img
+                                 src={image}
+                                 alt={`Alternativa ${opt.letra}`}
+                                 className="option-image-detail"
+                                 style={{ display: 'block', maxWidth: 145, maxHeight: 72, objectFit: 'contain', marginTop: 6 }}
+                                 onError={(e) => (e.currentTarget.style.display = 'none')}
+                               />
+                             ) : null;
+                           })()}
                         </div>
                       </div>
                     </li>

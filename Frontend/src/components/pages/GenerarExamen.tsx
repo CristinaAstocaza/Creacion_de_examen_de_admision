@@ -264,9 +264,7 @@ export default function GenerarExamen() {
                     placeholder="Selecciona una categoría"
                     disabled={loading}
                   />
-                  <button type="button" className="btn-outline" onClick={cargarCategoriasYCursos} disabled={loading}>
-                    Recargar
-                  </button>
+
                 </div>
               </div>
               <div className="form-group">

@@ -6,7 +6,6 @@ import {
   obtenerExamen,
   obtenerVersionExamen,
   descargarPdfVersion,
-  descargarPdfSolucionario,
   descargarPdfsVersiones
 } from '../../services/examenService';
 import { listarCategorias } from '../../services/categoriaService';
@@ -123,7 +122,7 @@ export const HistorialExamenes = () => {
       await descargarPdfsVersiones(examenId, customName);
     } catch (err) {
       console.error('Error al descargar ZIP:', err);
-      alert('Hubo un error al intentar descargar el paquete ZIP de versiones.');
+      alert('Hubo un error al intentar descargar las versiones.');
     }
   };
 
@@ -400,7 +399,7 @@ export const HistorialExamenes = () => {
                     </button>
                     <button
                       className="btn-icon"
-                      title="Descargar paquete ZIP (Todas las versiones)"
+                      title="Descargar todas las versiones"
                       onClick={() => handleDescargarZip(exam.id)}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -488,15 +487,9 @@ export const HistorialExamenes = () => {
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
-                      >
-                        Solucionario
-                      </button>
-                      <button
-                        className="btn-action btn-action-outline"
                         onClick={() => descargarPdfVersion(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
                       >
-                        PDF
+                        Descargar archivo
                       </button>
                     </div>
                   </div>

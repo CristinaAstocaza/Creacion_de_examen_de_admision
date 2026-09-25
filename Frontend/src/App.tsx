@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar/Sidebar';
 import Areas from './components/pages/Areas';
@@ -9,10 +10,30 @@ import { ImportarPreguntas } from './components/pages/ImportarPreguntas'; // <--
 import './App.css';
 import { Dashboard } from './components/pages/Dashboard';
 import { Configuracion } from './components/pages/Configuracion';
+import ToastHost from './components/ui/ToastHost';
+import { showToast } from './utils/toast';
 
 export default function App() {
+  useEffect(() => {
+    const originalAlert = window.alert;
+    window.alert = (message?: any) => {
+      const text = String(message ?? '');
+      const lower = text.toLowerCase();
+      const type = /éxito|exito|guardad|finalizad|generad/.test(lower)
+        ? 'success'
+        : /error|no pudo|no se pudo|falta|faltan|hubo un error|bloqueó/.test(lower)
+          ? 'error'
+          : /revisa|advert|debes|selecciona/.test(lower)
+            ? 'warning'
+            : 'info';
+      showToast(text, type);
+    };
+    return () => { window.alert = originalAlert; };
+  }, []);
+
   return (
     <BrowserRouter>
+      <ToastHost />
       <div className="app-shell">
         {/* El Sidebar se mantiene fijo a la izquierda */}
         <Sidebar />

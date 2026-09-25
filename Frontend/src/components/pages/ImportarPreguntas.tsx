@@ -11,7 +11,7 @@ import { ContentRenderer } from '../ui/ContentRenderer';
 // ─────────────────────────────────────────────
 interface GeminiAlternativa {
   letra: string;
-  contenido_texto?: string;
+  contenido_texto?: string | any[];
   tipo?: 'texto' | 'imagen' | 'texto_imagen';
   tiene_imagen?: boolean;
   imagen_url?: string;
@@ -20,7 +20,7 @@ interface GeminiAlternativa {
 
 interface GeminiPregunta {
   numero: number;
-  enunciado: string;
+  enunciado: string | any[];
   dificultad?: string;
   tiene_imagen_enunciado?: boolean;
   imagen_url?: string;
@@ -40,6 +40,7 @@ interface ParsedAlternativa {
   imagenUrl?: string;
   ordenVisualizacion?: number;
   needsImage?: boolean;
+  isPlaceholder?: boolean;
 }
 
 interface AnalyzedQuestion {
@@ -138,6 +139,7 @@ export const ImportarPreguntas: React.FC = () => {
   
   const [filterMode, setFilterMode] = useState<'ALL' | 'REVIEW'>('ALL');
   const [modalImage, setModalImage] = useState<string | null>(null);
+  const [altEditor, setAltEditor] = useState<{ questionId: string; altIndex: number; value: string } | null>(null);
 
   const [cropper, setCropper] = useState<CropperState>({ isOpen: false, imageUrl: '', questionId: '', targetType: 'enunciado' });
 
@@ -182,10 +184,55 @@ export const ImportarPreguntas: React.FC = () => {
     }).catch(e => console.error('Error al cargar cursos:', e));
   }, []);
 
+  const normalizeStructuredContent = (value: any): string => {
+    if (value == null) return '';
+
+    let current: any = value;
+    for (let i = 0; i < 5; i += 1) {
+      if (Array.isArray(current)) return JSON.stringify(current);
+      if (current && typeof current === 'object') {
+        if (current.tipo) return JSON.stringify([current]);
+        break;
+      }
+      if (typeof current !== 'string') break;
+
+      const trimmed = current.trim();
+      if (!trimmed) return '';
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        current = parsed;
+        continue;
+      } catch(e) {
+        // Some model responses arrive with escaped JSON as plain text.
+        const unescaped = trimmed
+          .replace(/^"+|"+$/g, '')
+          .replace(/\\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+        if (unescaped !== trimmed) {
+          try {
+            const parsed = JSON.parse(unescaped);
+            current = parsed;
+            continue;
+          } catch(e2) {}
+        }
+        return JSON.stringify([{ tipo: 'texto', contenido: trimmed }]);
+      }
+    }
+
+    if (Array.isArray(current)) return JSON.stringify(current);
+    if (current && typeof current === 'object' && current.tipo) return JSON.stringify([current]);
+    return JSON.stringify([{ tipo: 'texto', contenido: String(current ?? '') }]);
+  };
+
   // ── Mapear respuesta de Gemini ──
   const mapGeminiToQuestions = (preguntas: GeminiPregunta[], originalUrl?: string): AnalyzedQuestion[] => {
     return preguntas.map((q, idx) => {
-      const alts = q.alternativas ?? [];
+      const normalizedEnunciado = normalizeStructuredContent(q.enunciado);
+      const alts = (q.alternativas ?? []).map((a: any) => ({
+        ...a,
+        contenido_texto: normalizeStructuredContent(a.contenido_texto)
+      }));
       const LETRAS = ['A', 'B', 'C', 'D', 'E'];
       const letrasPresentes = alts.map(a => a.letra?.toUpperCase() || '');
       const faltantes = LETRAS.filter(l => !letrasPresentes.includes(l));
@@ -197,12 +244,11 @@ export const ImportarPreguntas: React.FC = () => {
       const tipo_bloque = q.tipo_bloque || 'pregunta';
       
       if (tipo_bloque === 'pregunta') {
-        if (alts.length < 5) {
-          isValid = false;
+        if (faltantes.length > 0) {
           needsReview = true;
-          errorMessage = `Faltan alternativas: ${faltantes.join(', ')}.`;
+          errorMessage = `Completa manualmente: ${faltantes.join(', ')}.`;
         }
-        if (!q.enunciado || q.enunciado.trim() === '') {
+        if (!normalizedEnunciado || normalizedEnunciado.trim() === '') {
           isValid = false;
           needsReview = true;
           errorMessage = errorMessage ? errorMessage + ' No se encontró enunciado.' : 'No se encontró enunciado.';
@@ -214,35 +260,49 @@ export const ImportarPreguntas: React.FC = () => {
       if (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80) needsReview = true;
       if (q.posible_incompleta) needsReview = true;
 
-      // Parsear bloques de alternativas para detectar si necesitan imagen
-      const parsedAlternativas: ParsedAlternativa[] = alts.map((a, i) => {
+      // Parsear bloques de alternativas y crear campos vacíos para las letras faltantes
+      const parsedAlternativas: ParsedAlternativa[] = LETRAS.map((letra, i) => {
+        const a = alts.find(item => (item.letra || '').toUpperCase() === letra);
+        if (!a) {
+          return {
+            letra,
+            tipo: 'TEXTO',
+            contenidoTexto: null,
+            esCorrecta: false as const,
+            ordenVisualizacion: i + 1,
+            needsImage: false,
+            isPlaceholder: true
+          };
+        }
+
         let altNeedsImage = false;
         if (a.contenido_texto) {
           try {
             const blocks = JSON.parse(a.contenido_texto);
             if (Array.isArray(blocks)) {
-               altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
+              altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
             }
           } catch(e) {}
         }
         if (altNeedsImage) needsReview = true; 
         
         return {
-          letra: (a.letra || '?').toUpperCase(),
-          tipo: 'TEXTO', // mantenemos texto base porque la imagen va en el bloque
+          letra,
+          tipo: 'TEXTO',
           contenidoTexto: a.contenido_texto ?? null,
           esCorrecta: false as const,
           imagenUrl: a.imagen_url,
           ordenVisualizacion: i + 1,
-          needsImage: altNeedsImage
+          needsImage: altNeedsImage,
+          isPlaceholder: false
         };
       });
 
       // Parsear bloques del enunciado para detectar si necesita imagen
       let enunciadoNeedsImage = false;
-      if (q.enunciado) {
+      if (normalizedEnunciado) {
         try {
-          const blocks = JSON.parse(q.enunciado);
+          const blocks = JSON.parse(normalizedEnunciado);
           if (Array.isArray(blocks)) {
              enunciadoNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
           }
@@ -250,10 +310,17 @@ export const ImportarPreguntas: React.FC = () => {
       }
       if (enunciadoNeedsImage) needsReview = true;
 
+      const actualMissingLetters = parsedAlternativas
+        .filter(a => !alternativeHasContent(a))
+        .map(a => a.letra);
+      if (actualMissingLetters.length === 0 && errorMessage?.startsWith('Completa manualmente:')) {
+        errorMessage = undefined;
+      }
+
       return {
         id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         numero: q.numero ?? idx + 1,
-        enunciado: q.enunciado ?? '',
+        enunciado: normalizedEnunciado,
         isValid,
         needsReview,
         errorMessage,
@@ -263,7 +330,7 @@ export const ImportarPreguntas: React.FC = () => {
         imagenUrl: q.imagen_url,
         originalImageUrl: originalUrl || q.imagen_url,
         alternativas: alts,
-        parsedAlternativas: isValid ? parsedAlternativas : undefined,
+        parsedAlternativas,
         tipo_bloque,
         posible_incompleta: q.posible_incompleta,
         confianza_extraccion: q.confianza_extraccion,
@@ -447,7 +514,7 @@ export const ImportarPreguntas: React.FC = () => {
       }
 
       setIsProcessingBatch(true);
-      const batch = pendingTasks.slice(0, 5);
+      const batch = pendingTasks.slice(0, 1);
       setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'processing' } : t));
 
       try {
@@ -459,7 +526,8 @@ export const ImportarPreguntas: React.FC = () => {
           if (indexInBatch !== -1) {
             const rawQ = resp.preguntas?.find((m: GeminiPregunta) => m.numero === indexInBatch + 1);
             if (rawQ) {
-              const mappedArr = mapGeminiToQuestions([rawQ], rawQ.imagen_url);
+              const localOriginalUrl = URL.createObjectURL(t.file);
+              const mappedArr = mapGeminiToQuestions([rawQ], localOriginalUrl);
               return { ...t, status: 'success', result: mappedArr[0] };
             } else {
               return { ...t, status: 'error', errorMsg: 'Fallo al procesar o imagen ilegible.' };
@@ -470,7 +538,8 @@ export const ImportarPreguntas: React.FC = () => {
 
       } catch (err) {
         console.error("Error en batch", err);
-        setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'error', errorMsg: 'Error de red o de IA.' } : t));
+        const errorMsg = err instanceof Error ? err.message : 'Error de red o de IA.';
+        setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'error', errorMsg } : t));
       } finally {
         setIsProcessingBatch(false);
       }
@@ -491,56 +560,85 @@ export const ImportarPreguntas: React.FC = () => {
         if (q.id !== cropper.questionId) return q;
         
         if (cropper.targetType === 'enunciado') {
-          // Update the specific block in enunciado
+          // Completa un bloque pendiente o agrega un recorte adicional opcional.
           let newEnunciado = q.enunciado;
           try {
-            const blocks = JSON.parse(q.enunciado);
-            if (Array.isArray(blocks) && cropper.blockIndex !== undefined) {
-               blocks[cropper.blockIndex].url = url;
-               newEnunciado = JSON.stringify(blocks);
+            const parsed = JSON.parse(q.enunciado);
+            const blocks = Array.isArray(parsed) ? parsed : [{ tipo: 'texto', valor: q.enunciado }];
+            if (cropper.blockIndex !== undefined && blocks[cropper.blockIndex]) {
+              blocks[cropper.blockIndex].url = url;
+            } else {
+              blocks.push({ tipo: 'imagen', url });
             }
-          } catch(e) {}
+            newEnunciado = JSON.stringify(blocks);
+          } catch(e) {
+            newEnunciado = JSON.stringify([
+              { tipo: 'texto', valor: q.enunciado },
+              { tipo: 'imagen', url }
+            ]);
+          }
           
           let stillNeedsReviewEnunciado = false;
           try {
             const b = JSON.parse(newEnunciado);
-            stillNeedsReviewEnunciado = b.some((x: any) => x.tipo === 'imagen' && !x.url);
+            stillNeedsReviewEnunciado = Array.isArray(b) && b.some((x: any) => x.tipo === 'imagen' && !x.url);
           } catch(e){}
 
           const stillNeedsReview = stillNeedsReviewEnunciado || (q.parsedAlternativas || []).some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
           
-          // Mantenemos null en q.imagenUrl (legacy) y solo actualizamos el bloque dentro del json string.
           return { ...q, enunciado: newEnunciado, needsReview: stillNeedsReview, enunciadoNeedsImage: stillNeedsReviewEnunciado };
         } else if (cropper.targetType === 'alternativa' && cropper.alternativaIndex !== undefined) {
           const newAlts = [...(q.parsedAlternativas || [])];
-          let altContent = newAlts[cropper.alternativaIndex].contenidoTexto;
-          if (altContent) {
-            try {
-              const blocks = JSON.parse(altContent);
-              if (Array.isArray(blocks) && cropper.blockIndex !== undefined) {
-                 blocks[cropper.blockIndex].url = url;
-                 altContent = JSON.stringify(blocks);
-              }
-            } catch(e) {}
+          const currentAlt = newAlts[cropper.alternativaIndex];
+          let altContent = currentAlt.contenidoTexto;
+
+          try {
+            let blocks: any[] = [];
+            if (altContent) {
+              const parsed = JSON.parse(altContent);
+              blocks = Array.isArray(parsed) ? parsed : [{ tipo: 'texto', valor: altContent }];
+            }
+
+            if (cropper.blockIndex !== undefined && blocks[cropper.blockIndex]) {
+              blocks[cropper.blockIndex].url = url;
+            } else {
+              blocks.push({ tipo: 'imagen', url });
+            }
+            altContent = JSON.stringify(blocks);
+          } catch(e) {
+            altContent = JSON.stringify([{ tipo: 'imagen', url }]);
           }
           
           let altNeedsImage = false;
-          if (altContent) {
-            try {
-              const blocks = JSON.parse(altContent);
-              altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
-            } catch(e) {}
-          }
+          try {
+            const blocks = JSON.parse(altContent || '[]');
+            altNeedsImage = Array.isArray(blocks) && blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
+          } catch(e) {}
 
           newAlts[cropper.alternativaIndex] = { 
-            ...newAlts[cropper.alternativaIndex], 
+            ...currentAlt, 
             contenidoTexto: altContent,
-            needsImage: altNeedsImage
+            imagenUrl: currentAlt.imagenUrl || url,
+            needsImage: altNeedsImage,
+            isPlaceholder: false
           };
           
-          const stillNeedsReview = (q as any).enunciadoNeedsImage || newAlts.some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
+          const missingLetters = newAlts
+            .filter(a => !alternativeHasContent(a))
+            .map(a => a.letra);
+          const stillNeedsReview =
+            (q as any).enunciadoNeedsImage ||
+            newAlts.some(a => a.needsImage) ||
+            missingLetters.length > 0 ||
+            !q.isValid ||
+            (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
           
-          return { ...q, parsedAlternativas: newAlts, needsReview: stillNeedsReview };
+          return {
+            ...q,
+            parsedAlternativas: newAlts,
+            needsReview: stillNeedsReview,
+            errorMessage: missingLetters.length ? `Completa manualmente: ${missingLetters.join(', ')}.` : undefined
+          };
         }
         return q;
       }));
@@ -553,28 +651,40 @@ export const ImportarPreguntas: React.FC = () => {
 
   // ── Guardar y Cancelar ──
   const handleGuardar = async () => {
-    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage));
+    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage || !alternativeHasContent(a)));
     if (!valid.length) { alert('No hay preguntas válidas y completas para guardar.'); return; }
     if (!selectedCursoId) { alert('Selecciona un curso primero.'); return; }
 
     setIsImporting(true);
     try {
-      const payload = valid.map(q => ({
-        enunciado: q.enunciado,
-        dificultad: q.dificultad || 'MEDIO',
-        activo: true,
-        cursoId: Number(selectedCursoId),
-        imagenUrl: q.imagenUrl ?? null,
-        tieneImagen: !!q.imagenUrl,
-        alternativas: q.parsedAlternativas!.map(a => ({
-          letra: a.letra,
-          tipo: a.tipo,
-          contenidoTexto: a.contenidoTexto,
-          esCorrecta: false,
-          imagenUrl: a.imagenUrl ?? null,
-          ordenVisualizacion: a.ordenVisualizacion ?? null,
-        }))
-      }));
+      const payload = valid.map(q => {
+        let recortesEnunciado: string[] = [];
+        try {
+          const blocks = JSON.parse(q.enunciado);
+          if (Array.isArray(blocks)) {
+            recortesEnunciado = blocks
+              .filter((b: any) => b?.tipo === 'imagen' && b?.url)
+              .map((b: any) => String(b.url));
+          }
+        } catch(e) {}
+
+        return {
+          enunciado: q.enunciado,
+          dificultad: q.dificultad || 'MEDIO',
+          activo: true,
+          cursoId: Number(selectedCursoId),
+          imagenUrl: recortesEnunciado[0] || null,
+          tieneImagen: recortesEnunciado.length > 0,
+          alternativas: q.parsedAlternativas!.map(a => ({
+            letra: a.letra,
+            tipo: a.tipo,
+            contenidoTexto: a.contenidoTexto,
+            esCorrecta: false,
+            imagenUrl: a.imagenUrl ?? null,
+            ordenVisualizacion: a.ordenVisualizacion ?? null,
+          }))
+        };
+      });
 
       const res = await guardarLotePreguntas(payload);
       alert(`Importación finalizada con éxito. Se guardaron ${res.length} preguntas.`);
@@ -596,6 +706,175 @@ export const ImportarPreguntas: React.FC = () => {
   const removeQuestion = (id: string) => {
     setQuestions(prev => prev.filter(q => q.id !== id));
   };
+
+  const contentToPlainText = (content: string | null | undefined) => {
+    if (!content) return '';
+    const blocks = parseContentBlocks(content);
+    if (blocks.length) {
+      return blocks.map((b: any) => b.valor ?? b.contenido ?? b.texto ?? '').join(' ');
+    }
+    return content;
+  };
+
+  const parseContentBlocks = (content: string | null | undefined): any[] => {
+    if (!content) return [];
+    let current: any = content;
+    for (let i = 0; i < 4; i += 1) {
+      if (Array.isArray(current)) return current;
+      if (typeof current !== 'string') break;
+      try {
+        current = JSON.parse(current);
+      } catch(e) {
+        break;
+      }
+    }
+    if (Array.isArray(current)) return current;
+    if (current && typeof current === 'object' && current.tipo) return [current];
+    return [];
+  };
+
+  const contentIsLatex = (content: string | null | undefined) => {
+    if (!content) return false;
+    try {
+      const blocks = JSON.parse(content);
+      return Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'latex');
+    } catch(e) {
+      return false;
+    }
+  };
+
+  const looksLikeLatexText = (value: string | null | undefined) => {
+    const text = String(value || '');
+    return /\\[a-zA-Z]+|[_^]\{?[^\s]+|\\frac|\\sqrt|\\rho|\\theta|\\pi|\\Delta/.test(text);
+  };
+
+  const editorPreviewContent = (value: string, originalContent?: string | null) => {
+    const tipo = contentIsLatex(originalContent) || looksLikeLatexText(value) ? 'latex' : 'texto';
+    return JSON.stringify([{ tipo, contenido: value, valor: value }]);
+  };
+
+  const alternativeHasContent = (alt: ParsedAlternativa) => {
+    if (contentToPlainText(alt.contenidoTexto).trim()) return true;
+    if (alt.imagenUrl) return true;
+    if (alt.contenidoTexto) {
+      try {
+        const blocks = JSON.parse(alt.contenidoTexto);
+        if (Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'imagen' && b?.url)) return true;
+      } catch(e) {}
+    }
+    return false;
+  };
+
+  const hasPendingEnunciadoImage = (content: string | null | undefined) => {
+    return parseContentBlocks(content).some((b: any) => b?.tipo === 'imagen' && !b?.url);
+  };
+
+  const getFirstPendingEnunciadoImageIndex = (content: string | null | undefined) => {
+    return parseContentBlocks(content).findIndex((b: any) => b?.tipo === 'imagen' && !b?.url);
+  };
+
+  const getEnunciadoTextOnly = (content: string | null | undefined) => {
+    const blocks = parseContentBlocks(content);
+    if (!blocks.length) return content || '';
+    return JSON.stringify(blocks.filter((b: any) => b?.tipo !== 'imagen'));
+  };
+
+  const getSavedEnunciadoImages = (content: string | null | undefined) => {
+    return parseContentBlocks(content)
+      .map((b: any, index: number) => ({ block: b, index }))
+      .filter(({ block }: any) => block?.tipo === 'imagen' && block?.url);
+  };
+
+  const removeEnunciadoImage = (questionId: string, blockIndex: number) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      try {
+        const blocks = JSON.parse(q.enunciado);
+        if (!Array.isArray(blocks)) return q;
+        const nextBlocks = blocks.filter((_: any, index: number) => index !== blockIndex);
+        const hasPending = nextBlocks.some((b: any) => b?.tipo === 'imagen' && !b?.url);
+        return {
+          ...q,
+          enunciado: JSON.stringify(nextBlocks),
+          enunciadoNeedsImage: hasPending,
+          needsReview: hasPending || (q.parsedAlternativas || []).some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80)
+        };
+      } catch(e) {
+        return q;
+      }
+    }));
+  };
+
+  const dismissPendingEnunciadoImages = (questionId: string) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      try {
+        const blocks = JSON.parse(q.enunciado);
+        if (!Array.isArray(blocks)) return q;
+        const nextBlocks = blocks.filter((b: any) => !(b?.tipo === 'imagen' && !b?.url));
+        const hasAltReview = (q.parsedAlternativas || []).some(a => a.needsImage || !alternativeHasContent(a));
+        const extractionReview = q.confianza_extraccion !== undefined && q.confianza_extraccion < 80;
+        return {
+          ...q,
+          enunciado: JSON.stringify(nextBlocks),
+          enunciadoNeedsImage: false,
+          needsReview: hasAltReview || !q.isValid || extractionReview
+        };
+      } catch(e) {
+        return q;
+      }
+    }));
+  };
+
+
+  const commitAlternativeText = (questionId: string, altIndex: number, value: string) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      const newAlts = [...(q.parsedAlternativas || [])];
+      const current = newAlts[altIndex];
+      if (!current) return q;
+
+      const trimmed = value.trim();
+      const keepLatex = contentIsLatex(current.contenidoTexto) || looksLikeLatexText(trimmed);
+      newAlts[altIndex] = {
+        ...current,
+        contenidoTexto: trimmed
+          ? JSON.stringify([{ tipo: keepLatex ? 'latex' : 'texto', contenido: trimmed }])
+          : null,
+        isPlaceholder: !trimmed
+      };
+
+      const hasMissing = newAlts.some(a => !alternativeHasContent(a));
+      const hasPendingImage = newAlts.some(a => a.needsImage);
+      const extractionReview = q.confianza_extraccion !== undefined && q.confianza_extraccion < 80;
+      const imageReview = (q as any).enunciadoNeedsImage || hasPendingImage;
+      const needsReview = hasMissing || imageReview || extractionReview;
+      const missingLetters = newAlts.filter(a => !alternativeHasContent(a)).map(a => a.letra);
+
+      return {
+        ...q,
+        parsedAlternativas: newAlts,
+        needsReview,
+        posible_incompleta: hasMissing ? q.posible_incompleta : false,
+        errorMessage: missingLetters.length ? `Completa manualmente: ${missingLetters.join(', ')}.` : undefined
+      };
+    }));
+  };
+
+  const beginAlternativeEdit = (questionId: string, altIndex: number, currentValue: string) => {
+    setAltEditor({ questionId, altIndex, value: currentValue });
+  };
+
+  const saveAlternativeEditor = () => {
+    if (!altEditor) return;
+    commitAlternativeText(altEditor.questionId, altEditor.altIndex, altEditor.value);
+    setAltEditor(null);
+  };
+
+  const appendEditorToken = (token: string) => {
+    setAltEditor(prev => prev ? { ...prev, value: prev.value + token } : prev);
+  };
+
 
   // ── Cálculos ──
   const stats = {
@@ -1010,41 +1289,262 @@ export const ImportarPreguntas: React.FC = () => {
                     )}
                   </div>
 
+                  {q.originalImageUrl && (
+                    <div style={{ margin: '12px 0 16px', padding: 10, border: '1px solid #dbe4f0', borderRadius: 10, background: '#f8fbff' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#5f6368', marginBottom: 8 }}>Imagen original analizada</div>
+                      <img
+                        src={q.originalImageUrl}
+                        alt={`Pregunta ${q.numero} original`}
+                        onClick={() => setModalImage(q.originalImageUrl!)}
+                        style={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: 'white' }}
+                      />
+                      <div style={{ fontSize: 11, color: '#7a8699', marginTop: 6 }}>Haz clic sobre la imagen para verla completa.</div>
+                    </div>
+                  )}
+
                   <div className="q-text">
                     <strong>Pregunta {q.numero}.</strong>
                     <ContentRenderer 
-                      contentStr={q.enunciado} 
+                      contentStr={getEnunciadoTextOnly(q.enunciado)} 
                       onImageClick={setModalImage}
-                      onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'enunciado', undefined, blockIdx) : undefined} 
                     />
+
+                    {getSavedEnunciadoImages(q.enunciado).length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 10 }}>
+                        {getSavedEnunciadoImages(q.enunciado).map(({ block, index }: any) => (
+                          <div key={`${q.id}-img-${index}`} style={{ position: 'relative', padding: 8, border: '1px solid #dbe4f0', borderRadius: 10, background: '#f8fafc' }}>
+                            <img
+                              src={block.url}
+                              alt="Figura recortada"
+                              onClick={() => setModalImage(block.url)}
+                              style={{ width: '100%', maxHeight: 180, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: '#fff' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn-small danger"
+                              onClick={() => removeEnunciadoImage(q.id, index)}
+                              style={{ position: 'absolute', top: 12, right: 12, padding: '4px 7px', borderRadius: 999 }}
+                              title="Eliminar esta figura"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {q.originalImageUrl && hasPendingEnunciadoImage(q.enunciado) && (
+                      <div style={{
+                        marginTop: 10,
+                        padding: 14,
+                        border: '2px dashed #60a5fa',
+                        borderRadius: 10,
+                        background: '#eff6ff',
+                        color: '#1e3a8a',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontWeight: 700 }}>🖼️ Figura detectada</div>
+                        <div style={{ fontSize: 12, marginTop: 4, color: '#475569' }}>
+                          La IA detectó más contenido visual. Puedes recortarlo o ignorarlo.
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                          <button
+                            type="button"
+                            className="btn-small"
+                            onClick={() => openCropper(
+                              q.id,
+                              q.originalImageUrl!,
+                              'enunciado',
+                              undefined,
+                              getFirstPendingEnunciadoImageIndex(q.enunciado)
+                            )}
+                            style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
+                          >
+                            ✂️ Recortar esta figura
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-small"
+                            onClick={() => dismissPendingEnunciadoImages(q.id)}
+                            style={{ background: '#fff', color: '#475569', borderColor: '#cbd5e1', fontWeight: 600, padding: '8px 12px' }}
+                          >
+                            Omitir figuras restantes
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {q.originalImageUrl && !hasPendingEnunciadoImage(q.enunciado) && (
+                      <button
+                        type="button"
+                        className="btn-small"
+                        onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
+                        style={{
+                          marginTop: 8,
+                          width: 34,
+                          height: 34,
+                          borderRadius: 999,
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          borderColor: '#93c5fd',
+                          fontWeight: 800,
+                          fontSize: 18,
+                          padding: 0
+                        }}
+                        title="Añadir otro recorte / figura"
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
 
                   <div className="q-options" style={{ marginTop: 16 }}>
-                    {q.parsedAlternativas?.map((alt, idx) => (
-                      <div key={idx} style={{ marginBottom: 12, padding: '8px', border: '1px solid #e8eaed', borderRadius: 8, background: '#f8f9fa' }}>
-                        <strong>{alt.letra})</strong>{' '}
-                        {alt.contenidoTexto ? (
-                           <ContentRenderer 
-                             contentStr={alt.contenidoTexto} 
-                             onImageClick={setModalImage}
-                             onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
-                           />
-                        ) : (
-                           <span style={{ color: '#d93025', fontStyle: 'italic' }}>Vacío</span>
-                        )}
-                        
-                        {/* Render fallback de la imagen si era imagen vieja (por compatibilidad en ImportarPreguntas) */}
-                        {alt.imagenUrl && (
-                          <div className="q-image-container" onClick={() => setModalImage(alt.imagenUrl!)} style={{ marginTop: 8 }}>
-                            <img src={alt.imagenUrl} alt={`Alternativa ${alt.letra}`} style={{ maxHeight: 100 }} />
+                    {q.parsedAlternativas?.map((alt, idx) => {
+                      const plainValue = contentToPlainText(alt.contenidoTexto);
+                      const hasImageContent = alternativeHasContent(alt) && !plainValue.trim();
+                      const isMissing = !alternativeHasContent(alt);
+                      const isEditing = altEditor?.questionId === q.id && altEditor.altIndex === idx;
+                      const editorValue = isEditing ? altEditor.value : plainValue;
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            if (!isEditing) beginAlternativeEdit(q.id, idx, plainValue);
+                          }}
+                          style={{ marginBottom: 12, padding: '10px', border: isMissing ? '1px solid #f6c453' : '1px solid #e8eaed', borderRadius: 8, background: isMissing ? '#fffaf0' : '#f8f9fa', cursor: isEditing ? 'default' : 'text' }}
+                          title={!isEditing ? 'Haz clic para editar esta alternativa' : undefined}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                            <strong>{alt.letra})</strong>
+                            {!isEditing && (
+                              <span style={{ fontSize: 11, color: '#7a8699' }}>✏️ Clic para editar</span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+
+                          {isEditing ? (
+                            <div
+                              data-alt-editor="true"
+                              style={{ marginTop: 8 }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {isMissing && (
+                                <div style={{ fontSize: 12, color: '#9a6700', marginBottom: 6 }}>Alternativa faltante: complétala manualmente.</div>
+                              )}
+
+                              <div
+                                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, padding: '6px 8px', background: '#fff', border: '1px solid #dde3ea', borderRadius: 8 }}
+                                onMouseDown={(e) => e.preventDefault()}
+                              >
+                                {['₀','₁','₂','₃','₄','₅','⁰','¹','²','³','⁴','⁵','π','ρ','θ','Δ','√','±','×','÷','≤','≥','∞','½','¼'].map(token => (
+                                  <button
+                                    key={token}
+                                    type="button"
+                                    className="btn-small"
+                                    onClick={() => appendEditorToken(token)}
+                                    style={{ minWidth: 32, padding: '4px 7px', background: '#fff' }}
+                                    title="Insertar símbolo"
+                                  >
+                                    {token}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <textarea
+                                autoFocus
+                                value={editorValue}
+                                onChange={(e) => setAltEditor(prev => prev ? { ...prev, value: e.target.value } : prev)}
+                                onBlur={(e) => {
+                                  const next = e.relatedTarget as HTMLElement | null;
+                                  if (!next?.closest?.('[data-alt-editor="true"]')) saveAlternativeEditor();
+                                }}
+                                placeholder={`Escribe la alternativa ${alt.letra}...`}
+                                style={{ width: '100%', minHeight: 82, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
+                              />
+
+                              {(contentIsLatex(alt.contenidoTexto) || looksLikeLatexText(editorValue)) && editorValue.trim() && (
+                                <div style={{ marginTop: 8, padding: '9px 12px', background: '#f8fafc', border: '1px solid #dbe4f0', borderRadius: 8 }}>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 5, fontWeight: 600 }}>
+                                    Vista previa de la fórmula
+                                  </div>
+                                  <ContentRenderer contentStr={editorPreviewContent(editorValue, alt.contenidoTexto)} />
+                                </div>
+                              )}
+
+                              {q.originalImageUrl && (
+                                <button
+                                  type="button"
+                                  className="btn-small"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    if (altEditor) commitAlternativeText(altEditor.questionId, altEditor.altIndex, altEditor.value);
+                                    setAltEditor(null);
+                                    openCropper(q.id, q.originalImageUrl!, 'alternativa', idx);
+                                  }}
+                                  style={{ marginTop: 8, background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd', fontWeight: 700 }}
+                                >
+                                  🖼️✂️ Recortar imagen para {alt.letra}
+                                </button>
+                              )}
+
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                                <button
+                                  type="button"
+                                  className="btn-small"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => setAltEditor(null)}
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-small active"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={saveAlternativeEditor}
+                                  style={{ background: '#1a73e8', color: '#fff', borderColor: '#1a73e8' }}
+                                >
+                                  ✓ OK
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 6 }}>
+                              {!isMissing ? (
+                                <>
+                                  {alt.contenidoTexto && (
+                                    <ContentRenderer 
+                                      contentStr={alt.contenidoTexto} 
+                                      onImageClick={setModalImage}
+                                      onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
+                                    />
+                                  )}
+                                  {hasImageContent && (
+                                    <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 600 }}>🖼️ Alternativa gráfica</span>
+                                  )}
+                                </>
+                              ) : (
+                                <span style={{ color: '#9a6700', fontStyle: 'italic' }}>Vacío — haz clic para completar</span>
+                              )}
+                            </div>
+                          )}
+                          
+                          {alt.imagenUrl && (
+                            <div className="q-image-container" onClick={(e) => { e.stopPropagation(); setModalImage(alt.imagenUrl!); }} style={{ marginTop: 8 }}>
+                              <img src={alt.imagenUrl} alt={`Alternativa ${alt.letra}`} style={{ maxHeight: 100 }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {!q.isValid && q.errorMessage && (
-                    <div className="q-error-msg">{q.errorMessage}</div>
+                  {q.errorMessage && (
+                    <div
+                      className={q.isValid ? '' : 'q-error-msg'}
+                      style={q.isValid ? { marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#fff4cc', color: '#8a5a00', fontSize: 13, fontWeight: 600 } : undefined}
+                    >
+                      {q.isValid ? '⚠️ ' : ''}{q.errorMessage}
+                    </div>
                   )}
 
                   <div className="q-actions">

@@ -2,6 +2,7 @@ import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 're
 import './Configuracion.css';
 import { listarCategorias } from '../../services/categoriaService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { toastSuccess, toastError } from '../../utils/toast';
 
 
 interface CategoriaExamen {
@@ -34,7 +35,6 @@ export const Configuracion: React.FC = () => {
   });
 
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
     const loadInitials = async () => {
@@ -84,15 +84,13 @@ export const Configuracion: React.FC = () => {
     if (!selectedCategoriaId) return;
 
     setIsSaving(true);
-    setSaveMessage(null);
-
     try {
       // Guardar Formato
       localStorage.setItem('configuracionExamen', JSON.stringify(formData));
-      setSaveMessage({ type: 'success', text: 'Configuración aplicada y guardada exitosamente.' });
+      toastSuccess('Configuración aplicada y guardada exitosamente.');
     } catch (err) {
       console.error(err);
-      setSaveMessage({ type: 'error', text: 'Hubo un error al guardar la configuración.' });
+      toastError('Hubo un error al guardar la configuración.');
     } finally {
       setIsSaving(false);
     }
@@ -143,11 +141,6 @@ export const Configuracion: React.FC = () => {
         </Select>
       </section>
 
-      {saveMessage && (
-        <div className={`alert-message ${saveMessage.type}`}>
-          {saveMessage.text}
-        </div>
-      )}
 
       <div className={`config-grid ${!selectedCategoriaId ? 'disabled-section' : ''}`}>
         <section className="config-form-section">

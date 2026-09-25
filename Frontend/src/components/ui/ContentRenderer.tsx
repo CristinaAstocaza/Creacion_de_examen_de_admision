@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 export interface ContentBlock {
   tipo: 'texto' | 'latex' | 'imagen';
   valor?: string;
+  contenido?: string;
   url?: string | null;
 }
 
@@ -19,15 +20,30 @@ interface Props {
 export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImageClick, onCropClick, inline = false }) => {
   const blocks = useMemo(() => {
     if (!contentStr) return [];
-    try {
-      const parsed = JSON.parse(contentStr);
-      if (Array.isArray(parsed)) {
-        return parsed as ContentBlock[];
+
+    let current: unknown = contentStr;
+    for (let i = 0; i < 4; i += 1) {
+      if (Array.isArray(current)) {
+        return current as ContentBlock[];
       }
-    } catch (e) {
-      // not a json string, fallback to plain text
+      if (typeof current !== 'string') break;
+
+      try {
+        current = JSON.parse(current);
+      } catch {
+        break;
+      }
     }
-    return [{ tipo: 'texto', valor: contentStr }] as ContentBlock[];
+
+    if (Array.isArray(current)) {
+      return current as ContentBlock[];
+    }
+
+    if (current && typeof current === 'object' && 'tipo' in current) {
+      return [current as ContentBlock];
+    }
+
+    return [{ tipo: 'texto', valor: String(current ?? contentStr) }] as ContentBlock[];
   }, [contentStr]);
 
   if (blocks.length === 0) return null;
@@ -39,19 +55,20 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
   return (
     <div className={`content-renderer ${className || ''}`} style={wrapperStyle}>
       {blocks.map((b, i) => {
+        const value = b.valor ?? b.contenido ?? '';
+
         if (b.tipo === 'texto') {
           return (
             <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-              {b.valor}
+              {value}
             </span>
           );
         }
         if (b.tipo === 'latex') {
           try {
-            // Un bloque LaTeX es de tipo display (bloque entero centrado) solo si contiene marcadores de display math
-            const hasDisplayMarker = b.valor?.includes('$$') || b.valor?.includes('\\begin{');
+            const hasDisplayMarker = value.includes('$$') || value.includes('\\begin{');
             const isDisplay = !inline && hasDisplayMarker;
-            const cleanValor = b.valor?.replace(/\$\$/g, '') || '';
+            const cleanValor = value.replace(/\$\$/g, '');
             const html = katex.renderToString(cleanValor, { throwOnError: true, displayMode: isDisplay });
             
             return isDisplay ? (
@@ -70,10 +87,10 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
               />
             );
           } catch (e) {
-            console.warn(`[ContentRenderer] Error de sintaxis KaTeX en expresión: ${b.valor}`, e);
+            console.warn(`[ContentRenderer] Error de sintaxis KaTeX en expresión: ${value}`, e);
             return (
               <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                {b.valor}
+                {value}
               </span>
             );
           }
@@ -81,12 +98,17 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
         if (b.tipo === 'imagen') {
           if (!b.url) {
              return (
-               <div key={i} style={{ padding: 12, border: '1px dashed #ccc', borderRadius: 8, color: '#666', textAlign: 'center', background: '#fafafa', display: inline ? 'inline-block' : 'block' }}>
-                 🖼 Imagen pendiente de recorte
+               <div key={i} style={{ padding: 14, border: '2px dashed #60a5fa', borderRadius: 10, color: '#1e3a8a', textAlign: 'center', background: '#eff6ff', display: inline ? 'inline-block' : 'block' }}>
+                 <div style={{ fontWeight: 700 }}>🖼️ Figura detectada</div>
+                 <div style={{ fontSize: 12, marginTop: 4, color: '#475569' }}>Recorta esta parte desde la imagen original.</div>
                  {onCropClick && (
-                   <div style={{ marginTop: 8 }}>
-                     <button className="btn-small" onClick={() => onCropClick(i)}>
-                       ✂️ Recortar Imagen
+                   <div style={{ marginTop: 10 }}>
+                     <button
+                       className="btn-small"
+                       onClick={() => onCropClick(i)}
+                       style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '7px 12px' }}
+                     >
+                       ✂️ Recortar figura
                      </button>
                    </div>
                  )}
@@ -102,7 +124,7 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
                  cursor: onImageClick ? 'pointer' : 'default', 
                  margin: inline ? '4px 0' : '8px 0',
                  display: 'flex',
-                 justifyContent: 'center' // Centrar la imagen en medio
+                 justifyContent: 'center'
                }}
              >
                <img src={b.url} alt="Bloque de imagen" style={{ maxWidth: '100%', borderRadius: 8, display: 'block', margin: '0 auto' }} />

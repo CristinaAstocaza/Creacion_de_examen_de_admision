@@ -1,39 +1,52 @@
-import api from './api';
+import { getCategorias, setCategorias, getConfigs, setConfigs, getPreguntas, nextId, isoNow } from './demoStore';
 
-export const listarCategorias = async () => {
-  const { data } = await api.get('/categorias');
-  return data;
-};
+const withTotals = () => getCategorias().map(c => ({
+  ...c,
+  totalPreguntas: getPreguntas().length,
+}));
+
+export const listarCategorias = async () => withTotals();
 
 export const crearCategoria = async (payload) => {
-  const { data } = await api.post('/categorias', payload);
-  return data;
+  const items = getCategorias();
+  const item = { id: nextId(items), activo: true, totalPreguntas: 0, fechaCreacion: isoNow(), ...payload };
+  setCategorias([...items, item]);
+  return item;
 };
 
 export const actualizarCategoria = async (categoriaId, payload) => {
-  const { data } = await api.put(`/categorias/${categoriaId}`, payload);
-  return data;
+  const items = getCategorias();
+  const idx = items.findIndex(x => Number(x.id) === Number(categoriaId));
+  if (idx < 0) throw new Error('Categoría no encontrada');
+  items[idx] = { ...items[idx], ...payload };
+  setCategorias(items);
+  return items[idx];
 };
 
 export const eliminarCategoria = async (categoriaId) => {
-  await api.delete(`/categorias/${categoriaId}`);
+  setCategorias(getCategorias().filter(x => Number(x.id) !== Number(categoriaId)));
+  setConfigs(getConfigs().filter(x => Number(x.categoriaExamenId) !== Number(categoriaId)));
 };
 
-export const listarConfigCursos = async (categoriaId) => {
-  const { data } = await api.get(`/categorias/${categoriaId}/config-cursos`);
-  return data;
-};
+export const listarConfigCursos = async (categoriaId) =>
+  getConfigs().filter(x => Number(x.categoriaExamenId) === Number(categoriaId));
 
 export const crearConfigCurso = async (categoriaId, payload) => {
-  const { data } = await api.post(`/categorias/${categoriaId}/config-cursos`, payload);
-  return data;
+  const items = getConfigs();
+  const item = { id: nextId(items), categoriaExamenId: Number(categoriaId), activo: true, fechaConfiguracion: isoNow(), ...payload };
+  setConfigs([...items, item]);
+  return item;
 };
 
-export const actualizarConfigCurso = async (categoriaId, idConfig, payload) => {
-  const { data } = await api.put(`/categorias/${categoriaId}/config-cursos/${idConfig}`, payload);
-  return data;
+export const actualizarConfigCurso = async (_categoriaId, idConfig, payload) => {
+  const items = getConfigs();
+  const idx = items.findIndex(x => Number(x.id) === Number(idConfig));
+  if (idx < 0) throw new Error('Configuración no encontrada');
+  items[idx] = { ...items[idx], ...payload };
+  setConfigs(items);
+  return items[idx];
 };
 
-export const eliminarConfigCurso = async (categoriaId, idConfig) => {
-  await api.delete(`/categorias/${categoriaId}/config-cursos/${idConfig}`);
+export const eliminarConfigCurso = async (_categoriaId, idConfig) => {
+  setConfigs(getConfigs().filter(x => Number(x.id) !== Number(idConfig)));
 };
