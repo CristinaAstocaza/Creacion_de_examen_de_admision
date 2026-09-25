@@ -184,10 +184,55 @@ export const ImportarPreguntas: React.FC = () => {
     }).catch(e => console.error('Error al cargar cursos:', e));
   }, []);
 
+  const normalizeStructuredContent = (value: any): string => {
+    if (value == null) return '';
+
+    let current: any = value;
+    for (let i = 0; i < 5; i += 1) {
+      if (Array.isArray(current)) return JSON.stringify(current);
+      if (current && typeof current === 'object') {
+        if (current.tipo) return JSON.stringify([current]);
+        break;
+      }
+      if (typeof current !== 'string') break;
+
+      const trimmed = current.trim();
+      if (!trimmed) return '';
+
+      try {
+        const parsed = JSON.parse(trimmed);
+        current = parsed;
+        continue;
+      } catch(e) {
+        // Some model responses arrive with escaped JSON as plain text.
+        const unescaped = trimmed
+          .replace(/^"+|"+$/g, '')
+          .replace(/\\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+        if (unescaped !== trimmed) {
+          try {
+            const parsed = JSON.parse(unescaped);
+            current = parsed;
+            continue;
+          } catch(e2) {}
+        }
+        return JSON.stringify([{ tipo: 'texto', contenido: trimmed }]);
+      }
+    }
+
+    if (Array.isArray(current)) return JSON.stringify(current);
+    if (current && typeof current === 'object' && current.tipo) return JSON.stringify([current]);
+    return JSON.stringify([{ tipo: 'texto', contenido: String(current ?? '') }]);
+  };
+
   // ── Mapear respuesta de Gemini ──
   const mapGeminiToQuestions = (preguntas: GeminiPregunta[], originalUrl?: string): AnalyzedQuestion[] => {
     return preguntas.map((q, idx) => {
-      const alts = q.alternativas ?? [];
+      const normalizedEnunciado = normalizeStructuredContent(q.enunciado);
+      const alts = (q.alternativas ?? []).map((a: any) => ({
+        ...a,
+        contenido_texto: normalizeStructuredContent(a.contenido_texto)
+      }));
       const LETRAS = ['A', 'B', 'C', 'D', 'E'];
       const letrasPresentes = alts.map(a => a.letra?.toUpperCase() || '');
       const faltantes = LETRAS.filter(l => !letrasPresentes.includes(l));
@@ -203,7 +248,7 @@ export const ImportarPreguntas: React.FC = () => {
           needsReview = true;
           errorMessage = `Completa manualmente: ${faltantes.join(', ')}.`;
         }
-        if (!q.enunciado || q.enunciado.trim() === '') {
+        if (!normalizedEnunciado || normalizedEnunciado.trim() === '') {
           isValid = false;
           needsReview = true;
           errorMessage = errorMessage ? errorMessage + ' No se encontró enunciado.' : 'No se encontró enunciado.';
@@ -255,9 +300,9 @@ export const ImportarPreguntas: React.FC = () => {
 
       // Parsear bloques del enunciado para detectar si necesita imagen
       let enunciadoNeedsImage = false;
-      if (q.enunciado) {
+      if (normalizedEnunciado) {
         try {
-          const blocks = JSON.parse(q.enunciado);
+          const blocks = JSON.parse(normalizedEnunciado);
           if (Array.isArray(blocks)) {
              enunciadoNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
           }
@@ -275,7 +320,7 @@ export const ImportarPreguntas: React.FC = () => {
       return {
         id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         numero: q.numero ?? idx + 1,
-        enunciado: q.enunciado ?? '',
+        enunciado: normalizedEnunciado,
         isValid,
         needsReview,
         errorMessage,
