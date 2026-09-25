@@ -1135,25 +1135,45 @@ export const ImportarPreguntas: React.FC = () => {
                     {q.parsedAlternativas?.map((alt, idx) => {
                       const plainValue = contentToPlainText(alt.contenidoTexto);
                       const isMissing = !plainValue.trim();
+                      const isEditing = altEditor?.questionId === q.id && altEditor.altIndex === idx;
+                      const editorValue = isEditing ? altEditor.value : plainValue;
+
                       return (
-                        <div key={idx} style={{ marginBottom: 12, padding: '10px', border: isMissing ? '1px solid #f6c453' : '1px solid #e8eaed', borderRadius: 8, background: isMissing ? '#fffaf0' : '#f8f9fa' }}>
-                          <strong>{alt.letra})</strong>{' '}
-                          {!isMissing ? (
-                            <ContentRenderer 
-                              contentStr={alt.contenidoTexto} 
-                              onImageClick={setModalImage}
-                              onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
-                            />
-                          ) : (
-                            <div style={{ marginTop: 8 }}>
-                              <div style={{ fontSize: 12, color: '#9a6700', marginBottom: 6 }}>Alternativa faltante: complétala manualmente.</div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, padding: '6px 8px', background: '#fff', border: '1px solid #dde3ea', borderRadius: 8 }}>
-                                {['₀','₁','₂','₃','⁰','¹','²','³','π','ρ','Δ','√','±','×','÷','≤','≥','∞','½'].map(token => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            if (!isEditing) beginAlternativeEdit(q.id, idx, plainValue);
+                          }}
+                          style={{ marginBottom: 12, padding: '10px', border: isMissing ? '1px solid #f6c453' : '1px solid #e8eaed', borderRadius: 8, background: isMissing ? '#fffaf0' : '#f8f9fa', cursor: isEditing ? 'default' : 'text' }}
+                          title={!isEditing ? 'Haz clic para editar esta alternativa' : undefined}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                            <strong>{alt.letra})</strong>
+                            {!isEditing && (
+                              <span style={{ fontSize: 11, color: '#7a8699' }}>✏️ Clic para editar</span>
+                            )}
+                          </div>
+
+                          {isEditing ? (
+                            <div
+                              data-alt-editor="true"
+                              style={{ marginTop: 8 }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {isMissing && (
+                                <div style={{ fontSize: 12, color: '#9a6700', marginBottom: 6 }}>Alternativa faltante: complétala manualmente.</div>
+                              )}
+
+                              <div
+                                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, padding: '6px 8px', background: '#fff', border: '1px solid #dde3ea', borderRadius: 8 }}
+                                onMouseDown={(e) => e.preventDefault()}
+                              >
+                                {['₀','₁','₂','₃','₄','₅','⁰','¹','²','³','⁴','⁵','π','ρ','θ','Δ','√','±','×','÷','≤','≥','∞','½','¼'].map(token => (
                                   <button
                                     key={token}
                                     type="button"
                                     className="btn-small"
-                                    onClick={() => insertMathToken(q.id, idx, token)}
+                                    onClick={() => appendEditorToken(token)}
                                     style={{ minWidth: 32, padding: '4px 7px', background: '#fff' }}
                                     title="Insertar símbolo"
                                   >
@@ -1161,17 +1181,55 @@ export const ImportarPreguntas: React.FC = () => {
                                   </button>
                                 ))}
                               </div>
+
                               <textarea
-                                value={plainValue}
-                                onChange={(e) => updateAlternativeText(q.id, idx, e.target.value)}
+                                autoFocus
+                                value={editorValue}
+                                onChange={(e) => setAltEditor(prev => prev ? { ...prev, value: e.target.value } : prev)}
+                                onBlur={(e) => {
+                                  const next = e.relatedTarget as HTMLElement | null;
+                                  if (!next?.closest?.('[data-alt-editor="true"]')) saveAlternativeEditor();
+                                }}
                                 placeholder={`Escribe la alternativa ${alt.letra}...`}
-                                style={{ width: '100%', minHeight: 72, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
+                                style={{ width: '100%', minHeight: 82, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
                               />
+
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                                <button
+                                  type="button"
+                                  className="btn-small"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => setAltEditor(null)}
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-small active"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={saveAlternativeEditor}
+                                  style={{ background: '#1a73e8', color: '#fff', borderColor: '#1a73e8' }}
+                                >
+                                  ✓ OK
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 6 }}>
+                              {!isMissing ? (
+                                <ContentRenderer 
+                                  contentStr={alt.contenidoTexto} 
+                                  onImageClick={setModalImage}
+                                  onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
+                                />
+                              ) : (
+                                <span style={{ color: '#9a6700', fontStyle: 'italic' }}>Vacío — haz clic para completar</span>
+                              )}
                             </div>
                           )}
                           
                           {alt.imagenUrl && (
-                            <div className="q-image-container" onClick={() => setModalImage(alt.imagenUrl!)} style={{ marginTop: 8 }}>
+                            <div className="q-image-container" onClick={(e) => { e.stopPropagation(); setModalImage(alt.imagenUrl!); }} style={{ marginTop: 8 }}>
                               <img src={alt.imagenUrl} alt={`Alternativa ${alt.letra}`} style={{ maxHeight: 100 }} />
                             </div>
                           )}
