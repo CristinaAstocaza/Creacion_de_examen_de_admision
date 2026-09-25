@@ -223,11 +223,15 @@ const htmlToPdfBlob = async (html) => {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
-  wrapper.style.left = '-100000px';
+  wrapper.style.left = '0';
   wrapper.style.top = '0';
   wrapper.style.width = '794px';
+  wrapper.style.minHeight = '1123px';
   wrapper.style.background = '#fff';
-  wrapper.style.zIndex = '-1';
+  wrapper.style.zIndex = '1';
+  wrapper.style.opacity = '0.01';
+  wrapper.style.pointerEvents = 'none';
+  wrapper.style.overflow = 'visible';
 
   const styles = [...parsed.head.querySelectorAll('style')].map(s => s.outerHTML).join('');
   wrapper.innerHTML = styles + parsed.body.innerHTML;
@@ -235,11 +239,24 @@ const htmlToPdfBlob = async (html) => {
 
   try {
     await waitForImages(wrapper);
+    if (document.fonts?.ready) {
+      try { await document.fonts.ready; } catch {}
+    }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
     const worker = html2pdf()
       .set({
         margin: [8, 8, 8, 8],
         image: { type: 'jpeg', quality: 0.97 },
-        html2canvas: { scale: 1.7, useCORS: true, allowTaint: false, backgroundColor: '#ffffff' },
+        html2canvas: {
+          scale: 1.7,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: 794
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
       })
