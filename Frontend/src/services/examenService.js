@@ -265,8 +265,12 @@ const htmlVersion = (exam, version, solucionario = false) => {
                 ${contentHtml(p.enunciado, 235, 120, { allowImages: false })}
               </div>
               ${questionImages.length ? `
-                <div class="question-images">
-                  ${questionImages.map(url => `<img src="${escapeHtml(url)}" class="question-image">`).join('')}
+                <div class="question-images images-${Math.min(questionImages.length, 4)}">
+                  ${questionImages.map((url, index) => `
+                    <div class="question-figure">
+                      <img src="${escapeHtml(url)}" class="question-image" alt="Figura ${index + 1}">
+                    </div>
+                  `).join('')}
                 </div>
               ` : ''}
               ${solucionario
@@ -417,20 +421,56 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .question-line { display: flex; align-items: flex-start; gap: 5px; }
     .q-number { font-weight: 800; min-width: 19px; }
     .q-body { flex: 1; min-width: 0; }
-    .q-statement { font-weight: 500; }
+    .q-statement { font-weight: 500; text-align: left; }
+    .q-statement + .question-images { margin-top: 8px; }
     .question-images {
-      display: flex;
-      flex-direction: column;
+      display: grid;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      margin: 6px 0;
+      margin: 7px auto 6px;
+      width: 100%;
+      break-inside: avoid;
+    }
+    .question-images.images-1 {
+      grid-template-columns: minmax(0, 190px);
+    }
+    .question-images.images-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 300px;
+      gap: 8px;
+    }
+    .question-images.images-3,
+    .question-images.images-4 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 300px;
+      gap: 6px 8px;
+    }
+    .question-figure {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 74px;
+      padding: 0;
+      background: transparent;
+      border: 0;
     }
     .question-image {
       display: block;
-      max-width: 220px;
-      max-height: 112px;
+      width: auto;
+      height: auto;
+      max-width: 100%;
+      max-height: 108px;
       object-fit: contain;
       margin: 0 auto;
+    }
+    .question-images.images-1 .question-image {
+      max-width: 185px;
+      max-height: 125px;
+    }
+    .question-images.images-2 .question-image {
+      max-height: 105px;
     }
     .alternatives { margin-top: 5px; }
     .alt {
@@ -444,10 +484,10 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .alt-content { flex: 1; min-width: 0; }
     .alt-image {
       display: block;
-      max-width: 110px;
-      max-height: 55px;
+      max-width: 100px;
+      max-height: 48px;
       object-fit: contain;
-      margin: 4px 0 3px 2px;
+      margin: 3px 0 2px 1px;
     }
     .solution {
       margin-top: 6px;
