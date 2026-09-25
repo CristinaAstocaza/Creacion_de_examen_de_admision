@@ -2,7 +2,7 @@ name: Demo CI
 
 on:
   push:
-    branches: [demo-universidad]
+    branches: [demo-universidad, demo-netlify-node]
   pull_request:
     branches: [main]
 
@@ -21,6 +21,7 @@ jobs:
           cache-dependency-path: Frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+      - run: node --check netlify/functions/ai-import.mjs
 
   backend:
     runs-on: ubuntu-latest
