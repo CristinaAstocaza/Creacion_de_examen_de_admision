@@ -215,10 +215,15 @@ const waitForImages = async (root) => {
 };
 
 const htmlToPdfBlob = async (html) => {
-  const html2pdf = await loadScript(
-    'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js',
-    'html2pdf'
+  const html2canvas = await loadScript(
+    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+    'html2canvas'
   );
+  const jspdfNs = await loadScript(
+    'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+    'jspdf'
+  );
+  const { jsPDF } = jspdfNs;
 
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   const wrapper = document.createElement('div');
@@ -227,15 +232,23 @@ const htmlToPdfBlob = async (html) => {
   wrapper.style.top = '0';
   wrapper.style.width = '794px';
   wrapper.style.minHeight = '1123px';
-  wrapper.style.background = '#fff';
+  wrapper.style.background = '#ffffff';
+  wrapper.style.color = '#111111';
   wrapper.style.zIndex = '999999';
-  wrapper.style.opacity = '1';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.overflow = 'visible';
-  wrapper.style.boxShadow = 'none';
 
-  const styles = [...parsed.head.querySelectorAll('style')].map(s => s.outerHTML).join('');
-  wrapper.innerHTML = styles + parsed.body.innerHTML;
+  const styles = [...parsed.head.querySelectorAll('style')]
+    .map(s => s.textContent || '')
+    .join('\n');
+
+  const styleTag = document.createElement('style');
+  styleTag.textContent = styles;
+  wrapper.appendChild(styleTag);
+
+  const content = document.createElement('div');
+  content.innerHTML = parsed.body.innerHTML;
+  wrapper.appendChild(content);
   document.body.appendChild(wrapper);
 
   try {
@@ -245,26 +258,62 @@ const htmlToPdfBlob = async (html) => {
     }
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-    const worker = html2pdf()
-      .set({
-        margin: [8, 8, 8, 8],
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 1.8,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: 794,
-          logging: false
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-        pagebreak: { mode: ['css', 'legacy'] }
-      })
-      .from(wrapper);
+    const canvas = await html2canvas(wrapper, {
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#ffffff',
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 794,
+      windowHeight: Math.max(wrapper.scrollHeight, 1123)
+    });
 
-    return await worker.outputPdf('blob');
+    if (!canvas.width || !canvas.height) {
+      throw new Error('No se pudo capturar el contenido del examen.');
+    }
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 8;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+
+    const pxPerMm = canvas.width / usableWidth;
+    const sliceHeightPx = Math.floor(usableHeight * pxPerMm);
+    let offsetY = 0;
+    let pageIndex = 0;
+
+    while (offsetY < canvas.height) {
+      const currentSliceHeight = Math.min(sliceHeightPx, canvas.height - offsetY);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = currentSliceHeight;
+
+      const ctx = pageCanvas.getContext('2d');
+      if (!ctx) throw new Error('No se pudo preparar una página del PDF.');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(
+        canvas,
+        0, offsetY, canvas.width, currentSliceHeight,
+        0, 0, canvas.width, currentSliceHeight
+      );
+
+      const imgData = pageCanvas.toDataURL('image/jpeg', 0.96);
+      const renderedHeightMm = currentSliceHeight / pxPerMm;
+
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', margin, margin, usableWidth, renderedHeightMm, undefined, 'FAST');
+
+      offsetY += currentSliceHeight;
+      pageIndex += 1;
+    }
+
+    return pdf.output('blob');
   } finally {
     wrapper.remove();
   }
