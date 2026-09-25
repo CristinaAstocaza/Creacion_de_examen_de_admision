@@ -139,6 +139,7 @@ export const ImportarPreguntas: React.FC = () => {
   
   const [filterMode, setFilterMode] = useState<'ALL' | 'REVIEW'>('ALL');
   const [modalImage, setModalImage] = useState<string | null>(null);
+  const [altEditor, setAltEditor] = useState<{ questionId: string; altIndex: number; value: string } | null>(null);
 
   const [cropper, setCropper] = useState<CropperState>({ isOpen: false, imageUrl: '', questionId: '', targetType: 'enunciado' });
 
@@ -573,22 +574,34 @@ export const ImportarPreguntas: React.FC = () => {
 
     setIsImporting(true);
     try {
-      const payload = valid.map(q => ({
-        enunciado: q.enunciado,
-        dificultad: q.dificultad || 'MEDIO',
-        activo: true,
-        cursoId: Number(selectedCursoId),
-        imagenUrl: q.imagenUrl ?? null,
-        tieneImagen: !!q.imagenUrl,
-        alternativas: q.parsedAlternativas!.map(a => ({
-          letra: a.letra,
-          tipo: a.tipo,
-          contenidoTexto: a.contenidoTexto,
-          esCorrecta: false,
-          imagenUrl: a.imagenUrl ?? null,
-          ordenVisualizacion: a.ordenVisualizacion ?? null,
-        }))
-      }));
+      const payload = valid.map(q => {
+        let recortesEnunciado: string[] = [];
+        try {
+          const blocks = JSON.parse(q.enunciado);
+          if (Array.isArray(blocks)) {
+            recortesEnunciado = blocks
+              .filter((b: any) => b?.tipo === 'imagen' && b?.url)
+              .map((b: any) => String(b.url));
+          }
+        } catch(e) {}
+
+        return {
+          enunciado: q.enunciado,
+          dificultad: q.dificultad || 'MEDIO',
+          activo: true,
+          cursoId: Number(selectedCursoId),
+          imagenUrl: recortesEnunciado[0] || null,
+          tieneImagen: recortesEnunciado.length > 0,
+          alternativas: q.parsedAlternativas!.map(a => ({
+            letra: a.letra,
+            tipo: a.tipo,
+            contenidoTexto: a.contenidoTexto,
+            esCorrecta: false,
+            imagenUrl: a.imagenUrl ?? null,
+            ordenVisualizacion: a.ordenVisualizacion ?? null,
+          }))
+        };
+      });
 
       const res = await guardarLotePreguntas(payload);
       alert(`Importación finalizada con éxito. Se guardaron ${res.length} preguntas.`);
@@ -622,7 +635,7 @@ export const ImportarPreguntas: React.FC = () => {
     return content;
   };
 
-  const updateAlternativeText = (questionId: string, altIndex: number, value: string) => {
+  const commitAlternativeText = (questionId: string, altIndex: number, value: string) => {
     setQuestions(prev => prev.map(q => {
       if (q.id !== questionId) return q;
       const newAlts = [...(q.parsedAlternativas || [])];
@@ -638,7 +651,7 @@ export const ImportarPreguntas: React.FC = () => {
 
       const hasMissing = newAlts.some(a => !contentToPlainText(a.contenidoTexto).trim());
       const hasPendingImage = newAlts.some(a => a.needsImage);
-      const extractionReview = (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
+      const extractionReview = q.confianza_extraccion !== undefined && q.confianza_extraccion < 80;
       const imageReview = (q as any).enunciadoNeedsImage || hasPendingImage;
       const needsReview = hasMissing || imageReview || extractionReview;
       const missingLetters = newAlts.filter(a => !contentToPlainText(a.contenidoTexto).trim()).map(a => a.letra);
@@ -653,11 +666,18 @@ export const ImportarPreguntas: React.FC = () => {
     }));
   };
 
-  const insertMathToken = (questionId: string, altIndex: number, token: string) => {
-    const q = questions.find(item => item.id === questionId);
-    const alt = q?.parsedAlternativas?.[altIndex];
-    const current = contentToPlainText(alt?.contenidoTexto);
-    updateAlternativeText(questionId, altIndex, current + token);
+  const beginAlternativeEdit = (questionId: string, altIndex: number, currentValue: string) => {
+    setAltEditor({ questionId, altIndex, value: currentValue });
+  };
+
+  const saveAlternativeEditor = () => {
+    if (!altEditor) return;
+    commitAlternativeText(altEditor.questionId, altEditor.altIndex, altEditor.value);
+    setAltEditor(null);
+  };
+
+  const appendEditorToken = (token: string) => {
+    setAltEditor(prev => prev ? { ...prev, value: prev.value + token } : prev);
   };
 
 
