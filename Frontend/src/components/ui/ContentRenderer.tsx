@@ -83,12 +83,17 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
         if (b.tipo === 'imagen') {
           if (!b.url) {
              return (
-               <div key={i} style={{ padding: 12, border: '1px dashed #ccc', borderRadius: 8, color: '#666', textAlign: 'center', background: '#fafafa', display: inline ? 'inline-block' : 'block' }}>
-                 🖼 Imagen pendiente de recorte
+               <div key={i} style={{ padding: 14, border: '2px dashed #60a5fa', borderRadius: 10, color: '#1e3a8a', textAlign: 'center', background: '#eff6ff', display: inline ? 'inline-block' : 'block' }}>
+                 <div style={{ fontWeight: 700 }}>🖼️ Figura detectada</div>
+                 <div style={{ fontSize: 12, marginTop: 4, color: '#475569' }}>Recorta esta parte desde la imagen original.</div>
                  {onCropClick && (
-                   <div style={{ marginTop: 8 }}>
-                     <button className="btn-small" onClick={() => onCropClick(i)}>
-                       ✂️ Recortar Imagen
+                   <div style={{ marginTop: 10 }}>
+                     <button
+                       className="btn-small"
+                       onClick={() => onCropClick(i)}
+                       style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '7px 12px' }}
+                     >
+                       ✂️ Recortar figura
                      </button>
                    </div>
                  )}
