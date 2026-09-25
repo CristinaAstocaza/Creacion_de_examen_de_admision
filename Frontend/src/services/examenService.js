@@ -1,3 +1,4 @@
+import katex from 'katex';
 import { getExamenes, setExamenes, getPreguntas, getCursos, getCategorias, nextId, isoNow } from './demoStore';
 
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
@@ -23,18 +24,40 @@ const plain = (value) => parseBlocks(value)
   .map(b => b.contenido ?? b.valor ?? b.texto ?? (b.tipo === 'imagen' ? '[Imagen]' : ''))
   .join(' ');
 
-const contentHtml = (value, maxWidth = 250, maxHeight = 130) => parseBlocks(value).map(b => {
-  const val = b.contenido ?? b.valor ?? b.texto ?? '';
-  if (b.tipo === 'imagen') {
-    return b.url
-      ? `<img src="${escapeHtml(b.url)}" style="max-width:${maxWidth}px;max-height:${maxHeight}px;display:block;margin:6px auto;object-fit:contain">`
-      : '';
+const getFirstImageFromBlocks = (value) => {
+  const block = parseBlocks(value).find(b => b?.tipo === 'imagen' && b?.url);
+  return block?.url || null;
+};
+
+const renderLatex = (expr = '') => {
+  try {
+    const clean = String(expr).replace(/\$\$/g, '').trim();
+    return katex.renderToString(clean, {
+      throwOnError: false,
+      displayMode: false,
+      output: 'html'
+    });
+  } catch {
+    return `<span>${escapeHtml(expr)}</span>`;
   }
-  if (b.tipo === 'latex') {
-    return `<span style="font-family:serif;font-style:italic">${escapeHtml(val)}</span>`;
-  }
-  return `<span>${escapeHtml(val)}</span>`;
-}).join('');
+};
+
+const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
+  const { allowImages = true } = options;
+  return parseBlocks(value).map(b => {
+    const val = b.contenido ?? b.valor ?? b.texto ?? '';
+    if (b.tipo === 'imagen') {
+      if (!allowImages) return '';
+      return b.url
+        ? `<img src="${escapeHtml(b.url)}" style="max-width:${maxWidth}px;max-height:${maxHeight}px;display:block;margin:6px auto;object-fit:contain">`
+        : '';
+    }
+    if (b.tipo === 'latex') {
+      return `<span class="math-inline">${renderLatex(val)}</span>`;
+    }
+    return `<span>${escapeHtml(val)}</span>`;
+  }).join('');
+};
 
 const buildVersion = (numero, codigoVersion, selected, randomQ, randomA) => {
   const preguntas = (randomQ ? shuffle(selected) : [...selected]).map((p, index) => {
@@ -176,17 +199,23 @@ const htmlVersion = (exam, version, solucionario = false) => {
 
   const courseSections = Object.entries(grouped).map(([curso, preguntas]) => {
     const items = preguntas.map(p => {
-      const alts = p.alternativas.map(a => `
-        <div class="alt">
-          <span class="alt-letter">${a.letra})</span>
-          <div class="alt-content">
-            ${contentHtml(a.contenidoTexto, 160, 80)}
-            ${a.imagenUrl ? `<img src="${escapeHtml(a.imagenUrl)}" class="alt-image">` : ''}
-          </div>
-        </div>`
-      ).join('');
+      const alts = p.alternativas.map(a => {
+        const blockImage = getFirstImageFromBlocks(a.contenidoTexto);
+        const finalAltImage = a.imagenUrl || blockImage;
+        return `
+          <div class="alt">
+            <span class="alt-letter">${a.letra})</span>
+            <div class="alt-content">
+              ${contentHtml(a.contenidoTexto, 160, 80, { allowImages: false })}
+              ${finalAltImage ? `<img src="${escapeHtml(finalAltImage)}" class="alt-image">` : ''}
+            </div>
+          </div>`;
+      }).join('');
 
       const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
+
+      const blockImage = getFirstImageFromBlocks(p.enunciado);
+      const finalQuestionImage = p.imagenUrl || blockImage;
 
       return `
         <article class="question">
@@ -194,9 +223,9 @@ const htmlVersion = (exam, version, solucionario = false) => {
             <span class="q-number">${p.numeroOrden}.</span>
             <div class="q-body">
               <div class="q-statement">
-                ${contentHtml(p.enunciado, 235, 120)}
+                ${contentHtml(p.enunciado, 235, 120, { allowImages: false })}
               </div>
-              ${p.imagenUrl ? `<img src="${escapeHtml(p.imagenUrl)}" class="question-image">` : ''}
+              ${finalQuestionImage ? `<img src="${escapeHtml(finalQuestionImage)}" class="question-image">` : ''}
               ${solucionario
                 ? `<div class="solution">Respuesta: ${correct}</div>`
                 : `<div class="alternatives">${alts}</div>`
@@ -222,6 +251,9 @@ const htmlVersion = (exam, version, solucionario = false) => {
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; background: #fff; color: #111827; }
     body { font-family: Arial, Helvetica, sans-serif; }
+    .math-inline { display: inline-block; vertical-align: middle; }
+    .katex { font-size: 1em; }
+    .katex .katex-mathml { position: absolute; clip: rect(1px,1px,1px,1px); padding: 0; border: 0; height: 1px; width: 1px; overflow: hidden; }
 
     .cover {
       width: 100%;
