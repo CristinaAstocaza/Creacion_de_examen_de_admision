@@ -11,7 +11,7 @@ import { ContentRenderer } from '../ui/ContentRenderer';
 // ─────────────────────────────────────────────
 interface GeminiAlternativa {
   letra: string;
-  contenido_texto?: string;
+  contenido_texto?: string | any[];
   tipo?: 'texto' | 'imagen' | 'texto_imagen';
   tiene_imagen?: boolean;
   imagen_url?: string;
@@ -20,7 +20,7 @@ interface GeminiAlternativa {
 
 interface GeminiPregunta {
   numero: number;
-  enunciado: string;
+  enunciado: string | any[];
   dificultad?: string;
   tiene_imagen_enunciado?: boolean;
   imagen_url?: string;
