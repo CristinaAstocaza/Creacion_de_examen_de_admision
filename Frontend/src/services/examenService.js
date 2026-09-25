@@ -16,7 +16,13 @@ const plain = (value) => {
 
 const buildVersion = (numero, codigoVersion, selected, randomQ, randomA) => {
   const preguntas = (randomQ ? shuffle(selected) : [...selected]).map((p, index) => {
-    const alts = randomA ? shuffle(p.alternativas || []) : [...(p.alternativas || [])];
+    const sourceAlts = randomA ? shuffle(p.alternativas || []) : [...(p.alternativas || [])];
+    const alts = sourceAlts.map((a, i) => ({
+      ...a,
+      letraOriginal: a.letra,
+      letra: letras[i] || a.letra,
+      ordenVisualizacion: i + 1,
+    }));
     return {
       numeroOrden: index + 1,
       preguntaId: p.id,
@@ -25,8 +31,8 @@ const buildVersion = (numero, codigoVersion, selected, randomQ, randomA) => {
       imagenUrl: p.imagenUrl || null,
       dificultad: p.dificultad,
       cursoNombre: p.cursoNombre,
-      alternativasOrdenadas: alts.map(a => a.letra).join(','),
-      alternativas: alts.map((a, i) => ({ ...a, ordenVisualizacion: i + 1 })),
+      alternativasOrdenadas: alts.map(a => a.letraOriginal || a.letra).join(','),
+      alternativas: alts,
     };
   });
   return { id: Date.now() + numero, numero, codigoVersion, fechaGeneracion: isoNow(), preguntas };
@@ -138,34 +144,45 @@ const htmlVersion = (exam, version, solucionario = false) => {
   <div class="q">${questions}</div></body></html>`;
 };
 
-const printHtml = (html) => {
-  const w = window.open('', '_blank');
-  if (!w) throw new Error('El navegador bloqueó la ventana de impresión.');
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  w.onload = () => setTimeout(() => w.print(), 300);
+const safeName = (value = 'examen') => String(value)
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-zA-Z0-9-_]+/g, '_')
+  .replace(/^_+|_+$/g, '') || 'examen';
+
+const downloadHtml = (html, filename) => {
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-export const descargarPdfVersion = async (examenId, version, _customName = '') => {
+export const descargarPdfVersion = async (examenId, version, customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
-  printHtml(htmlVersion(e, v, false));
+  const filename = `${safeName(customName || e.nombre)}_Version_${safeName(version)}.html`;
+  downloadHtml(htmlVersion(e, v, false), filename);
 };
 
-export const descargarPdfsVersiones = async (examenId, _customName = '') => {
+export const descargarPdfsVersiones = async (examenId, customName = '') => {
   const e = await obtenerExamen(examenId);
   const html = e.versiones.map(v => {
     const full = htmlVersion(e, v, false);
-    const start = full.indexOf('<body>') + 6;
-    const end = full.lastIndexOf('</body>');
-    return start >= 6 && end > start ? full.slice(start, end) : full;
+    const startBody = full.indexOf('<body>') + 6;
+    const endBody = full.lastIndexOf('</body>');
+    return startBody >= 6 && endBody > startBody ? full.slice(startBody, endBody) : full;
   }).join('<div style="page-break-before:always"></div>');
-  printHtml(`<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}body{font-family:Arial;font-size:11px}.q{column-count:2;column-gap:22px}.cover{height:250mm;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style></head><body>${html}</body></html>`);
+  const combined = `<!doctype html><html><head><meta charset="utf-8"><title>${e.nombre}</title><style>@page{size:A4;margin:14mm}body{font-family:Arial;font-size:11px}.q{column-count:2;column-gap:22px}.cover{height:250mm;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style></head><body>${html}</body></html>`;
+  downloadHtml(combined, `${safeName(customName || e.nombre)}_Todas_las_versiones.html`);
 };
 
-export const descargarPdfSolucionario = async (examenId, version, _customName = '') => {
+export const descargarPdfSolucionario = async (examenId, version, customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
-  printHtml(htmlVersion(e, v, true));
+  downloadHtml(htmlVersion(e, v, true), `${safeName(customName || e.nombre)}_Solucionario_${safeName(version)}.html`);
 };
