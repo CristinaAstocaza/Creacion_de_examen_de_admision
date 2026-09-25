@@ -155,7 +155,12 @@ export const descargarPdfVersion = async (examenId, version) => {
 
 export const descargarPdfsVersiones = async (examenId) => {
   const e = await obtenerExamen(examenId);
-  const html = e.versiones.map(v => htmlVersion(e, v, false).replace(/^[\\s\\S]*?<body>|<\\/body>[\\s\\S]*$/g, '')).join('<div style="page-break-before:always"></div>');
+  const html = e.versiones.map(v => {
+    const full = htmlVersion(e, v, false);
+    const start = full.indexOf('<body>') + 6;
+    const end = full.lastIndexOf('</body>');
+    return start >= 6 && end > start ? full.slice(start, end) : full;
+  }).join('<div style="page-break-before:always"></div>');
   printHtml(`<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}body{font-family:Arial;font-size:11px}.q{column-count:2;column-gap:22px}.cover{height:250mm;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style></head><body>${html}</body></html>`);
 };
 
