@@ -24,10 +24,14 @@ const plain = (value) => parseBlocks(value)
   .map(b => b.contenido ?? b.valor ?? b.texto ?? (b.tipo === 'imagen' ? '[Imagen]' : ''))
   .join(' ');
 
-const getFirstImageFromBlocks = (value) => {
-  const block = parseBlocks(value).find(b => b?.tipo === 'imagen' && b?.url);
-  return block?.url || null;
-};
+const getImageUrlsFromBlocks = (value) =>
+  [...new Set(
+    parseBlocks(value)
+      .filter(b => b?.tipo === 'imagen' && b?.url)
+      .map(b => String(b.url))
+  )];
+
+const getFirstImageFromBlocks = (value) => getImageUrlsFromBlocks(value)[0] || null;
 
 const renderLatex = (expr = '') => {
   try {
@@ -209,7 +213,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
     const items = preguntas.map(p => {
       const alts = p.alternativas.map(a => {
         const blockImage = getFirstImageFromBlocks(a.contenidoTexto);
-        const finalAltImage = blockImage || a.imagenUrl;
+        const finalAltImage = a.imagenUrl || blockImage;
         return `
           <div class="alt">
             <span class="alt-letter">${a.letra})</span>
@@ -222,8 +226,11 @@ const htmlVersion = (exam, version, solucionario = false) => {
 
       const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
 
-      const blockImage = getFirstImageFromBlocks(p.enunciado);
-      const finalQuestionImage = blockImage || p.imagenUrl;
+      const blockImages = getImageUrlsFromBlocks(p.enunciado);
+      const questionImages = [...new Set([
+        ...blockImages,
+        ...(p.imagenUrl && !blockImages.includes(p.imagenUrl) ? [p.imagenUrl] : [])
+      ])];
 
       return `
         <article class="question">
@@ -233,7 +240,11 @@ const htmlVersion = (exam, version, solucionario = false) => {
               <div class="q-statement">
                 ${contentHtml(p.enunciado, 235, 120, { allowImages: false })}
               </div>
-              ${finalQuestionImage ? `<img src="${escapeHtml(finalQuestionImage)}" class="question-image">` : ''}
+              ${questionImages.length ? `
+                <div class="question-images">
+                  ${questionImages.map(url => `<img src="${escapeHtml(url)}" class="question-image">`).join('')}
+                </div>
+              ` : ''}
               ${solucionario
                 ? `<div class="solution">Respuesta: ${correct}</div>`
                 : `<div class="alternatives">${alts}</div>`
@@ -383,12 +394,19 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .q-number { font-weight: 800; min-width: 19px; }
     .q-body { flex: 1; min-width: 0; }
     .q-statement { font-weight: 500; }
+    .question-images {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin: 6px 0;
+    }
     .question-image {
       display: block;
-      max-width: 230px;
-      max-height: 120px;
+      max-width: 220px;
+      max-height: 112px;
       object-fit: contain;
-      margin: 6px auto;
+      margin: 0 auto;
     }
     .alternatives { margin-top: 5px; }
     .alt {
@@ -402,10 +420,10 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .alt-content { flex: 1; min-width: 0; }
     .alt-image {
       display: block;
-      max-width: 155px;
-      max-height: 76px;
+      max-width: 110px;
+      max-height: 55px;
       object-fit: contain;
-      margin: 4px 0 4px 3px;
+      margin: 4px 0 3px 2px;
     }
     .solution {
       margin-top: 6px;
