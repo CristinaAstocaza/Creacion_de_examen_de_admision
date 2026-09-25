@@ -63,7 +63,8 @@ Devuelve SOLO JSON válido, sin markdown, con esta estructura:
   ]
 }
 REGLAS ESTRICTAS PARA TEXTO Y FÓRMULAS:
-- El campo "enunciado" SIEMPRE debe ser un JSON string que contiene un arreglo de bloques.
+- El campo "enunciado" SIEMPRE debe ser un ARREGLO JSON REAL de bloques. NO lo conviertas a string y NO serialices JSON dentro de otro JSON.
+- El campo "contenido_texto" de cada alternativa también debe ser un ARREGLO JSON REAL de bloques, nunca un string que contenga JSON.
 - Separa texto normal y expresiones matemáticas en bloques distintos.
 - Para texto normal usa {"tipo":"texto","contenido":"..."}.
 - Para cualquier expresión matemática, variable con subíndice/superíndice, fracción, raíz, igualdad, desigualdad o unidad científica escrita con exponentes usa {"tipo":"latex","contenido":"..."}.
