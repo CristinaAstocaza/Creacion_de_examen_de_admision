@@ -535,29 +535,38 @@ export const ImportarPreguntas: React.FC = () => {
           return { ...q, enunciado: newEnunciado, needsReview: stillNeedsReview, enunciadoNeedsImage: stillNeedsReviewEnunciado };
         } else if (cropper.targetType === 'alternativa' && cropper.alternativaIndex !== undefined) {
           const newAlts = [...(q.parsedAlternativas || [])];
-          let altContent = newAlts[cropper.alternativaIndex].contenidoTexto;
-          if (altContent) {
-            try {
-              const blocks = JSON.parse(altContent);
-              if (Array.isArray(blocks) && cropper.blockIndex !== undefined) {
-                 blocks[cropper.blockIndex].url = url;
-                 altContent = JSON.stringify(blocks);
-              }
-            } catch(e) {}
+          const currentAlt = newAlts[cropper.alternativaIndex];
+          let altContent = currentAlt.contenidoTexto;
+
+          try {
+            let blocks: any[] = [];
+            if (altContent) {
+              const parsed = JSON.parse(altContent);
+              blocks = Array.isArray(parsed) ? parsed : [{ tipo: 'texto', valor: altContent }];
+            }
+
+            if (cropper.blockIndex !== undefined && blocks[cropper.blockIndex]) {
+              blocks[cropper.blockIndex].url = url;
+            } else {
+              blocks.push({ tipo: 'imagen', url });
+            }
+            altContent = JSON.stringify(blocks);
+          } catch(e) {
+            altContent = JSON.stringify([{ tipo: 'imagen', url }]);
           }
           
           let altNeedsImage = false;
-          if (altContent) {
-            try {
-              const blocks = JSON.parse(altContent);
-              altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
-            } catch(e) {}
-          }
+          try {
+            const blocks = JSON.parse(altContent || '[]');
+            altNeedsImage = Array.isArray(blocks) && blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
+          } catch(e) {}
 
           newAlts[cropper.alternativaIndex] = { 
-            ...newAlts[cropper.alternativaIndex], 
+            ...currentAlt, 
             contenidoTexto: altContent,
-            needsImage: altNeedsImage
+            imagenUrl: currentAlt.imagenUrl || url,
+            needsImage: altNeedsImage,
+            isPlaceholder: false
           };
           
           const stillNeedsReview = (q as any).enunciadoNeedsImage || newAlts.some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
@@ -575,7 +584,7 @@ export const ImportarPreguntas: React.FC = () => {
 
   // ── Guardar y Cancelar ──
   const handleGuardar = async () => {
-    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage || !contentToPlainText(a.contenidoTexto).trim()));
+    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage || !alternativeHasContent(a)));
     if (!valid.length) { alert('No hay preguntas válidas y completas para guardar.'); return; }
     if (!selectedCursoId) { alert('Selecciona un curso primero.'); return; }
 
@@ -641,6 +650,19 @@ export const ImportarPreguntas: React.FC = () => {
     } catch(e) {}
     return content;
   };
+
+  const alternativeHasContent = (alt: ParsedAlternativa) => {
+    if (contentToPlainText(alt.contenidoTexto).trim()) return true;
+    if (alt.imagenUrl) return true;
+    if (alt.contenidoTexto) {
+      try {
+        const blocks = JSON.parse(alt.contenidoTexto);
+        if (Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'imagen' && b?.url)) return true;
+      } catch(e) {}
+    }
+    return false;
+  };
+
 
   const commitAlternativeText = (questionId: string, altIndex: number, value: string) => {
     setQuestions(prev => prev.map(q => {
@@ -1193,6 +1215,22 @@ export const ImportarPreguntas: React.FC = () => {
                                 placeholder={`Escribe la alternativa ${alt.letra}...`}
                                 style={{ width: '100%', minHeight: 82, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
                               />
+
+                              {q.originalImageUrl && (
+                                <button
+                                  type="button"
+                                  className="btn-small"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => {
+                                    if (altEditor) commitAlternativeText(altEditor.questionId, altEditor.altIndex, altEditor.value);
+                                    setAltEditor(null);
+                                    openCropper(q.id, q.originalImageUrl!, 'alternativa', idx);
+                                  }}
+                                  style={{ marginTop: 8, background: '#eff6ff', color: '#1d4ed8', borderColor: '#93c5fd', fontWeight: 700 }}
+                                >
+                                  🖼️✂️ Recortar imagen para {alt.letra}
+                                </button>
+                              )}
 
                               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                                 <button
