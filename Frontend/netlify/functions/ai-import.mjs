@@ -62,14 +62,35 @@ Devuelve SOLO JSON válido, sin markdown, con esta estructura:
     {"letra":"E","contenido_texto":"...","tipo":"texto"}
   ]
 }
-Para fórmulas usa bloques { "tipo":"latex", "contenido":"..." }.
-Si la pregunta contiene uno o más gráficos, diagramas o figuras necesarios para resolverla, agrega UN bloque { "tipo":"imagen", "url":null, "descripcion":"..." } POR CADA figura distinta, en el orden en que aparecen. No combines dos gráficos diferentes en un solo bloque.
+REGLAS ESTRICTAS PARA TEXTO Y FÓRMULAS:
+- El campo "enunciado" SIEMPRE debe ser un JSON string que contiene un arreglo de bloques.
+- Separa texto normal y expresiones matemáticas en bloques distintos.
+- Para texto normal usa {"tipo":"texto","contenido":"..."}.
+- Para cualquier expresión matemática, variable con subíndice/superíndice, fracción, raíz, igualdad, desigualdad o unidad científica escrita con exponentes usa {"tipo":"latex","contenido":"..."}.
+- NO escribas comandos LaTeX crudos dentro de un bloque de texto normal.
+- Ejemplo correcto para: "El área A₁ = 20 cm² y el área A₂ = 400 cm². El auto pesa 4000 N.":
+  [
+    {"tipo":"texto","contenido":"El área "},
+    {"tipo":"latex","contenido":"A_1 = 20\\,\\text{cm}^2"},
+    {"tipo":"texto","contenido":" y el área "},
+    {"tipo":"latex","contenido":"A_2 = 400\\,\\text{cm}^2"},
+    {"tipo":"texto","contenido":". El auto pesa "},
+    {"tipo":"latex","contenido":"4000\\,\\text{N}"},
+    {"tipo":"texto","contenido":"."}
+  ]
+- Si aparece F₁, A₂, v², cm², m/s², ρ₀, √, fracciones, etc., conserva su notación matemática en LaTeX.
+- No conviertas una fórmula a una descripción en palabras.
+
+FIGURAS DEL ENUNCIADO:
+- Si la pregunta contiene uno o más gráficos, diagramas o figuras necesarios para resolverla, agrega UN bloque {"tipo":"imagen","url":null,"descripcion":"..."} POR CADA figura distinta, en el orden en que aparecen.
+- No combines dos gráficos diferentes en un solo bloque.
+
 MUY IMPORTANTE para las alternativas A-E:
 - Si lo que ves es una fórmula matemática, ecuación, desigualdad, fracción, símbolo o expresión escrita visualmente, NO la trates como imagen. Transcríbela a un bloque latex, por ejemplo [{"tipo":"latex","contenido":"\\rho_0 = \\frac{\\rho_1+\\rho_2}{2}"}].
 - Si la alternativa es una figura real, diagrama, vector dibujado, gráfico, esquema u objeto visual que NO puede representarse fielmente como fórmula o texto, entonces sí devuelve un bloque de imagen pendiente de recorte, por ejemplo [{"tipo":"imagen","url":null,"descripcion":"alternativa gráfica A"}].
 - No describas una figura con palabras si debe conservarse visualmente.
-Solo usa texto descriptivo cuando la alternativa realmente sea textual.
-Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
+- Solo usa texto descriptivo cuando la alternativa realmente sea textual.
+Conserva exactamente símbolos, subíndices, superíndices, unidades y fórmulas.
 `;
 
   const requestBody = {
