@@ -123,17 +123,18 @@ export default async (request) => {
 
     const images = Array.isArray(body.images) ? body.images : [];
     if (!images.length) return json({ error: 'No se recibieron imágenes' }, 400);
-    if (images.length > 5) return json({ error: 'Máximo 5 imágenes por lote' }, 400);
+    if (images.length > 1) return json({ error: 'Procesa una imagen por solicitud para evitar tiempos de espera.' }, 400);
 
     const preguntas = [];
     for (let i = 0; i < images.length; i += 1) {
       const image = images[i];
-      const sourceUrl = await uploadCloudinary(image.data, 'examenes_admi/originales');
+      // La imagen original se mantiene localmente en el navegador durante la revisión.
+      // Esto evita gastar tiempo de la Function subiéndola a Cloudinary antes de llamar a Gemini.
       const q = await analyzeImage(image);
       preguntas.push({
         ...q,
         numero: i + 1,
-        imagen_url: sourceUrl,
+        imagen_url: null,
         alternativas: Array.isArray(q.alternativas) ? q.alternativas : [],
       });
     }
