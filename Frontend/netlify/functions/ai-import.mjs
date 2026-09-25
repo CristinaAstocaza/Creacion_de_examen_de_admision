@@ -112,7 +112,7 @@ export default async (request) => {
       const q = await analyzeImage(image);
       preguntas.push({
         ...q,
-        numero: q.numero || i + 1,
+        numero: i + 1,
         imagen_url: sourceUrl,
         alternativas: Array.isArray(q.alternativas) ? q.alternativas : [],
       });
