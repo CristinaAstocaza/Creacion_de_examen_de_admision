@@ -506,25 +506,32 @@ export const ImportarPreguntas: React.FC = () => {
         if (q.id !== cropper.questionId) return q;
         
         if (cropper.targetType === 'enunciado') {
-          // Update the specific block in enunciado
+          // Completa un bloque pendiente o agrega un recorte adicional opcional.
           let newEnunciado = q.enunciado;
           try {
-            const blocks = JSON.parse(q.enunciado);
-            if (Array.isArray(blocks) && cropper.blockIndex !== undefined) {
-               blocks[cropper.blockIndex].url = url;
-               newEnunciado = JSON.stringify(blocks);
+            const parsed = JSON.parse(q.enunciado);
+            const blocks = Array.isArray(parsed) ? parsed : [{ tipo: 'texto', valor: q.enunciado }];
+            if (cropper.blockIndex !== undefined && blocks[cropper.blockIndex]) {
+              blocks[cropper.blockIndex].url = url;
+            } else {
+              blocks.push({ tipo: 'imagen', url });
             }
-          } catch(e) {}
+            newEnunciado = JSON.stringify(blocks);
+          } catch(e) {
+            newEnunciado = JSON.stringify([
+              { tipo: 'texto', valor: q.enunciado },
+              { tipo: 'imagen', url }
+            ]);
+          }
           
           let stillNeedsReviewEnunciado = false;
           try {
             const b = JSON.parse(newEnunciado);
-            stillNeedsReviewEnunciado = b.some((x: any) => x.tipo === 'imagen' && !x.url);
+            stillNeedsReviewEnunciado = Array.isArray(b) && b.some((x: any) => x.tipo === 'imagen' && !x.url);
           } catch(e){}
 
           const stillNeedsReview = stillNeedsReviewEnunciado || (q.parsedAlternativas || []).some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
           
-          // Mantenemos null en q.imagenUrl (legacy) y solo actualizamos el bloque dentro del json string.
           return { ...q, enunciado: newEnunciado, needsReview: stillNeedsReview, enunciadoNeedsImage: stillNeedsReviewEnunciado };
         } else if (cropper.targetType === 'alternativa' && cropper.alternativaIndex !== undefined) {
           const newAlts = [...(q.parsedAlternativas || [])];
@@ -1104,6 +1111,14 @@ export const ImportarPreguntas: React.FC = () => {
                         style={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: 'white' }}
                       />
                       <div style={{ fontSize: 11, color: '#7a8699', marginTop: 6 }}>Haz clic sobre la imagen para verla completa.</div>
+                      <button
+                        type="button"
+                        className="btn-small"
+                        onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
+                        style={{ marginTop: 10, background: '#fff' }}
+                      >
+                        ✂️ Añadir otro recorte
+                      </button>
                     </div>
                   )}
 
