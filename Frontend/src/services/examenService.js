@@ -13,11 +13,24 @@ const escapeHtml = (value = '') => String(value)
 
 const parseBlocks = (value) => {
   if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return parsed;
-  } catch {}
-  return [{ tipo: 'texto', valor: String(value) }];
+  let current = value;
+
+  for (let i = 0; i < 4; i += 1) {
+    if (Array.isArray(current)) return current;
+    if (typeof current !== 'string') break;
+
+    try {
+      const parsed = JSON.parse(current);
+      current = parsed;
+    } catch {
+      break;
+    }
+  }
+
+  if (Array.isArray(current)) return current;
+  if (current && typeof current === 'object' && current.tipo) return [current];
+
+  return [{ tipo: 'texto', valor: String(current ?? value) }];
 };
 
 const plain = (value) => parseBlocks(value)
@@ -58,12 +71,23 @@ const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
   const { allowImages = true } = options;
   return parseBlocks(value).map(b => {
     const val = b.contenido ?? b.valor ?? b.texto ?? '';
+
     if (b.tipo === 'imagen') {
       if (!allowImages) return '';
       return b.url
         ? `<img src="${escapeHtml(b.url)}" style="max-width:${maxWidth}px;max-height:${maxHeight}px;display:block;margin:6px auto;object-fit:contain">`
         : '';
     }
+
+    // Algunos registros antiguos tienen otro JSON serializado dentro de "valor/contenido".
+    if (typeof val === 'string' && /^\s*[\[{]/.test(val)) {
+      const nested = parseBlocks(val);
+      const isRealNested = !(nested.length === 1 && nested[0]?.tipo === 'texto' && nested[0]?.valor === val);
+      if (isRealNested) {
+        return contentHtml(val, maxWidth, maxHeight, options);
+      }
+    }
+
     if (b.tipo === 'latex' || looksLikeLatex(val)) {
       return `<span class="math-inline">${renderLatex(val)}</span>`;
     }
