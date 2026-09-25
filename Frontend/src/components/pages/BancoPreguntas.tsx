@@ -247,7 +247,7 @@ export default function BancoPreguntas() {
           letra,
           tipo: alt?.tipo || 'TEXTO',
           contenidoTexto: extractTextFromBlocks(alt?.contenidoTexto || ''),
-          imagenUrl: alt?.imagenUrl || '',
+          imagenUrl: alt?.imagenUrl || extractImageUrlsFromBlocks(alt?.contenidoTexto || '')[0] || '',
           esCorrecta: alt?.esCorrecta || false,
           ordenVisualizacion: alt?.ordenVisualizacion || index + 1,
         };
@@ -260,7 +260,8 @@ export default function BancoPreguntas() {
     setFormData((prev) => ({ ...prev, imagenUrl: allImages[0] || '' }));
     const existingPreviews = letras.map((l) => {
       const a = question.alternativas.find((alt) => alt.letra === l);
-      return a?.imagenUrl || '';
+      const blockImage = extractImageUrlsFromBlocks(a?.contenidoTexto || '')[0] || '';
+      return a?.imagenUrl || blockImage;
     });
     setAltImagePreviews(existingPreviews);
     setIsFormModalOpen(true);
@@ -787,17 +788,24 @@ export default function BancoPreguntas() {
                         <div style={{ flex: 1 }}>
                            {/* Renderizar texto si existe */}
                            {opt.contenidoTexto && (
-                             <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
-                           )}
-                           {/* Renderizar imagen si existe */}
-                           {opt.imagenUrl && !isBlockFormat(opt.contenidoTexto || '') && (
-                             <img
-                               src={opt.imagenUrl}
-                               alt={`Alternativa ${opt.letra}`}
-                               className="option-image-detail"
-                               onError={(e) => (e.currentTarget.style.display = 'none')}
+                             <ContentRenderer
+                               contentStr={JSON.stringify(parseContentBlocks(opt.contenidoTexto).filter((b: any) => b?.tipo !== 'imagen'))}
+                               inline={true}
                              />
                            )}
+                           {(() => {
+                             const blockImage = extractImageUrlsFromBlocks(opt.contenidoTexto || '')[0] || '';
+                             const image = opt.imagenUrl || blockImage;
+                             return image ? (
+                               <img
+                                 src={image}
+                                 alt={`Alternativa ${opt.letra}`}
+                                 className="option-image-detail"
+                                 style={{ display: 'block', maxWidth: 145, maxHeight: 72, objectFit: 'contain', marginTop: 6 }}
+                                 onError={(e) => (e.currentTarget.style.display = 'none')}
+                               />
+                             ) : null;
+                           })()}
                         </div>
                       </div>
                     </li>
