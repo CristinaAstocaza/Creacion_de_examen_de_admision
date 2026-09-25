@@ -664,13 +664,28 @@ export const ImportarPreguntas: React.FC = () => {
 
   const contentToPlainText = (content: string | null | undefined) => {
     if (!content) return '';
-    try {
-      const blocks = JSON.parse(content);
-      if (Array.isArray(blocks)) {
-        return blocks.map((b: any) => b.valor ?? b.contenido ?? '').join(' ');
-      }
-    } catch(e) {}
+    const blocks = parseContentBlocks(content);
+    if (blocks.length) {
+      return blocks.map((b: any) => b.valor ?? b.contenido ?? b.texto ?? '').join(' ');
+    }
     return content;
+  };
+
+  const parseContentBlocks = (content: string | null | undefined): any[] => {
+    if (!content) return [];
+    let current: any = content;
+    for (let i = 0; i < 4; i += 1) {
+      if (Array.isArray(current)) return current;
+      if (typeof current !== 'string') break;
+      try {
+        current = JSON.parse(current);
+      } catch(e) {
+        break;
+      }
+    }
+    if (Array.isArray(current)) return current;
+    if (current && typeof current === 'object' && current.tipo) return [current];
+    return [];
   };
 
   const contentIsLatex = (content: string | null | undefined) => {
@@ -706,48 +721,23 @@ export const ImportarPreguntas: React.FC = () => {
   };
 
   const hasPendingEnunciadoImage = (content: string | null | undefined) => {
-    if (!content) return false;
-    try {
-      const blocks = JSON.parse(content);
-      return Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'imagen' && !b?.url);
-    } catch(e) {
-      return false;
-    }
+    return parseContentBlocks(content).some((b: any) => b?.tipo === 'imagen' && !b?.url);
   };
 
   const getFirstPendingEnunciadoImageIndex = (content: string | null | undefined) => {
-    if (!content) return -1;
-    try {
-      const blocks = JSON.parse(content);
-      if (!Array.isArray(blocks)) return -1;
-      return blocks.findIndex((b: any) => b?.tipo === 'imagen' && !b?.url);
-    } catch(e) {
-      return -1;
-    }
+    return parseContentBlocks(content).findIndex((b: any) => b?.tipo === 'imagen' && !b?.url);
   };
 
   const getEnunciadoTextOnly = (content: string | null | undefined) => {
-    if (!content) return '';
-    try {
-      const blocks = JSON.parse(content);
-      if (!Array.isArray(blocks)) return content;
-      return JSON.stringify(blocks.filter((b: any) => b?.tipo !== 'imagen'));
-    } catch(e) {
-      return content;
-    }
+    const blocks = parseContentBlocks(content);
+    if (!blocks.length) return content || '';
+    return JSON.stringify(blocks.filter((b: any) => b?.tipo !== 'imagen'));
   };
 
   const getSavedEnunciadoImages = (content: string | null | undefined) => {
-    if (!content) return [];
-    try {
-      const blocks = JSON.parse(content);
-      if (!Array.isArray(blocks)) return [];
-      return blocks
-        .map((b: any, index: number) => ({ block: b, index }))
-        .filter(({ block }: any) => block?.tipo === 'imagen' && block?.url);
-    } catch(e) {
-      return [];
-    }
+    return parseContentBlocks(content)
+      .map((b: any, index: number) => ({ block: b, index }))
+      .filter(({ block }: any) => block?.tipo === 'imagen' && block?.url);
   };
 
   const removeEnunciadoImage = (questionId: string, blockIndex: number) => {
