@@ -64,6 +64,29 @@ export const importarPdfTexto = async () => {
   throw new Error('Para PDF de texto usa la tarjeta Documento: el procesamiento se realiza localmente en el navegador.');
 };
 
+const readNetlifyResponse = async (response) => {
+  const raw = await response.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    if (response.status === 504) {
+      throw new Error('TIMEOUT_NETLIFY');
+    }
+    if (response.status === 502 || response.status === 503) {
+      throw new Error('TEMPORARY_NETLIFY');
+    }
+    throw new Error(data?.error || `Error del servidor (${response.status})`);
+  }
+
+  if (!data) throw new Error('La respuesta del servidor no fue válida.');
+  return data;
+};
+
 export const importarImagenes = async (files, cursoId) => {
   const images = await Promise.all(files.map(async file => ({
     name: file.name,
@@ -71,14 +94,32 @@ export const importarImagenes = async (files, cursoId) => {
     data: await fileToDataUrl(file),
   })));
 
-  const response = await fetch('/.netlify/functions/ai-import', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ images, cursoId }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || 'No se pudieron procesar las imágenes');
-  return data;
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch('/.netlify/functions/ai-import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ images, cursoId }),
+      });
+      return await readNetlifyResponse(response);
+    } catch (error) {
+      lastError = error;
+      const code = error instanceof Error ? error.message : '';
+      const retryable = code === 'TIMEOUT_NETLIFY' || code === 'TEMPORARY_NETLIFY';
+      if (!retryable || attempt === 1) break;
+      await new Promise(resolve => setTimeout(resolve, 1200));
+    }
+  }
+
+  const code = lastError instanceof Error ? lastError.message : '';
+  if (code === 'TIMEOUT_NETLIFY') {
+    throw new Error('La IA tardó demasiado en responder. Se intentó nuevamente, pero Netlify agotó el tiempo de espera.');
+  }
+  if (code === 'TEMPORARY_NETLIFY') {
+    throw new Error('Netlify está temporalmente ocupado. Intenta nuevamente en unos segundos.');
+  }
+  throw lastError instanceof Error ? lastError : new Error('No se pudieron procesar las imágenes');
 };
 
 export const uploadRecorte = async (blob) => {
@@ -88,8 +129,7 @@ export const uploadRecorte = async (blob) => {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ action: 'upload', data: dataUrl }),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || 'No se pudo subir el recorte');
+  const data = await readNetlifyResponse(response);
   return data.url;
 };
 
