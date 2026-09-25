@@ -66,27 +66,38 @@ Para fórmulas usa bloques { "tipo":"latex", "contenido":"..." }. Para una image
 Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
 `;
 
-  const response = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent',
-    {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': key,
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mime, data: base64 } },
-          ],
-        }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
-      }),
-    },
-  );
+  const requestBody = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inline_data: { mime_type: mime, data: base64 } },
+      ],
+    }],
+    generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
+  };
 
-  const payload = await response.json();
+  const callGemini = async (model) => {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+    const payload = await response.json();
+    return { response, payload };
+  };
+
+  let { response, payload } = await callGemini('gemini-3.5-flash-lite');
+
+  if (!response.ok && response.status >= 500) {
+    ({ response, payload } = await callGemini('gemini-3.8-flash'));
+  }
+
   if (!response.ok) throw new Error(payload?.error?.message || 'Gemini no pudo analizar la imagen');
   const text = payload?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
   const parsed = JSON.parse(stripFence(text));
