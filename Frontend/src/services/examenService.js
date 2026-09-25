@@ -31,7 +31,10 @@ const getFirstImageFromBlocks = (value) => {
 
 const renderLatex = (expr = '') => {
   try {
-    const clean = String(expr).replace(/\$\$/g, '').trim();
+    const clean = String(expr)
+      .replace(/\$\$/g, '')
+      .replace(/^\$|\$/g, '')
+      .trim();
     return katex.renderToString(clean, {
       throwOnError: false,
       displayMode: false,
@@ -40,6 +43,11 @@ const renderLatex = (expr = '') => {
   } catch {
     return `<span>${escapeHtml(expr)}</span>`;
   }
+};
+
+const looksLikeLatex = (value = '') => {
+  const text = String(value);
+  return /\\[a-zA-Z]+|[_^]\{?[^\s]+|\\frac|\\sqrt|\\rho|\\theta|\\pi|\\Delta/.test(text);
 };
 
 const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
@@ -52,7 +60,7 @@ const contentHtml = (value, maxWidth = 250, maxHeight = 130, options = {}) => {
         ? `<img src="${escapeHtml(b.url)}" style="max-width:${maxWidth}px;max-height:${maxHeight}px;display:block;margin:6px auto;object-fit:contain">`
         : '';
     }
-    if (b.tipo === 'latex') {
+    if (b.tipo === 'latex' || looksLikeLatex(val)) {
       return `<span class="math-inline">${renderLatex(val)}</span>`;
     }
     return `<span>${escapeHtml(val)}</span>`;
@@ -201,7 +209,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
     const items = preguntas.map(p => {
       const alts = p.alternativas.map(a => {
         const blockImage = getFirstImageFromBlocks(a.contenidoTexto);
-        const finalAltImage = a.imagenUrl || blockImage;
+        const finalAltImage = blockImage || a.imagenUrl;
         return `
           <div class="alt">
             <span class="alt-letter">${a.letra})</span>
@@ -215,7 +223,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
       const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
 
       const blockImage = getFirstImageFromBlocks(p.enunciado);
-      const finalQuestionImage = p.imagenUrl || blockImage;
+      const finalQuestionImage = blockImage || p.imagenUrl;
 
       return `
         <article class="question">
