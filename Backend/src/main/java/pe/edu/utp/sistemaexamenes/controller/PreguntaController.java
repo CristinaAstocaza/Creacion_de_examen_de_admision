@@ -53,6 +53,9 @@ public class PreguntaController {
     @Value("${gemini.api.key}")
     private String geminiApiKey;
 
+    @Value("${python.command:python3}")
+    private String pythonCommand;
+
     @GetMapping
     public List<PreguntaResponse> listar(@RequestParam(required = false) String search,
                                           @RequestParam(required = false) String busqueda,
@@ -129,7 +132,7 @@ public class PreguntaController {
 
         try {
             ProcessBuilder pb = new ProcessBuilder(
-                "python", "scripts/procesar_pdf_texto.py",
+                pythonCommand, "scripts/procesar_pdf_texto.py",
                 tempPdf.getAbsolutePath(),
                 geminiApiKey
             );
@@ -168,7 +171,7 @@ public class PreguntaController {
         
         List<File> tempImages = new ArrayList<>();
         List<String> command = new ArrayList<>(Arrays.asList(
-            "python", "scripts/procesar_imagenes.py",
+            pythonCommand, "scripts/procesar_imagenes.py",
             geminiApiKey,
             folder,
             cloudinaryCloudName,
