@@ -86,11 +86,24 @@ const extractTextFromBlocks = (contentStr: string): string => {
     if (Array.isArray(blocks)) {
       return blocks
         .filter((b: any) => b.tipo === 'texto' || b.tipo === 'latex')
-        .map((b: any) => b.valor || '')
+        .map((b: any) => b.valor ?? b.contenido ?? '')
         .join(' ');
     }
   } catch (_e) {}
   return contentStr;
+};
+
+const extractImageUrlsFromBlocks = (contentStr: string): string[] => {
+  if (!contentStr) return [];
+  try {
+    const blocks = JSON.parse(contentStr);
+    if (Array.isArray(blocks)) {
+      return blocks
+        .filter((b: any) => b?.tipo === 'imagen' && b?.url)
+        .map((b: any) => String(b.url));
+    }
+  } catch (_e) {}
+  return [];
 };
 
 const isBlockFormat = (contentStr: string): boolean => {
@@ -229,7 +242,12 @@ export default function BancoPreguntas() {
       }),
     });
     resetImageState();
-    if (question.imagenUrl) setEnunciadoImagePreview(question.imagenUrl);
+    const blockImages = extractImageUrlsFromBlocks(question.enunciado);
+    const preferredPreview = blockImages[0] || question.imagenUrl || '';
+    if (preferredPreview) {
+      setEnunciadoImagePreview(preferredPreview);
+      setFormData((prev) => ({ ...prev, imagenUrl: preferredPreview }));
+    }
     const existingPreviews = letras.map((l) => {
       const a = question.alternativas.find((alt) => alt.letra === l);
       return a?.imagenUrl || '';
