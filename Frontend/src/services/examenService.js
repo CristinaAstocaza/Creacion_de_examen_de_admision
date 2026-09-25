@@ -275,17 +275,7 @@ const htmlVersion = (exam, version, solucionario = false) => {
         };
       });
 
-      const useCompactColumns =
-        altItems.length === 5 &&
-        altItems.every(a => !a.hasImage && a.length <= 58);
-
-      const alts = useCompactColumns
-        ? `
-          <div class="alternatives-columns">
-            <div class="alt-column">${altItems.slice(0, 3).map(a => a.html).join('')}</div>
-            <div class="alt-column">${altItems.slice(3).map(a => a.html).join('')}</div>
-          </div>`
-        : altItems.map(a => a.html).join('');
+      const alts = altItems.map(a => a.html).join('');
 
       const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
 
@@ -319,12 +309,24 @@ const htmlVersion = (exam, version, solucionario = false) => {
             </div>
           </div>
         </article>`;
-    }).join('');
+    });
 
+
+    const rows = [];
+    for (let i = 0; i < items.length; i += 2) {
+      rows.push(`
+        <div class="question-row">
+          <div class="question-cell">${items[i] || ''}</div>
+          <div class="question-cell">${items[i + 1] || ''}</div>
+        </div>
+      `);
+    }
     return `
       <section class="course-block">
         <div class="course-title">${escapeHtml(String(curso).toUpperCase())}</div>
-        ${items}
+        <div class="course-question-grid">
+          ${rows.join('')}
+        </div>
       </section>`;
   }).join('');
 
@@ -439,7 +441,26 @@ const htmlVersion = (exam, version, solucionario = false) => {
       display: block;
       width: 100%;
     }
-    .course-block { break-inside: auto; margin-bottom: 12px; }
+    .course-block {
+      break-inside: auto;
+      margin-bottom: 16px;
+    }
+    .course-question-grid { display: block; width: 100%; }
+    .question-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0 22px;
+      align-items: start;
+      width: 100%;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-bottom: 10px;
+    }
+    .question-cell {
+      min-width: 0;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
     .course-title {
       break-after: avoid;
       font-size: 11px;
@@ -453,10 +474,10 @@ const htmlVersion = (exam, version, solucionario = false) => {
     .question {
       break-inside: avoid;
       page-break-inside: avoid;
-      margin: 0 0 14px;
-      padding-bottom: 2px;
-      font-size: 10.7px;
-      line-height: 1.4;
+      margin: 0;
+      padding: 0 0 2px;
+      font-size: 10.2px;
+      line-height: 1.36;
     }
     .question-line { display: flex; align-items: flex-start; gap: 5px; }
     .q-number { font-weight: 800; min-width: 19px; }
@@ -477,13 +498,13 @@ const htmlVersion = (exam, version, solucionario = false) => {
     }
     .question-images.images-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      max-width: 300px;
+      max-width: 100%;
       gap: 8px;
     }
     .question-images.images-3,
     .question-images.images-4 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      max-width: 300px;
+      max-width: 100%;
       gap: 6px 8px;
     }
     .question-figure {
@@ -506,8 +527,8 @@ const htmlVersion = (exam, version, solucionario = false) => {
       margin: 0 auto;
     }
     .question-images.images-1 .question-image {
-      max-width: 185px;
-      max-height: 125px;
+      max-width: 165px;
+      max-height: 112px;
     }
     .question-images.images-2 .question-image {
       max-height: 105px;
@@ -634,20 +655,20 @@ const waitForImages = async (root) => {
 };
 
 const insertPdfPageSpacers = (root, pageHeight = 1123) => {
-  const questions = [...root.querySelectorAll('.question')];
-  for (const question of questions) {
+  const rows = [...root.querySelectorAll('.question-row')];
+  for (const row of rows) {
     const rootTop = root.getBoundingClientRect().top;
-    const rect = question.getBoundingClientRect();
+    const rect = row.getBoundingClientRect();
     const top = rect.top - rootTop;
     const height = rect.height;
     const pageBottom = (Math.floor(top / pageHeight) + 1) * pageHeight;
 
-    if (height < pageHeight * 0.9 && top + height > pageBottom - 8) {
+    if (height < pageHeight * 0.9 && top + height > pageBottom - 10) {
       const spacer = document.createElement('div');
       spacer.className = 'pdf-page-spacer';
-      spacer.style.height = `${Math.max(0, pageBottom - top + 10)}px`;
+      spacer.style.height = `${Math.max(0, pageBottom - top + 12)}px`;
       spacer.style.breakBefore = 'page';
-      question.parentNode?.insertBefore(spacer, question);
+      row.parentNode?.insertBefore(spacer, row);
     }
   }
 };
