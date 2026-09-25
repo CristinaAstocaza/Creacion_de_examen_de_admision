@@ -469,7 +469,7 @@ export const ImportarPreguntas: React.FC = () => {
       }
 
       setIsProcessingBatch(true);
-      const batch = pendingTasks.slice(0, 5);
+      const batch = pendingTasks.slice(0, 1);
       setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'processing' } : t));
 
       try {
@@ -481,7 +481,8 @@ export const ImportarPreguntas: React.FC = () => {
           if (indexInBatch !== -1) {
             const rawQ = resp.preguntas?.find((m: GeminiPregunta) => m.numero === indexInBatch + 1);
             if (rawQ) {
-              const mappedArr = mapGeminiToQuestions([rawQ], rawQ.imagen_url);
+              const localOriginalUrl = URL.createObjectURL(t.file);
+              const mappedArr = mapGeminiToQuestions([rawQ], localOriginalUrl);
               return { ...t, status: 'success', result: mappedArr[0] };
             } else {
               return { ...t, status: 'error', errorMsg: 'Fallo al procesar o imagen ilegible.' };
@@ -492,7 +493,8 @@ export const ImportarPreguntas: React.FC = () => {
 
       } catch (err) {
         console.error("Error en batch", err);
-        setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'error', errorMsg: 'Error de red o de IA.' } : t));
+        const errorMsg = err instanceof Error ? err.message : 'Error de red o de IA.';
+        setImageTasks(prev => prev.map(t => batch.some(b => b.id === t.id) ? { ...t, status: 'error', errorMsg } : t));
       } finally {
         setIsProcessingBatch(false);
       }
