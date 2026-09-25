@@ -673,6 +673,26 @@ export const ImportarPreguntas: React.FC = () => {
     return content;
   };
 
+  const contentIsLatex = (content: string | null | undefined) => {
+    if (!content) return false;
+    try {
+      const blocks = JSON.parse(content);
+      return Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'latex');
+    } catch(e) {
+      return false;
+    }
+  };
+
+  const looksLikeLatexText = (value: string | null | undefined) => {
+    const text = String(value || '');
+    return /\\[a-zA-Z]+|[_^]\{?[^\s]+|\\frac|\\sqrt|\\rho|\\theta|\\pi|\\Delta/.test(text);
+  };
+
+  const editorPreviewContent = (value: string, originalContent?: string | null) => {
+    const tipo = contentIsLatex(originalContent) || looksLikeLatexText(value) ? 'latex' : 'texto';
+    return JSON.stringify([{ tipo, contenido: value, valor: value }]);
+  };
+
   const alternativeHasContent = (alt: ParsedAlternativa) => {
     if (contentToPlainText(alt.contenidoTexto).trim()) return true;
     if (alt.imagenUrl) return true;
@@ -726,18 +746,21 @@ export const ImportarPreguntas: React.FC = () => {
       if (!current) return q;
 
       const trimmed = value.trim();
+      const keepLatex = contentIsLatex(current.contenidoTexto) || looksLikeLatexText(trimmed);
       newAlts[altIndex] = {
         ...current,
-        contenidoTexto: trimmed ? JSON.stringify([{ tipo: 'texto', valor: value }]) : null,
+        contenidoTexto: trimmed
+          ? JSON.stringify([{ tipo: keepLatex ? 'latex' : 'texto', contenido: trimmed }])
+          : null,
         isPlaceholder: !trimmed
       };
 
-      const hasMissing = newAlts.some(a => !contentToPlainText(a.contenidoTexto).trim());
+      const hasMissing = newAlts.some(a => !alternativeHasContent(a));
       const hasPendingImage = newAlts.some(a => a.needsImage);
       const extractionReview = q.confianza_extraccion !== undefined && q.confianza_extraccion < 80;
       const imageReview = (q as any).enunciadoNeedsImage || hasPendingImage;
       const needsReview = hasMissing || imageReview || extractionReview;
-      const missingLetters = newAlts.filter(a => !contentToPlainText(a.contenidoTexto).trim()).map(a => a.letra);
+      const missingLetters = newAlts.filter(a => !alternativeHasContent(a)).map(a => a.letra);
 
       return {
         ...q,
@@ -1315,6 +1338,15 @@ export const ImportarPreguntas: React.FC = () => {
                                 placeholder={`Escribe la alternativa ${alt.letra}...`}
                                 style={{ width: '100%', minHeight: 82, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
                               />
+
+                              {(contentIsLatex(alt.contenidoTexto) || looksLikeLatexText(editorValue)) && editorValue.trim() && (
+                                <div style={{ marginTop: 8, padding: '9px 12px', background: '#f8fafc', border: '1px solid #dbe4f0', borderRadius: 8 }}>
+                                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 5, fontWeight: 600 }}>
+                                    Vista previa de la fórmula
+                                  </div>
+                                  <ContentRenderer contentStr={editorPreviewContent(editorValue, alt.contenidoTexto)} />
+                                </div>
+                              )}
 
                               {q.originalImageUrl && (
                                 <button
