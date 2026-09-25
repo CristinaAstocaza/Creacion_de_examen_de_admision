@@ -2,6 +2,7 @@ import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 're
 import './Configuracion.css';
 import { listarCategorias } from '../../services/categoriaService';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { toastSuccess, toastError } from '../../utils/toast';
 
 
 interface CategoriaExamen {
@@ -34,13 +35,6 @@ export const Configuracion: React.FC = () => {
   });
 
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-
-  useEffect(() => {
-    if (!saveMessage) return;
-    const timer = window.setTimeout(() => setSaveMessage(null), 3200);
-    return () => window.clearTimeout(timer);
-  }, [saveMessage]);
 
   useEffect(() => {
     const loadInitials = async () => {
@@ -90,15 +84,13 @@ export const Configuracion: React.FC = () => {
     if (!selectedCategoriaId) return;
 
     setIsSaving(true);
-    setSaveMessage(null);
-
     try {
       // Guardar Formato
       localStorage.setItem('configuracionExamen', JSON.stringify(formData));
-      setSaveMessage({ type: 'success', text: 'Configuración aplicada y guardada exitosamente.' });
+      toastSuccess('Configuración aplicada y guardada exitosamente.');
     } catch (err) {
       console.error(err);
-      setSaveMessage({ type: 'error', text: 'Hubo un error al guardar la configuración.' });
+      toastError('Hubo un error al guardar la configuración.');
     } finally {
       setIsSaving(false);
     }
@@ -149,28 +141,6 @@ export const Configuracion: React.FC = () => {
         </Select>
       </section>
 
-      {saveMessage && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed',
-            top: 20,
-            right: 20,
-            zIndex: 99999,
-            minWidth: 300,
-            maxWidth: 420,
-            padding: '14px 16px',
-            borderRadius: 12,
-            boxShadow: '0 12px 35px rgba(15, 23, 42, 0.18)',
-            background: saveMessage.type === 'success' ? '#ecfdf3' : '#fff1f2',
-            color: saveMessage.type === 'success' ? '#166534' : '#b91c1c',
-            border: `1px solid ${saveMessage.type === 'success' ? '#bbf7d0' : '#fecdd3'}`,
-            fontWeight: 600
-          }}
-        >
-          {saveMessage.type === 'success' ? '✅ ' : '⚠️ '}{saveMessage.text}
-        </div>
-      )}
 
       <div className={`config-grid ${!selectedCategoriaId ? 'disabled-section' : ''}`}>
         <section className="config-form-section">
