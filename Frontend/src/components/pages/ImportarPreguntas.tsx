@@ -1115,9 +1115,9 @@ export const ImportarPreguntas: React.FC = () => {
                         type="button"
                         className="btn-small"
                         onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
-                        style={{ marginTop: 10, background: '#fff' }}
+                        style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
                       >
-                        ✂️ Añadir otro recorte
+                        ➕✂️ Añadir otro recorte / figura
                       </button>
                     </div>
                   )}
