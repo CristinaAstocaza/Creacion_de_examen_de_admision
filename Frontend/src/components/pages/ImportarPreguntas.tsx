@@ -40,6 +40,7 @@ interface ParsedAlternativa {
   imagenUrl?: string;
   ordenVisualizacion?: number;
   needsImage?: boolean;
+  isPlaceholder?: boolean;
 }
 
 interface AnalyzedQuestion {
@@ -197,10 +198,9 @@ export const ImportarPreguntas: React.FC = () => {
       const tipo_bloque = q.tipo_bloque || 'pregunta';
       
       if (tipo_bloque === 'pregunta') {
-        if (alts.length < 5) {
-          isValid = false;
+        if (faltantes.length > 0) {
           needsReview = true;
-          errorMessage = `Faltan alternativas: ${faltantes.join(', ')}.`;
+          errorMessage = `Completa manualmente: ${faltantes.join(', ')}.`;
         }
         if (!q.enunciado || q.enunciado.trim() === '') {
           isValid = false;
@@ -214,27 +214,41 @@ export const ImportarPreguntas: React.FC = () => {
       if (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80) needsReview = true;
       if (q.posible_incompleta) needsReview = true;
 
-      // Parsear bloques de alternativas para detectar si necesitan imagen
-      const parsedAlternativas: ParsedAlternativa[] = alts.map((a, i) => {
+      // Parsear bloques de alternativas y crear campos vacíos para las letras faltantes
+      const parsedAlternativas: ParsedAlternativa[] = LETRAS.map((letra, i) => {
+        const a = alts.find(item => (item.letra || '').toUpperCase() === letra);
+        if (!a) {
+          return {
+            letra,
+            tipo: 'TEXTO',
+            contenidoTexto: null,
+            esCorrecta: false as const,
+            ordenVisualizacion: i + 1,
+            needsImage: false,
+            isPlaceholder: true
+          };
+        }
+
         let altNeedsImage = false;
         if (a.contenido_texto) {
           try {
             const blocks = JSON.parse(a.contenido_texto);
             if (Array.isArray(blocks)) {
-               altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
+              altNeedsImage = blocks.some((b: any) => b.tipo === 'imagen' && !b.url);
             }
           } catch(e) {}
         }
         if (altNeedsImage) needsReview = true; 
         
         return {
-          letra: (a.letra || '?').toUpperCase(),
-          tipo: 'TEXTO', // mantenemos texto base porque la imagen va en el bloque
+          letra,
+          tipo: 'TEXTO',
           contenidoTexto: a.contenido_texto ?? null,
           esCorrecta: false as const,
           imagenUrl: a.imagen_url,
           ordenVisualizacion: i + 1,
-          needsImage: altNeedsImage
+          needsImage: altNeedsImage,
+          isPlaceholder: false
         };
       });
 
@@ -263,7 +277,7 @@ export const ImportarPreguntas: React.FC = () => {
         imagenUrl: q.imagen_url,
         originalImageUrl: originalUrl || q.imagen_url,
         alternativas: alts,
-        parsedAlternativas: isValid ? parsedAlternativas : undefined,
+        parsedAlternativas,
         tipo_bloque,
         posible_incompleta: q.posible_incompleta,
         confianza_extraccion: q.confianza_extraccion,
@@ -553,7 +567,7 @@ export const ImportarPreguntas: React.FC = () => {
 
   // ── Guardar y Cancelar ──
   const handleGuardar = async () => {
-    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage));
+    const valid = questions.filter(q => q.isValid && q.parsedAlternativas && !q.parsedAlternativas.some(a => a.needsImage || !contentToPlainText(a.contenidoTexto).trim()));
     if (!valid.length) { alert('No hay preguntas válidas y completas para guardar.'); return; }
     if (!selectedCursoId) { alert('Selecciona un curso primero.'); return; }
 
@@ -596,6 +610,54 @@ export const ImportarPreguntas: React.FC = () => {
   const removeQuestion = (id: string) => {
     setQuestions(prev => prev.filter(q => q.id !== id));
   };
+
+  const contentToPlainText = (content: string | null | undefined) => {
+    if (!content) return '';
+    try {
+      const blocks = JSON.parse(content);
+      if (Array.isArray(blocks)) {
+        return blocks.map((b: any) => b.valor ?? b.contenido ?? '').join(' ');
+      }
+    } catch(e) {}
+    return content;
+  };
+
+  const updateAlternativeText = (questionId: string, altIndex: number, value: string) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      const newAlts = [...(q.parsedAlternativas || [])];
+      const current = newAlts[altIndex];
+      if (!current) return q;
+
+      const trimmed = value.trim();
+      newAlts[altIndex] = {
+        ...current,
+        contenidoTexto: trimmed ? JSON.stringify([{ tipo: 'texto', valor: value }]) : null,
+        isPlaceholder: !trimmed
+      };
+
+      const hasMissing = newAlts.some(a => !contentToPlainText(a.contenidoTexto).trim());
+      const hasPendingImage = newAlts.some(a => a.needsImage);
+      const otherReview = (q as any).enunciadoNeedsImage || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80) || q.posible_incompleta;
+      const needsReview = hasMissing || hasPendingImage || otherReview;
+      const missingLetters = newAlts.filter(a => !contentToPlainText(a.contenidoTexto).trim()).map(a => a.letra);
+
+      return {
+        ...q,
+        parsedAlternativas: newAlts,
+        needsReview,
+        errorMessage: missingLetters.length ? `Completa manualmente: ${missingLetters.join(', ')}.` : undefined
+      };
+    }));
+  };
+
+  const insertMathToken = (questionId: string, altIndex: number, token: string) => {
+    const q = questions.find(item => item.id === questionId);
+    const alt = q?.parsedAlternativas?.[altIndex];
+    const current = contentToPlainText(alt?.contenidoTexto);
+    updateAlternativeText(questionId, altIndex, current + token);
+  };
+
 
   // ── Cálculos ──
   const stats = {
@@ -1010,6 +1072,19 @@ export const ImportarPreguntas: React.FC = () => {
                     )}
                   </div>
 
+                  {q.originalImageUrl && (
+                    <div style={{ margin: '12px 0 16px', padding: 10, border: '1px solid #dbe4f0', borderRadius: 10, background: '#f8fbff' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#5f6368', marginBottom: 8 }}>Imagen original analizada</div>
+                      <img
+                        src={q.originalImageUrl}
+                        alt={`Pregunta ${q.numero} original`}
+                        onClick={() => setModalImage(q.originalImageUrl!)}
+                        style={{ width: '100%', maxHeight: 360, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: 'white' }}
+                      />
+                      <div style={{ fontSize: 11, color: '#7a8699', marginTop: 6 }}>Haz clic sobre la imagen para verla completa.</div>
+                    </div>
+                  )}
+
                   <div className="q-text">
                     <strong>Pregunta {q.numero}.</strong>
                     <ContentRenderer 
@@ -1020,31 +1095,61 @@ export const ImportarPreguntas: React.FC = () => {
                   </div>
 
                   <div className="q-options" style={{ marginTop: 16 }}>
-                    {q.parsedAlternativas?.map((alt, idx) => (
-                      <div key={idx} style={{ marginBottom: 12, padding: '8px', border: '1px solid #e8eaed', borderRadius: 8, background: '#f8f9fa' }}>
-                        <strong>{alt.letra})</strong>{' '}
-                        {alt.contenidoTexto ? (
-                           <ContentRenderer 
-                             contentStr={alt.contenidoTexto} 
-                             onImageClick={setModalImage}
-                             onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
-                           />
-                        ) : (
-                           <span style={{ color: '#d93025', fontStyle: 'italic' }}>Vacío</span>
-                        )}
-                        
-                        {/* Render fallback de la imagen si era imagen vieja (por compatibilidad en ImportarPreguntas) */}
-                        {alt.imagenUrl && (
-                          <div className="q-image-container" onClick={() => setModalImage(alt.imagenUrl!)} style={{ marginTop: 8 }}>
-                            <img src={alt.imagenUrl} alt={`Alternativa ${alt.letra}`} style={{ maxHeight: 100 }} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {q.parsedAlternativas?.map((alt, idx) => {
+                      const plainValue = contentToPlainText(alt.contenidoTexto);
+                      const isMissing = !plainValue.trim();
+                      return (
+                        <div key={idx} style={{ marginBottom: 12, padding: '10px', border: isMissing ? '1px solid #f6c453' : '1px solid #e8eaed', borderRadius: 8, background: isMissing ? '#fffaf0' : '#f8f9fa' }}>
+                          <strong>{alt.letra})</strong>{' '}
+                          {!isMissing ? (
+                            <ContentRenderer 
+                              contentStr={alt.contenidoTexto} 
+                              onImageClick={setModalImage}
+                              onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'alternativa', idx, blockIdx) : undefined}
+                            />
+                          ) : (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: 12, color: '#9a6700', marginBottom: 6 }}>Alternativa faltante: complétala manualmente.</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, padding: '6px 8px', background: '#fff', border: '1px solid #dde3ea', borderRadius: 8 }}>
+                                {['₀','₁','₂','₃','⁰','¹','²','³','π','ρ','Δ','√','±','×','÷','≤','≥','∞','½'].map(token => (
+                                  <button
+                                    key={token}
+                                    type="button"
+                                    className="btn-small"
+                                    onClick={() => insertMathToken(q.id, idx, token)}
+                                    style={{ minWidth: 32, padding: '4px 7px', background: '#fff' }}
+                                    title="Insertar símbolo"
+                                  >
+                                    {token}
+                                  </button>
+                                ))}
+                              </div>
+                              <textarea
+                                value={plainValue}
+                                onChange={(e) => updateAlternativeText(q.id, idx, e.target.value)}
+                                placeholder={`Escribe la alternativa ${alt.letra}...`}
+                                style={{ width: '100%', minHeight: 72, resize: 'vertical', border: '1px solid #c9d2dd', borderRadius: 8, padding: '10px 12px', font: 'inherit', background: '#fff' }}
+                              />
+                            </div>
+                          )}
+                          
+                          {alt.imagenUrl && (
+                            <div className="q-image-container" onClick={() => setModalImage(alt.imagenUrl!)} style={{ marginTop: 8 }}>
+                              <img src={alt.imagenUrl} alt={`Alternativa ${alt.letra}`} style={{ maxHeight: 100 }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {!q.isValid && q.errorMessage && (
-                    <div className="q-error-msg">{q.errorMessage}</div>
+                  {q.errorMessage && (
+                    <div
+                      className={q.isValid ? '' : 'q-error-msg'}
+                      style={q.isValid ? { marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#fff4cc', color: '#8a5a00', fontSize: 13, fontWeight: 600 } : undefined}
+                    >
+                      {q.isValid ? '⚠️ ' : ''}{q.errorMessage}
+                    </div>
                   )}
 
                   <div className="q-actions">
