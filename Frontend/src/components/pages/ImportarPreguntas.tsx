@@ -726,18 +726,6 @@ export const ImportarPreguntas: React.FC = () => {
     }
   };
 
-  const getEnunciadoWithoutPendingImages = (content: string | null | undefined) => {
-    if (!content) return '';
-    try {
-      const blocks = JSON.parse(content);
-      if (!Array.isArray(blocks)) return content;
-      return JSON.stringify(blocks.filter((b: any) => !(b?.tipo === 'imagen' && !b?.url)));
-    } catch(e) {
-      return content;
-    }
-  };
-
-
   const getEnunciadoTextOnly = (content: string | null | undefined) => {
     if (!content) return '';
     try {
