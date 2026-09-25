@@ -638,14 +638,16 @@ export const ImportarPreguntas: React.FC = () => {
 
       const hasMissing = newAlts.some(a => !contentToPlainText(a.contenidoTexto).trim());
       const hasPendingImage = newAlts.some(a => a.needsImage);
-      const otherReview = (q as any).enunciadoNeedsImage || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80) || q.posible_incompleta;
-      const needsReview = hasMissing || hasPendingImage || otherReview;
+      const extractionReview = (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
+      const imageReview = (q as any).enunciadoNeedsImage || hasPendingImage;
+      const needsReview = hasMissing || imageReview || extractionReview;
       const missingLetters = newAlts.filter(a => !contentToPlainText(a.contenidoTexto).trim()).map(a => a.letra);
 
       return {
         ...q,
         parsedAlternativas: newAlts,
         needsReview,
+        posible_incompleta: hasMissing ? q.posible_incompleta : false,
         errorMessage: missingLetters.length ? `Completa manualmente: ${missingLetters.join(', ')}.` : undefined
       };
     }));
