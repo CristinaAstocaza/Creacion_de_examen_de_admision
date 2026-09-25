@@ -147,13 +147,13 @@ const printHtml = (html) => {
   w.onload = () => setTimeout(() => w.print(), 300);
 };
 
-export const descargarPdfVersion = async (examenId, version) => {
+export const descargarPdfVersion = async (examenId, version, _customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
   printHtml(htmlVersion(e, v, false));
 };
 
-export const descargarPdfsVersiones = async (examenId) => {
+export const descargarPdfsVersiones = async (examenId, _customName = '') => {
   const e = await obtenerExamen(examenId);
   const html = e.versiones.map(v => {
     const full = htmlVersion(e, v, false);
@@ -164,7 +164,7 @@ export const descargarPdfsVersiones = async (examenId) => {
   printHtml(`<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:14mm}body{font-family:Arial;font-size:11px}.q{column-count:2;column-gap:22px}.cover{height:250mm;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style></head><body>${html}</body></html>`);
 };
 
-export const descargarPdfSolucionario = async (examenId, version) => {
+export const descargarPdfSolucionario = async (examenId, version, _customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
   printHtml(htmlVersion(e, v, true));
