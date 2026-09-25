@@ -265,6 +265,13 @@ export const ImportarPreguntas: React.FC = () => {
       }
       if (enunciadoNeedsImage) needsReview = true;
 
+      const actualMissingLetters = parsedAlternativas
+        .filter(a => !alternativeHasContent(a))
+        .map(a => a.letra);
+      if (actualMissingLetters.length === 0 && errorMessage?.startsWith('Completa manualmente:')) {
+        errorMessage = undefined;
+      }
+
       return {
         id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         numero: q.numero ?? idx + 1,
@@ -569,9 +576,22 @@ export const ImportarPreguntas: React.FC = () => {
             isPlaceholder: false
           };
           
-          const stillNeedsReview = (q as any).enunciadoNeedsImage || newAlts.some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
+          const missingLetters = newAlts
+            .filter(a => !alternativeHasContent(a))
+            .map(a => a.letra);
+          const stillNeedsReview =
+            (q as any).enunciadoNeedsImage ||
+            newAlts.some(a => a.needsImage) ||
+            missingLetters.length > 0 ||
+            !q.isValid ||
+            (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80);
           
-          return { ...q, parsedAlternativas: newAlts, needsReview: stillNeedsReview };
+          return {
+            ...q,
+            parsedAlternativas: newAlts,
+            needsReview: stillNeedsReview,
+            errorMessage: missingLetters.length ? `Completa manualmente: ${missingLetters.join(', ')}.` : undefined
+          };
         }
         return q;
       }));
@@ -670,6 +690,28 @@ export const ImportarPreguntas: React.FC = () => {
       return Array.isArray(blocks) && blocks.some((b: any) => b?.tipo === 'imagen' && !b?.url);
     } catch(e) {
       return false;
+    }
+  };
+
+  const getFirstPendingEnunciadoImageIndex = (content: string | null | undefined) => {
+    if (!content) return -1;
+    try {
+      const blocks = JSON.parse(content);
+      if (!Array.isArray(blocks)) return -1;
+      return blocks.findIndex((b: any) => b?.tipo === 'imagen' && !b?.url);
+    } catch(e) {
+      return -1;
+    }
+  };
+
+  const getEnunciadoWithoutPendingImages = (content: string | null | undefined) => {
+    if (!content) return '';
+    try {
+      const blocks = JSON.parse(content);
+      if (!Array.isArray(blocks)) return content;
+      return JSON.stringify(blocks.filter((b: any) => !(b?.tipo === 'imagen' && !b?.url)));
+    } catch(e) {
+      return content;
     }
   };
 
@@ -1149,18 +1191,61 @@ export const ImportarPreguntas: React.FC = () => {
                   <div className="q-text">
                     <strong>Pregunta {q.numero}.</strong>
                     <ContentRenderer 
-                      contentStr={q.enunciado} 
+                      contentStr={getEnunciadoWithoutPendingImages(q.enunciado)} 
                       onImageClick={setModalImage}
-                      onCropClick={q.originalImageUrl ? (blockIdx) => openCropper(q.id, q.originalImageUrl!, 'enunciado', undefined, blockIdx) : undefined} 
                     />
+
+                    {q.originalImageUrl && hasPendingEnunciadoImage(q.enunciado) && (
+                      <div style={{
+                        marginTop: 10,
+                        padding: 14,
+                        border: '2px dashed #60a5fa',
+                        borderRadius: 10,
+                        background: '#eff6ff',
+                        color: '#1e3a8a',
+                        textAlign: 'center'
+                      }}>
+                        <div style={{ fontWeight: 700 }}>🖼️ Figura detectada</div>
+                        <div style={{ fontSize: 12, marginTop: 4, color: '#475569' }}>
+                          Recorta una figura. Después podrás añadir otra si la necesitas.
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-small"
+                          onClick={() => openCropper(
+                            q.id,
+                            q.originalImageUrl!,
+                            'enunciado',
+                            undefined,
+                            getFirstPendingEnunciadoImageIndex(q.enunciado)
+                          )}
+                          style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
+                        >
+                          ✂️ Recortar figura
+                        </button>
+                      </div>
+                    )}
+
                     {q.originalImageUrl && !hasPendingEnunciadoImage(q.enunciado) && (
                       <button
                         type="button"
                         className="btn-small"
                         onClick={() => openCropper(q.id, q.originalImageUrl!, 'enunciado')}
-                        style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
+                        style={{
+                          marginTop: 8,
+                          width: 34,
+                          height: 34,
+                          borderRadius: 999,
+                          background: '#eff6ff',
+                          color: '#2563eb',
+                          borderColor: '#93c5fd',
+                          fontWeight: 800,
+                          fontSize: 18,
+                          padding: 0
+                        }}
+                        title="Añadir otro recorte / figura"
                       >
-                        ➕✂️ Añadir otro recorte / figura
+                        +
                       </button>
                     )}
                   </div>
