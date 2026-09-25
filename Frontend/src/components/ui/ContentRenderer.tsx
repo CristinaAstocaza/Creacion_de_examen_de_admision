@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css';
 export interface ContentBlock {
   tipo: 'texto' | 'latex' | 'imagen';
   valor?: string;
+  contenido?: string;
   url?: string | null;
 }
 
@@ -39,19 +40,20 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
   return (
     <div className={`content-renderer ${className || ''}`} style={wrapperStyle}>
       {blocks.map((b, i) => {
+        const value = b.valor ?? b.contenido ?? '';
+
         if (b.tipo === 'texto') {
           return (
             <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-              {b.valor}
+              {value}
             </span>
           );
         }
         if (b.tipo === 'latex') {
           try {
-            // Un bloque LaTeX es de tipo display (bloque entero centrado) solo si contiene marcadores de display math
-            const hasDisplayMarker = b.valor?.includes('$$') || b.valor?.includes('\\begin{');
+            const hasDisplayMarker = value.includes('$$') || value.includes('\\begin{');
             const isDisplay = !inline && hasDisplayMarker;
-            const cleanValor = b.valor?.replace(/\$\$/g, '') || '';
+            const cleanValor = value.replace(/\$\$/g, '');
             const html = katex.renderToString(cleanValor, { throwOnError: true, displayMode: isDisplay });
             
             return isDisplay ? (
@@ -70,10 +72,10 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
               />
             );
           } catch (e) {
-            console.warn(`[ContentRenderer] Error de sintaxis KaTeX en expresión: ${b.valor}`, e);
+            console.warn(`[ContentRenderer] Error de sintaxis KaTeX en expresión: ${value}`, e);
             return (
               <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                {b.valor}
+                {value}
               </span>
             );
           }
@@ -102,7 +104,7 @@ export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImag
                  cursor: onImageClick ? 'pointer' : 'default', 
                  margin: inline ? '4px 0' : '8px 0',
                  display: 'flex',
-                 justifyContent: 'center' // Centrar la imagen en medio
+                 justifyContent: 'center'
                }}
              >
                <img src={b.url} alt="Bloque de imagen" style={{ maxWidth: '100%', borderRadius: 8, display: 'block', margin: '0 auto' }} />
