@@ -738,6 +738,72 @@ export const ImportarPreguntas: React.FC = () => {
   };
 
 
+  const getEnunciadoTextOnly = (content: string | null | undefined) => {
+    if (!content) return '';
+    try {
+      const blocks = JSON.parse(content);
+      if (!Array.isArray(blocks)) return content;
+      return JSON.stringify(blocks.filter((b: any) => b?.tipo !== 'imagen'));
+    } catch(e) {
+      return content;
+    }
+  };
+
+  const getSavedEnunciadoImages = (content: string | null | undefined) => {
+    if (!content) return [];
+    try {
+      const blocks = JSON.parse(content);
+      if (!Array.isArray(blocks)) return [];
+      return blocks
+        .map((b: any, index: number) => ({ block: b, index }))
+        .filter(({ block }: any) => block?.tipo === 'imagen' && block?.url);
+    } catch(e) {
+      return [];
+    }
+  };
+
+  const removeEnunciadoImage = (questionId: string, blockIndex: number) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      try {
+        const blocks = JSON.parse(q.enunciado);
+        if (!Array.isArray(blocks)) return q;
+        const nextBlocks = blocks.filter((_: any, index: number) => index !== blockIndex);
+        const hasPending = nextBlocks.some((b: any) => b?.tipo === 'imagen' && !b?.url);
+        return {
+          ...q,
+          enunciado: JSON.stringify(nextBlocks),
+          enunciadoNeedsImage: hasPending,
+          needsReview: hasPending || (q.parsedAlternativas || []).some(a => a.needsImage) || !q.isValid || (q.confianza_extraccion !== undefined && q.confianza_extraccion < 80)
+        };
+      } catch(e) {
+        return q;
+      }
+    }));
+  };
+
+  const dismissPendingEnunciadoImages = (questionId: string) => {
+    setQuestions(prev => prev.map(q => {
+      if (q.id !== questionId) return q;
+      try {
+        const blocks = JSON.parse(q.enunciado);
+        if (!Array.isArray(blocks)) return q;
+        const nextBlocks = blocks.filter((b: any) => !(b?.tipo === 'imagen' && !b?.url));
+        const hasAltReview = (q.parsedAlternativas || []).some(a => a.needsImage || !alternativeHasContent(a));
+        const extractionReview = q.confianza_extraccion !== undefined && q.confianza_extraccion < 80;
+        return {
+          ...q,
+          enunciado: JSON.stringify(nextBlocks),
+          enunciadoNeedsImage: false,
+          needsReview: hasAltReview || !q.isValid || extractionReview
+        };
+      } catch(e) {
+        return q;
+      }
+    }));
+  };
+
+
   const commitAlternativeText = (questionId: string, altIndex: number, value: string) => {
     setQuestions(prev => prev.map(q => {
       if (q.id !== questionId) return q;
@@ -1216,9 +1282,33 @@ export const ImportarPreguntas: React.FC = () => {
                   <div className="q-text">
                     <strong>Pregunta {q.numero}.</strong>
                     <ContentRenderer 
-                      contentStr={getEnunciadoWithoutPendingImages(q.enunciado)} 
+                      contentStr={getEnunciadoTextOnly(q.enunciado)} 
                       onImageClick={setModalImage}
                     />
+
+                    {getSavedEnunciadoImages(q.enunciado).length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 10 }}>
+                        {getSavedEnunciadoImages(q.enunciado).map(({ block, index }: any) => (
+                          <div key={`${q.id}-img-${index}`} style={{ position: 'relative', padding: 8, border: '1px solid #dbe4f0', borderRadius: 10, background: '#f8fafc' }}>
+                            <img
+                              src={block.url}
+                              alt="Figura recortada"
+                              onClick={() => setModalImage(block.url)}
+                              style={{ width: '100%', maxHeight: 180, objectFit: 'contain', borderRadius: 8, cursor: 'zoom-in', background: '#fff' }}
+                            />
+                            <button
+                              type="button"
+                              className="btn-small danger"
+                              onClick={() => removeEnunciadoImage(q.id, index)}
+                              style={{ position: 'absolute', top: 12, right: 12, padding: '4px 7px', borderRadius: 999 }}
+                              title="Eliminar esta figura"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {q.originalImageUrl && hasPendingEnunciadoImage(q.enunciado) && (
                       <div style={{
@@ -1232,22 +1322,32 @@ export const ImportarPreguntas: React.FC = () => {
                       }}>
                         <div style={{ fontWeight: 700 }}>🖼️ Figura detectada</div>
                         <div style={{ fontSize: 12, marginTop: 4, color: '#475569' }}>
-                          Recorta una figura. Después podrás añadir otra si la necesitas.
+                          La IA detectó más contenido visual. Puedes recortarlo o ignorarlo.
                         </div>
-                        <button
-                          type="button"
-                          className="btn-small"
-                          onClick={() => openCropper(
-                            q.id,
-                            q.originalImageUrl!,
-                            'enunciado',
-                            undefined,
-                            getFirstPendingEnunciadoImageIndex(q.enunciado)
-                          )}
-                          style={{ marginTop: 10, background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
-                        >
-                          ✂️ Recortar figura
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                          <button
+                            type="button"
+                            className="btn-small"
+                            onClick={() => openCropper(
+                              q.id,
+                              q.originalImageUrl!,
+                              'enunciado',
+                              undefined,
+                              getFirstPendingEnunciadoImageIndex(q.enunciado)
+                            )}
+                            style={{ background: '#2563eb', color: '#fff', borderColor: '#2563eb', fontWeight: 700, padding: '8px 12px' }}
+                          >
+                            ✂️ Recortar esta figura
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-small"
+                            onClick={() => dismissPendingEnunciadoImages(q.id)}
+                            style={{ background: '#fff', color: '#475569', borderColor: '#cbd5e1', fontWeight: 600, padding: '8px 12px' }}
+                          >
+                            Omitir figuras restantes
+                          </button>
+                        </div>
                       </div>
                     )}
 
