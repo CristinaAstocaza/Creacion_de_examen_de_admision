@@ -62,7 +62,8 @@ Devuelve SOLO JSON válido, sin markdown, con esta estructura:
     {"letra":"E","contenido_texto":"...","tipo":"texto"}
   ]
 }
-Para fórmulas usa bloques { "tipo":"latex", "contenido":"..." }. Para una imagen o gráfico necesario usa un bloque { "tipo":"imagen", "url":null, "descripcion":"..." }.
+Para fórmulas usa bloques { "tipo":"latex", "contenido":"..." }.
+Si la pregunta contiene uno o más gráficos, diagramas o figuras necesarios para resolverla, agrega UN bloque { "tipo":"imagen", "url":null, "descripcion":"..." } POR CADA figura distinta, en el orden en que aparecen. No combines dos gráficos diferentes en un solo bloque.
 Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
 `;
 
