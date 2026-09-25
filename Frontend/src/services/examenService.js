@@ -3,16 +3,38 @@ import { getExamenes, setExamenes, getPreguntas, getCursos, getCategorias, nextI
 const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
 const letras = ['A','B','C','D','E'];
 
-const plain = (value) => {
-  if (!value) return '';
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
+const parseBlocks = (value) => {
+  if (!value) return [];
   try {
-    const blocks = JSON.parse(value);
-    if (Array.isArray(blocks)) {
-      return blocks.map(b => b.contenido || b.valor || b.texto || (b.tipo === 'imagen' ? '[Imagen]' : '')).join(' ');
-    }
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed;
   } catch {}
-  return String(value).replace(/<[^>]+>/g, '');
+  return [{ tipo: 'texto', valor: String(value) }];
 };
+
+const plain = (value) => parseBlocks(value)
+  .map(b => b.contenido ?? b.valor ?? b.texto ?? (b.tipo === 'imagen' ? '[Imagen]' : ''))
+  .join(' ');
+
+const contentHtml = (value, maxWidth = 250, maxHeight = 130) => parseBlocks(value).map(b => {
+  const val = b.contenido ?? b.valor ?? b.texto ?? '';
+  if (b.tipo === 'imagen') {
+    return b.url
+      ? `<img src="${escapeHtml(b.url)}" style="max-width:${maxWidth}px;max-height:${maxHeight}px;display:block;margin:6px auto;object-fit:contain">`
+      : '';
+  }
+  if (b.tipo === 'latex') {
+    return `<span style="font-family:serif;font-style:italic">${escapeHtml(val)}</span>`;
+  }
+  return `<span>${escapeHtml(val)}</span>`;
+}).join('');
 
 const buildVersion = (numero, codigoVersion, selected, randomQ, randomA) => {
   const preguntas = (randomQ ? shuffle(selected) : [...selected]).map((p, index) => {
@@ -133,9 +155,9 @@ const cover = () => {
 const htmlVersion = (exam, version, solucionario = false) => {
   const cfg = cover();
   const questions = version.preguntas.map(p => {
-    const alts = p.alternativas.map(a => `<div style="margin:4px 0 4px 22px"><b>${a.letra})</b> ${plain(a.contenidoTexto)}${a.imagenUrl ? `<br><img src="${a.imagenUrl}" style="max-width:180px;max-height:90px">` : ''}</div>`).join('');
+    const alts = p.alternativas.map(a => `<div style="margin:5px 0 7px 22px;break-inside:avoid"><b>${a.letra})</b> ${contentHtml(a.contenidoTexto, 170, 85)}${a.imagenUrl ? `<br><img src="${escapeHtml(a.imagenUrl)}" style="max-width:170px;max-height:85px;display:block;margin:5px auto;object-fit:contain">` : ''}</div>`).join('');
     const correct = p.alternativas.find(a => a.esCorrecta)?.letra || '-';
-    return `<section style="break-inside:avoid;margin:0 0 14px"><div><b>${p.numeroOrden}.</b> ${plain(p.enunciado)}</div>${p.imagenUrl ? `<img src="${p.imagenUrl}" style="max-width:260px;max-height:130px;display:block;margin:6px auto">` : ''}${solucionario ? `<div style="margin-left:22px"><b>Respuesta: ${correct}</b></div>` : alts}</section>`;
+    return `<section style="break-inside:avoid;margin:0 0 14px"><div><b>${p.numeroOrden}.</b> ${contentHtml(p.enunciado, 250, 125)}</div>${p.imagenUrl ? `<img src="${escapeHtml(p.imagenUrl)}" style="max-width:250px;max-height:125px;display:block;margin:6px auto;object-fit:contain">` : ''}${solucionario ? `<div style="margin-left:22px"><b>Respuesta: ${correct}</b></div>` : alts}</section>`;
   }).join('');
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${exam.nombre}</title>
@@ -150,8 +172,7 @@ const safeName = (value = 'examen') => String(value)
   .replace(/[^a-zA-Z0-9-_]+/g, '_')
   .replace(/^_+|_+$/g, '') || 'examen';
 
-const downloadHtml = (html, filename) => {
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -159,30 +180,105 @@ const downloadHtml = (html, filename) => {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+};
+
+const loadScript = (src, globalName) => new Promise((resolve, reject) => {
+  if (window[globalName]) {
+    resolve(window[globalName]);
+    return;
+  }
+  const existing = document.querySelector(`script[data-runtime-lib="${globalName}"]`);
+  if (existing) {
+    existing.addEventListener('load', () => resolve(window[globalName]), { once: true });
+    existing.addEventListener('error', reject, { once: true });
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = src;
+  script.async = true;
+  script.dataset.runtimeLib = globalName;
+  script.onload = () => resolve(window[globalName]);
+  script.onerror = () => reject(new Error(`No se pudo cargar ${globalName}`));
+  document.head.appendChild(script);
+});
+
+const waitForImages = async (root) => {
+  const imgs = [...root.querySelectorAll('img')];
+  await Promise.all(imgs.map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+    });
+  }));
+};
+
+const htmlToPdfBlob = async (html) => {
+  const html2pdf = await loadScript(
+    'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.3/dist/html2pdf.bundle.min.js',
+    'html2pdf'
+  );
+
+  const parsed = new DOMParser().parseFromString(html, 'text/html');
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.left = '-100000px';
+  wrapper.style.top = '0';
+  wrapper.style.width = '794px';
+  wrapper.style.background = '#fff';
+  wrapper.style.zIndex = '-1';
+
+  const styles = [...parsed.head.querySelectorAll('style')].map(s => s.outerHTML).join('');
+  wrapper.innerHTML = styles + parsed.body.innerHTML;
+  document.body.appendChild(wrapper);
+
+  try {
+    await waitForImages(wrapper);
+    const worker = html2pdf()
+      .set({
+        margin: [8, 8, 8, 8],
+        image: { type: 'jpeg', quality: 0.97 },
+        html2canvas: { scale: 1.7, useCORS: true, allowTaint: false, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+      })
+      .from(wrapper)
+      .toPdf();
+
+    return await worker.outputPdf('blob');
+  } finally {
+    wrapper.remove();
+  }
 };
 
 export const descargarPdfVersion = async (examenId, version, customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
-  const filename = `${safeName(customName || e.nombre)}_Version_${safeName(version)}.html`;
-  downloadHtml(htmlVersion(e, v, false), filename);
+  const blob = await htmlToPdfBlob(htmlVersion(e, v, false));
+  downloadBlob(blob, `${safeName(customName || e.nombre)}_Version_${safeName(version)}.pdf`);
 };
 
 export const descargarPdfsVersiones = async (examenId, customName = '') => {
   const e = await obtenerExamen(examenId);
-  const html = e.versiones.map(v => {
-    const full = htmlVersion(e, v, false);
-    const startBody = full.indexOf('<body>') + 6;
-    const endBody = full.lastIndexOf('</body>');
-    return startBody >= 6 && endBody > startBody ? full.slice(startBody, endBody) : full;
-  }).join('<div style="page-break-before:always"></div>');
-  const combined = `<!doctype html><html><head><meta charset="utf-8"><title>${e.nombre}</title><style>@page{size:A4;margin:14mm}body{font-family:Arial;font-size:11px}.q{column-count:2;column-gap:22px}.cover{height:250mm;page-break-after:always;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}</style></head><body>${html}</body></html>`;
-  downloadHtml(combined, `${safeName(customName || e.nombre)}_Todas_las_versiones.html`);
+  const JSZip = await loadScript(
+    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+    'JSZip'
+  );
+
+  const zip = new JSZip();
+  for (const v of e.versiones) {
+    const blob = await htmlToPdfBlob(htmlVersion(e, v, false));
+    zip.file(`${safeName(customName || e.nombre)}_Version_${safeName(v.codigoVersion)}.pdf`, blob);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  downloadBlob(zipBlob, `${safeName(customName || e.nombre)}_Versiones.zip`);
 };
 
 export const descargarPdfSolucionario = async (examenId, version, customName = '') => {
   const e = await obtenerExamen(examenId);
   const v = await obtenerVersionExamen(examenId, version);
-  downloadHtml(htmlVersion(e, v, true), `${safeName(customName || e.nombre)}_Solucionario_${safeName(version)}.html`);
+  const blob = await htmlToPdfBlob(htmlVersion(e, v, true));
+  downloadBlob(blob, `${safeName(customName || e.nombre)}_Solucionario_${safeName(version)}.pdf`);
 };
