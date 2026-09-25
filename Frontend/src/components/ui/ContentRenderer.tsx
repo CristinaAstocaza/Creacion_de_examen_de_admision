@@ -20,15 +20,30 @@ interface Props {
 export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImageClick, onCropClick, inline = false }) => {
   const blocks = useMemo(() => {
     if (!contentStr) return [];
-    try {
-      const parsed = JSON.parse(contentStr);
-      if (Array.isArray(parsed)) {
-        return parsed as ContentBlock[];
+
+    let current: unknown = contentStr;
+    for (let i = 0; i < 4; i += 1) {
+      if (Array.isArray(current)) {
+        return current as ContentBlock[];
       }
-    } catch (e) {
-      // not a json string, fallback to plain text
+      if (typeof current !== 'string') break;
+
+      try {
+        current = JSON.parse(current);
+      } catch {
+        break;
+      }
     }
-    return [{ tipo: 'texto', valor: contentStr }] as ContentBlock[];
+
+    if (Array.isArray(current)) {
+      return current as ContentBlock[];
+    }
+
+    if (current && typeof current === 'object' && 'tipo' in current) {
+      return [current as ContentBlock];
+    }
+
+    return [{ tipo: 'texto', valor: String(current ?? contentStr) }] as ContentBlock[];
   }, [contentStr]);
 
   if (blocks.length === 0) return null;
