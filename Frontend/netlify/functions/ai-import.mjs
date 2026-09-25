@@ -64,6 +64,8 @@ Devuelve SOLO JSON válido, sin markdown, con esta estructura:
 }
 Para fórmulas usa bloques { "tipo":"latex", "contenido":"..." }.
 Si la pregunta contiene uno o más gráficos, diagramas o figuras necesarios para resolverla, agrega UN bloque { "tipo":"imagen", "url":null, "descripcion":"..." } POR CADA figura distinta, en el orden en que aparecen. No combines dos gráficos diferentes en un solo bloque.
+MUY IMPORTANTE: si una alternativa A-E está representada principalmente por un dibujo, vector, gráfico, esquema o figura, NO la describas en palabras como si fuera texto. En "contenido_texto" devuelve un bloque de imagen pendiente de recorte, por ejemplo [{"tipo":"imagen","url":null,"descripcion":"alternativa gráfica A"}]. Esto debe permitir que el usuario recorte esa alternativa desde la imagen original.
+Solo usa texto descriptivo cuando la alternativa realmente sea textual.
 Conserva exactamente símbolos, subíndices, superíndices y fórmulas.
 `;
 
