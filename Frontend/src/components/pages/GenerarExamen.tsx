@@ -44,6 +44,37 @@ interface ExamenGenerado {
   categoriaExamenNombre: string;
 }
 
+const DISTRIBUCIONES_DEFAULT: Record<string, Record<string, number>> = {
+  salud: {
+    'CUR-BIO': 17, 'CUR-QUI': 8, 'CUR-FIS': 5, 'CUR-HIS': 2, 'CUR-GEO': 2,
+    'CUR-ECO': 1, 'CUR-CIV': 2, 'CUR-PSI': 2, 'CUR-LEN': 3, 'CUR-LIT': 3,
+    'CUR-TRI': 3, 'CUR-GEO2': 4, 'CUR-ALG': 4, 'CUR-ARI': 4, 'CUR-RV': 20, 'CUR-RM': 20,
+  },
+  social: {
+    'CUR-BIO': 8, 'CUR-QUI': 4, 'CUR-FIS': 3, 'CUR-HIS': 4, 'CUR-GEO': 3,
+    'CUR-ECO': 3, 'CUR-CIV': 4, 'CUR-PSI': 4, 'CUR-LEN': 6, 'CUR-LIT': 6,
+    'CUR-TRI': 3, 'CUR-GEO2': 4, 'CUR-ALG': 4, 'CUR-ARI': 4, 'CUR-RV': 20, 'CUR-RM': 20,
+  },
+  ingenier: {
+    'CUR-BIO': 2, 'CUR-QUI': 5, 'CUR-FIS': 8, 'CUR-HIS': 2, 'CUR-GEO': 2,
+    'CUR-ECO': 1, 'CUR-CIV': 2, 'CUR-PSI': 2, 'CUR-LEN': 3, 'CUR-LIT': 3,
+    'CUR-TRI': 7, 'CUR-GEO2': 8, 'CUR-ALG': 7, 'CUR-ARI': 8, 'CUR-RV': 20, 'CUR-RM': 20,
+  },
+  educaci: {
+    'CUR-BIO': 4, 'CUR-QUI': 3, 'CUR-FIS': 2, 'CUR-HIS': 6, 'CUR-GEO': 5,
+    'CUR-ECO': 4, 'CUR-CIV': 5, 'CUR-PSI': 8, 'CUR-LEN': 8, 'CUR-LIT': 8,
+    'CUR-TRI': 1, 'CUR-GEO2': 1, 'CUR-ALG': 2, 'CUR-ARI': 3, 'CUR-RV': 20, 'CUR-RM': 20,
+  },
+};
+
+const resolverDistribucionPorNombre = (nombre: string): Record<string, number> => {
+  const norm = (nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const [clave, distrib] of Object.entries(DISTRIBUCIONES_DEFAULT)) {
+    if (norm.includes(clave)) return distrib;
+  }
+  return DISTRIBUCIONES_DEFAULT.ingenier;
+};
+
 const emptyQuantities = (): Quantities => ({ total: 0, facil: 0, medio: 0, dificil: 0 });
 
 export default function GenerarExamen() {
@@ -91,9 +122,26 @@ export default function GenerarExamen() {
 
       try {
         const sugerencias = await listarConfigCursos(selectedCategoriaId);
-        const activas = sugerencias.filter((config: CategoriaCursoConfig) => config.activo);
+        let activas = sugerencias.filter((config: CategoriaCursoConfig) => config.activo);
         const selected: Record<number, boolean> = {};
         const nextQuantities: Record<number, Quantities> = {};
+
+        // Si la categoría no tiene configuraciones en backend, usar plantilla predeterminada
+        if (activas.length === 0 && cursos.length > 0) {
+          const categoriaObj = categorias.find((c) => c.id === selectedCategoriaId);
+          const plantilla = resolverDistribucionPorNombre(categoriaObj?.nombre || '');
+          activas = cursos.map((c) => {
+            const cant = plantilla[c.codigo || ''] || 0;
+            return {
+              id: c.id,
+              cursoId: c.id,
+              cursoNombre: c.nombre,
+              cursoCodigo: c.codigo,
+              cantidadSugerida: cant,
+              activo: true,
+            };
+          });
+        }
 
         activas.forEach((config: CategoriaCursoConfig) => {
           selected[config.cursoId] = Boolean(config.cantidadSugerida && config.cantidadSugerida > 0);
@@ -118,7 +166,7 @@ export default function GenerarExamen() {
     };
 
     cargarSugerencias();
-  }, [selectedCategoriaId]);
+  }, [selectedCategoriaId, categorias, cursos]);
 
   const cursosProcesados = useMemo(() => cursos.map((curso) => {
     const config = configs.find((item) => item.cursoId === curso.id);
