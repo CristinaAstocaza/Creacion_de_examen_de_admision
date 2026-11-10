@@ -12,9 +12,12 @@ import pe.edu.utp.sistemaexamenes.mapper.CategoriaExamenMapper;
 import pe.edu.utp.sistemaexamenes.model.CategoriaCursoConfig;
 import pe.edu.utp.sistemaexamenes.model.CategoriaExamen;
 import pe.edu.utp.sistemaexamenes.model.Curso;
+import pe.edu.utp.sistemaexamenes.model.Examen;
 import pe.edu.utp.sistemaexamenes.repository.CategoriaCursoConfigRepository;
 import pe.edu.utp.sistemaexamenes.repository.CategoriaExamenRepository;
 import pe.edu.utp.sistemaexamenes.repository.CursoRepository;
+import pe.edu.utp.sistemaexamenes.repository.ExamenRepository;
+import pe.edu.utp.sistemaexamenes.repository.HistorialAccionRepository;
 import pe.edu.utp.sistemaexamenes.service.CategoriaExamenService;
 
 import java.util.List;
@@ -26,6 +29,8 @@ public class CategoriaExamenServiceImpl implements CategoriaExamenService {
     private final CategoriaExamenRepository categoriaExamenRepository;
     private final CategoriaCursoConfigRepository categoriaCursoConfigRepository;
     private final CursoRepository cursoRepository;
+    private final ExamenRepository examenRepository;
+    private final HistorialAccionRepository historialAccionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -60,6 +65,23 @@ public class CategoriaExamenServiceImpl implements CategoriaExamenService {
     @Transactional
     public void eliminar(Long id) {
         CategoriaExamen categoria = buscarCategoria(id);
+
+        // 1. Eliminar configuraciones de cursos asociadas al área
+        if (categoria.getCursosConfig() != null && !categoria.getCursosConfig().isEmpty()) {
+            categoriaCursoConfigRepository.deleteAll(categoria.getCursosConfig());
+        }
+
+        // 2. Eliminar exámenes generados en esta área junto con su historial
+        if (categoria.getExamenes() != null && !categoria.getExamenes().isEmpty()) {
+            for (Examen examen : categoria.getExamenes()) {
+                if (examen.getHistorialAcciones() != null && !examen.getHistorialAcciones().isEmpty()) {
+                    historialAccionRepository.deleteAll(examen.getHistorialAcciones());
+                }
+                examenRepository.delete(examen);
+            }
+        }
+
+        // 3. Eliminar la categoría
         categoriaExamenRepository.delete(categoria);
     }
 

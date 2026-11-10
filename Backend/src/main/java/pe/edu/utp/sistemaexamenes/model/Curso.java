@@ -1,5 +1,6 @@
 package pe.edu.utp.sistemaexamenes.model;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -47,15 +48,15 @@ public class Curso {
     @Builder.Default
     private LocalDateTime fechaCreacion = LocalDateTime.now();
 
-    @OneToMany(mappedBy = "curso")
+    @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Pregunta> preguntas = new ArrayList<>();
 
-    @OneToMany(mappedBy = "curso")
+    @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<CategoriaCursoConfig> categoriasCursoConfig = new ArrayList<>();
 
-    @OneToMany(mappedBy = "curso")
+    @OneToMany(mappedBy = "curso", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ExamenConfiguracionCurso> configuracionesExamen = new ArrayList<>();
 }

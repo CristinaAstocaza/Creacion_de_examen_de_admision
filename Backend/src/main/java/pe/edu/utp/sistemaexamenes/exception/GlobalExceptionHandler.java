@@ -1,6 +1,7 @@
 package pe.edu.utp.sistemaexamenes.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
                 .toList();
 
         return buildResponse(HttpStatus.BAD_REQUEST, "Error de validación", request.getRequestURI(), details);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException exception, HttpServletRequest request) {
+        String cause = exception.getMostSpecificCause() != null ? exception.getMostSpecificCause().getMessage() : exception.getMessage();
+        return buildResponse(HttpStatus.CONFLICT, "No se puede completar la operación debido a restricciones de integridad de datos relacionados.", request.getRequestURI(), List.of(cause));
     }
 
     @ExceptionHandler(Exception.class)

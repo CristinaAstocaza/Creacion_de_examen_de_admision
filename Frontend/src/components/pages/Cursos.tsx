@@ -102,7 +102,9 @@ export default function Cursos() {
   };
 
   const handleDeleteCurso = async (curso: Curso) => {
-    const confirmacion = window.confirm(`¿Deseas eliminar o desactivar el curso ${curso.nombre}?`);
+    const confirmacion = window.confirm(
+      `⚠️ ADVERTENCIA: ¿Está seguro de eliminar el curso "${curso.nombre}"?\n\nAl eliminar este curso también se eliminarán permanentemente todas las preguntas y alternativas asociadas a él en el banco de preguntas.\n\n¿Desea continuar?`
+    );
     if (!confirmacion) return;
 
     try {

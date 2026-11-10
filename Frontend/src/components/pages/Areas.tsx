@@ -127,10 +127,14 @@ export default function Areas() {
     }
   };
 
-  const handleDeleteArea = async (id: string) => {
-    if (!window.confirm('¿Está seguro de eliminar esta área?')) return;
+  const handleDeleteArea = async (area: Area) => {
+    const confirmacion = window.confirm(
+      `⚠️ ADVERTENCIA: ¿Está seguro de eliminar el área "${area.name}"?\n\nEsta acción eliminará permanentemente el área y todas sus configuraciones de distribución de cursos asociadas.`
+    );
+    if (!confirmacion) return;
+
     try {
-      await eliminarCategoria(id);
+      await eliminarCategoria(area.id);
       await cargarCategorias();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el área');
@@ -277,7 +281,7 @@ export default function Areas() {
                     <button 
                       className="btn-icon delete" 
                       title="Eliminar"
-                      onClick={() => handleDeleteArea(area.id)}
+                      onClick={() => handleDeleteArea(area)}
                     >
                       <span className="material-icons-outlined">delete</span>
                     </button>
