@@ -46,9 +46,14 @@ export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor:
     return result;
   };
 
+  // Límites de palabra que sí reconocen tildes y ñ (\b de JS solo entiende ASCII:
+  // con \b, "SINÓNIMO" se leía como la fórmula "SIN" + "ÓNIMO").
+  const INI = '(?<![\\p{L}\\p{N}])';
+  const FIN = '(?![\\p{L}\\p{N}])';
+
   // 1. Iones (ej: Na+, Fe3+, Fe³⁺, Cl-)
   formatted = formatted.replace(
-    new RegExp(`\\b(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]*)([\\+\\-\\⁺\\⁻])\\b`, 'g'),
+    new RegExp(`${INI}(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]*)([+\\-⁺⁻])${FIN}`, 'gu'),
     (_, element, num, charge) => {
       const normNum = num ? normalizeUnicodeDigits(num) : '';
       const normCharge = charge === '⁺' || charge === '+' ? '+' : '-';
@@ -58,23 +63,24 @@ export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor:
 
   // 2. Isótopos (ej: ⁶Li, ⁷Li, 6Li, 235U)
   formatted = formatted.replace(
-    new RegExp(`([⁰¹²³⁴⁵⁶⁷⁸⁹]+|\\b\\d+)(${commonElements})\\b`, 'g'),
+    new RegExp(`([⁰¹²³⁴⁵⁶⁷⁸⁹]+|${INI}\\d+)(${commonElements})${FIN}`, 'gu'),
     (_, num, element) => {
       const normNum = normalizeUnicodeDigits(num);
       return `$ {}^{${normNum}}\\mathrm{${element}} $`;
     }
   );
 
-  // 3. Fórmulas químicas multi-elemento (ej: H2O, H₂O, CO2, H2SO4, NaCl)
+  // 3. Fórmulas químicas multi-elemento (ej: H2O, H₂O, CO2, H2SO4)
+  // Solo si llevan algún número: así siglas como "PIB", "II" o "SIN" siguen siendo texto.
   formatted = formatted.replace(
-    new RegExp(`\\b((?:${commonElements})(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?(?:${commonElements})+(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?)\\b`, 'g'),
-    (_, formula) => `$ ${toChemicalKatex(formula)} $`
+    new RegExp(`${INI}((?:${commonElements})(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?(?:${commonElements})+(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?)${FIN}`, 'gu'),
+    (match, formula) => (/[\d₀-₉]/.test(formula) ? `$ ${toChemicalKatex(formula)} $` : match)
   );
 
   // 4. Elementos individuales con números (ej: O2, N2, H2) - Excluimos Si y Al para evitar colisiones con "Si" y "Al" en español
   const singleElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb|U|Pu|Br|I';
   formatted = formatted.replace(
-    new RegExp(`\\b(${singleElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)\\b`, 'g'),
+    new RegExp(`${INI}(${singleElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)${FIN}`, 'gu'),
     (_, element, num) => {
       const normNum = normalizeUnicodeDigits(num);
       return `$ ${element}_{${normNum}} $`;
@@ -84,7 +90,7 @@ export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor:
   // 5. Exponentes algebraicos y unidades (ej: x2, m2, x², m², y³, k⁴)
   const mathVariables = 'x|y|z|n|a|b|c|k|m|X|Y|Z';
   formatted = formatted.replace(
-    new RegExp(`\\b(${mathVariables})([²³⁴⁵⁶⁷⁸⁹⁰]+|\\^?\\d+)\\b`, 'g'),
+    new RegExp(`${INI}(${mathVariables})([²³⁴⁵⁶⁷⁸⁹⁰]+|\\^?\\d+)${FIN}`, 'gu'),
     (_, variable, num) => {
       const normNum = normalizeUnicodeDigits(num.replace('^', ''));
       return `$ ${variable}^{${normNum}} $`;
@@ -261,11 +267,39 @@ export const parseQuestionsHeuristically = (text: string): ParserResult => {
   const qStartRegex = /^(?:Pregunta|PREGUNTA)\s+(\d+)[\)\.\:\-]?\s*(.*)$/i;
   const qStartNumberOnlyRegex = /^(\d+)[\)\.\:\-]\s*(.*)$/;
   const altRegex = /^\s*([a-eA-E])\s*[\)\.\:\-]\s*(.*)$/;
+  // Líneas de clave ("Respuesta: c", "Rpta: B", "Clave: D") no son parte de la pregunta.
+  const answerKeyRegex = /^\s*(?:respuesta(?:\s+correcta)?|rpta|resp|clave)\s*[\.:\-=]?\s*\(?[a-eA-E]\)?\s*\.?\s*$/i;
+
+  // Texto que dejan los chats de IA al copiar preguntas: no forma parte del examen.
+  const separadorRegex = /^\s*([-*_])\1{2,}\s*$/; // ---, ***, ___
+  const preambuloRegex = /^(perfecto|claro|excelente|genial|listo|aqu[ií] tienes|a continuaci[oó]n|te dejo|si quieres|solo dime|espero que)/i;
+  const tituloMarkdownRegex = /^#{1,6}\s/;
+  const lineaEmojiRegex = /^\p{Extended_Pictographic}/u;
+  // Tras un separador "---" se ignora todo hasta la siguiente pregunta numerada.
+  let ignorandoBloque = false;
 
   for (let line of rawLines) {
+    // Quita el formato markdown: **negrita** y *cursiva*
+    line = line.replace(/\*\*(.+?)\*\*/g, '$1').replace(/(^|[\s(¿¡"«:])\*(\S[^*]*?)\*/g, '$1$2');
     const trimmed = line.trim();
+
+    const esInicioPregunta = qStartRegex.test(line) || qStartNumberOnlyRegex.test(line);
+    if (esInicioPregunta) ignorandoBloque = false;
+    if (separadorRegex.test(trimmed)) {
+      ignorandoBloque = true;
+      continue;
+    }
+    if (ignorandoBloque) continue;
+    if (trimmed && (preambuloRegex.test(trimmed) || tituloMarkdownRegex.test(trimmed) || lineaEmojiRegex.test(trimmed))) {
+      continue;
+    }
+
     if (!trimmed) {
       taggedLines.push({ originalText: line, type: 'blank' });
+      continue;
+    }
+
+    if (answerKeyRegex.test(trimmed)) {
       continue;
     }
 

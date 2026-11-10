@@ -12,6 +12,7 @@ const leerConfiguracionCaratula = () => {
       colorPortada: parsed.colorPortada || null,
       logoUrl: parsed.logoUrl || null,
       instruccionesPortada: parsed.instructions?.trim() || null,
+      textoPie: parsed.footerText?.trim() || null,
     };
   } catch {
     return null;
@@ -105,6 +106,19 @@ const descargarArchivo = async (url, nombreFallback, config = {}) => {
   window.URL.revokeObjectURL(blobUrl);
 };
 
+/**
+ * Pide al backend el mismo PDF que se descarga y devuelve una URL local (blob:)
+ * para mostrarlo en la vista previa. Quien la use debe liberarla con URL.revokeObjectURL.
+ */
+export const obtenerPdfVersionUrl = async (examenId, version) => {
+  const response = await api.post(
+    `/examenes/${examenId}/versiones/${version}/pdf`,
+    leerConfiguracionCaratula(),
+    { responseType: 'blob' },
+  );
+  return window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+};
+
 export const descargarPdfVersion = (examenId, version, customName) => descargarArchivo(
   `/examenes/${examenId}/versiones/${version}/pdf`,
   `examen_version_${version}.pdf`,
@@ -123,10 +137,3 @@ export const descargarPdfsVersiones = (examenId, customName) => descargarArchivo
   }
 );
 
-export const descargarPdfSolucionario = (examenId, version, customName) => descargarArchivo(
-  `/examenes/${examenId}/versiones/${version}/solucionario-pdf`,
-  `solucionario_version_${version}.pdf`,
-  {
-    customName,
-  }
-);

@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { importarImagenes, guardarLotePreguntas, uploadRecorte } from '../../services/preguntaService';
 import { listarCursos } from '../../services/cursoService';
 import { ImageCropperModal } from './ImageCropperModal';
+import { EscanerPanel, type PreguntaEscaneada } from './EscanerPanel';
+import { esCapturaImportada, tieneBloquesImagen } from '../../utils/contenidoBloques';
 import { ContentRenderer } from '../ui/ContentRenderer';
 
 // ─────────────────────────────────────────────
@@ -479,6 +481,13 @@ export const ImportarPreguntas: React.FC = () => {
     processNextBatch();
   }, [imageTasks, isProcessingBatch, selectedCursoId, mode]);
 
+  // ── Escáner: cada pregunta conserva la página de origen para recortes manuales ──
+  const handlePreguntasEscaneadas = (preguntas: PreguntaEscaneada[]) => {
+    const mapeadas = preguntas.flatMap(q => mapGeminiToQuestions([q as unknown as GeminiPregunta], q.imagen_pagina_url));
+    setQuestions(mapeadas);
+    setMode('preview');
+  };
+
   // ── Recorte de Imágenes ──
   const openCropper = (questionId: string, originalUrl: string, targetType: 'enunciado' | 'alternativa', alternativaIndex?: number, blockIndex?: number) => {
     setCropper({ isOpen: true, imageUrl: originalUrl, questionId, targetType, alternativaIndex, blockIndex });
@@ -564,8 +573,9 @@ export const ImportarPreguntas: React.FC = () => {
         dificultad: q.dificultad || 'MEDIO',
         activo: true,
         cursoId: Number(selectedCursoId),
-        imagenUrl: q.imagenUrl ?? null,
-        tieneImagen: !!q.imagenUrl,
+        // La captura completa solo sirve para recortar; la figura real va como bloque dentro del enunciado.
+        imagenUrl: esCapturaImportada(q.imagenUrl) ? null : q.imagenUrl ?? null,
+        tieneImagen: tieneBloquesImagen(q.enunciado) || (!!q.imagenUrl && !esCapturaImportada(q.imagenUrl)),
         alternativas: q.parsedAlternativas!.map(a => ({
           letra: a.letra,
           tipo: a.tipo,
@@ -720,7 +730,7 @@ export const ImportarPreguntas: React.FC = () => {
                     </div>
                     {isDocumentScanned && (
                       <div className="card-recommendation-warning">
-                        ⚠️ Este PDF parece estar escaneado (es una imagen). Para importar este archivo, por favor usa la <strong>Tarjeta 3 (Importar Imagen)</strong> para procesarlo con IA.
+                        ⚠️ Este PDF parece estar escaneado (es una imagen). Súbelo en <strong>Escanear desde impresora → Subir PDF o fotos de las hojas</strong> y tu agente IA extraerá sus preguntas.
                       </div>
                     )}
                   </>
@@ -779,7 +789,7 @@ export const ImportarPreguntas: React.FC = () => {
             <div className="import-card-header">
               <div className="card-icon">🖼️</div>
               <h3>Importar Imagen</h3>
-              <p>Arrastra, selecciona o pega capturas de pantalla de tus preguntas. Usa Gemini IA para procesarlas.</p>
+              <p>Arrastra, selecciona o pega capturas de pantalla de tus preguntas. Tu agente IA las lee y las convierte en preguntas editables.</p>
             </div>
 
             <input 
@@ -839,6 +849,9 @@ export const ImportarPreguntas: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Tarjeta 4 - Escanear desde impresora */}
+          <EscanerPanel cursoId={selectedCursoId} onPreguntasExtraidas={handlePreguntasEscaneadas} />
         </div>
       )}
 

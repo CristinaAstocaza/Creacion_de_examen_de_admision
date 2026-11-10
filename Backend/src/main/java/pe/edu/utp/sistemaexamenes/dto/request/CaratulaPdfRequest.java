@@ -11,6 +11,8 @@ public record CaratulaPdfRequest(
         String modalidad,
         String colorPortada,
         String logoUrl,
-        String instruccionesPortada
+        String instruccionesPortada,
+        /** Texto opcional al pie de la portada ("Texto de pie" en Configuración). */
+        String textoPie
 ) {
 }

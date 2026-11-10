@@ -17,17 +17,12 @@ import pe.edu.utp.sistemaexamenes.model.Pregunta;
 import pe.edu.utp.sistemaexamenes.repository.ExamenRepository;
 import pe.edu.utp.sistemaexamenes.repository.ExamenVersionRepository;
 import pe.edu.utp.sistemaexamenes.service.ExamenPdfService;
-import pe.edu.utp.sistemaexamenes.util.ContenidoBloqueUtil;
+import pe.edu.utp.sistemaexamenes.util.PdfContenidoRenderer;
+import pe.edu.utp.sistemaexamenes.util.PdfContenidoRenderer.Bloque;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ByteArrayInputStream;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.net.URL;
-import java.net.HttpURLConnection;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -46,6 +41,23 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     // Letra de tema por índice de versión (0 = A, 1 = B, ...)
     private static final char[] LETRAS_TEMA = "ABCDEFGHIJ".toCharArray();
+    // Letras que se imprimen según la posición de la alternativa (no según su letra original)
+    private static final String[] LETRAS_IMPRESAS = {"A", "B", "C", "D", "E"};
+
+    // Estilo de las hojas de preguntas: tono papel periódico, tinta casi negra.
+    static final Color COLOR_PAPEL = new Color(233, 227, 211);
+    private static final Color COLOR_TINTA = new Color(28, 28, 28);
+    private static final Color COLOR_TINTA_SUAVE = new Color(90, 84, 72);
+    private static final Color COLOR_FRANJA_CURSO = new Color(214, 206, 186);
+
+    private static final float MARGEN_LATERAL = 42f;
+    private static final float MARGEN_SUPERIOR_PREGUNTAS = 74f;
+    private static final float MARGEN_INFERIOR_PREGUNTAS = 52f;
+    private static final float SEPARACION_COLUMNAS = 22f;
+
+    private static final float TAM_TEXTO = 9.5f;
+    private static final float SANGRIA_NUMERO = 17f;
+    private static final float SANGRIA_ALTERNATIVA = 14f;
 
     private final ExamenRepository examenRepository;
     private final ExamenVersionRepository examenVersionRepository;
@@ -75,7 +87,7 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream(); ZipOutputStream zip = new ZipOutputStream(output)) {
             for (ExamenVersion version : examen.getVersiones().stream().sorted(Comparator.comparing(ExamenVersion::getNumero)).toList()) {
                 zip.putNextEntry(new ZipEntry(nombrePdf(version, false)));
-                zip.write(generarPdfExamen(version, (CaratulaPdfRequest) null));
+                zip.write(generarPdfExamen(version, null));
                 zip.closeEntry();
             }
             zip.finish();
@@ -97,26 +109,36 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // Método principal de generación con soporte de carátula
+    // Generación del examen
     // ─────────────────────────────────────────────────────────────────
 
     /**
-     * Genera el PDF de un examen, incluyendo carátula y contenido a 2 columnas.
+     * Genera el PDF de un examen: carátula + preguntas a 2 columnas sobre fondo papel periódico.
      *
-     * @param version La versión del examen a renderizar.
+     * @param version  La versión del examen a renderizar.
      * @param caratula Configuración opcional de portada (localStorage al descargar).
      */
     public byte[] generarPdfExamen(ExamenVersion version, CaratulaPdfRequest caratula) {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4, 45, 45, 45, 45);
             PdfWriter writer = PdfWriter.getInstance(document, output);
+
+            int versionIndex = (version.getNumero() != null ? version.getNumero() : 1) - 1;
+            char letraTema = LETRAS_TEMA[Math.min(versionIndex, LETRAS_TEMA.length - 1)];
+            String universidad = resolverTexto(
+                    caratula != null ? caratula.nombreUniversidad() : null,
+                    version.getExamen().getNombreUniversidad(),
+                    "UNIVERSIDAD NACIONAL").toUpperCase();
+            writer.setPageEvent(new HojaPreguntasEvent(letraTema, universidad));
+
             document.open();
 
             // --- PÁGINA 1: CARÁTULA ---
             agregarCaratula(document, writer, version, caratula);
-            document.newPage();
 
             // --- PÁGINAS SIGUIENTES: CONTENIDO A 2 COLUMNAS ---
+            document.setMargins(MARGEN_LATERAL, MARGEN_LATERAL, MARGEN_SUPERIOR_PREGUNTAS, MARGEN_INFERIOR_PREGUNTAS);
+            document.newPage();
             agregarContenidoDobleColumna(document, version);
 
             document.close();
@@ -126,10 +148,77 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         }
     }
 
+    /** Pinta el fondo, la cabecera, el pie y la línea entre columnas de cada hoja de preguntas. */
+    private static final class HojaPreguntasEvent extends PdfPageEventHelper {
+        private final char letraTema;
+        private final String universidad;
+
+        private HojaPreguntasEvent(char letraTema, String universidad) {
+            this.letraTema = letraTema;
+            this.universidad = universidad;
+        }
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            int pagina = writer.getPageNumber();
+            if (pagina == 1) return; // La carátula tiene su propio fondo.
+
+            Rectangle hoja = document.getPageSize();
+            PdfContentByte fondo = writer.getDirectContentUnder();
+            fondo.saveState();
+            fondo.setColorFill(COLOR_PAPEL);
+            fondo.rectangle(0, 0, hoja.getWidth(), hoja.getHeight());
+            fondo.fill();
+            fondo.restoreState();
+
+            float izquierda = MARGEN_LATERAL;
+            float derecha = hoja.getWidth() - MARGEN_LATERAL;
+            float yLineaCabecera = hoja.getHeight() - 52f;
+            float yLineaPie = MARGEN_INFERIOR_PREGUNTAS - 14f;
+
+            PdfContentByte cb = writer.getDirectContent();
+            cb.saveState();
+            cb.setColorStroke(COLOR_TINTA);
+            cb.setLineWidth(1.2f);
+            cb.moveTo(izquierda, yLineaCabecera);
+            cb.lineTo(derecha, yLineaCabecera);
+            cb.stroke();
+
+            cb.setColorStroke(COLOR_TINTA_SUAVE);
+            cb.setLineWidth(0.4f);
+            cb.moveTo(izquierda, yLineaPie);
+            cb.lineTo(derecha, yLineaPie);
+            cb.stroke();
+
+            // Línea vertical entre columnas
+            float centro = hoja.getWidth() / 2f;
+            cb.setLineWidth(0.5f);
+            cb.moveTo(centro, yLineaCabecera - 10f);
+            cb.lineTo(centro, yLineaPie + 8f);
+            cb.stroke();
+            cb.restoreState();
+
+            float yTexto = yLineaCabecera + 7f;
+            ColumnText.showTextAligned(cb, Element.ALIGN_LEFT,
+                    new Phrase("TEMA " + letraTema, PdfContenidoRenderer.fuente(11, Font.BOLD, COLOR_TINTA)),
+                    izquierda, yTexto, 0);
+            ColumnText.showTextAligned(cb, Element.ALIGN_RIGHT,
+                    new Phrase(universidad, PdfContenidoRenderer.fuente(8.5f, Font.BOLD, COLOR_TINTA_SUAVE)),
+                    derecha, yTexto, 0);
+            ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
+                    new Phrase("— " + (pagina - 1) + " —", PdfContenidoRenderer.fuente(8, Font.NORMAL, COLOR_TINTA_SUAVE)),
+                    centro, yLineaPie - 12f, 0);
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────
     // CARÁTULA
     // ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Carátula dibujada con la misma distribución que la vista previa de "Configuración":
+     * institución subrayada, logo, título, modalidad, recuadro de TEMA e instrucciones al pie.
+     */
     private void agregarCaratula(Document document, PdfWriter writer, ExamenVersion version, CaratulaPdfRequest caratulaOverride)
             throws DocumentException {
 
@@ -139,28 +228,24 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
                 caratulaOverride != null ? caratulaOverride.nombreUniversidad() : null,
                 examen.getNombreUniversidad(),
                 "UNIVERSIDAD NACIONAL").toUpperCase();
-
         String titulo = resolverTexto(
                 caratulaOverride != null ? caratulaOverride.tituloExamen() : null,
                 examen.getTituloExamen(),
                 examen.getNombre()).toUpperCase();
-
         String modalidad = resolverTexto(
                 caratulaOverride != null ? caratulaOverride.modalidad() : null,
                 examen.getModalidad(),
                 "MODALIDAD ORDINARIO").toUpperCase();
-
         String instrucciones = resolverTexto(
                 caratulaOverride != null ? caratulaOverride.instruccionesPortada() : null,
                 examen.getInstruccionesPortada(),
                 "Lea cuidadosamente cada pregunta y marque solo una alternativa.");
-
         String logoUrl = resolverTexto(
                 caratulaOverride != null ? caratulaOverride.logoUrl() : null,
                 examen.getLogoUrl(),
                 null);
-
-        Color bgColor = parseColor(resolverTexto(
+        String textoPie = caratulaOverride != null ? resolverTexto(caratulaOverride.textoPie(), null, null) : null;
+        Color fondo = parseColor(resolverTexto(
                 caratulaOverride != null ? caratulaOverride.colorPortada() : null,
                 examen.getColorPortada(),
                 "#6366f1"));
@@ -168,348 +253,140 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         int versionIndex = (version.getNumero() != null ? version.getNumero() : 1) - 1;
         char letraTema = LETRAS_TEMA[Math.min(versionIndex, LETRAS_TEMA.length - 1)];
 
-        PdfContentByte canvas = writer.getDirectContentUnder();
-        Rectangle pageSize = document.getPageSize();
-        canvas.setColorFill(bgColor);
-        canvas.rectangle(pageSize.getLeft(), pageSize.getBottom(), pageSize.getWidth(), pageSize.getHeight());
-        canvas.fill();
+        // Mismo criterio de contraste que la vista de Configuración.
+        Color tinta = isColorOscuro(fondo) ? Color.WHITE : new Color(15, 23, 42);
 
-        Color textColor = isColorOscuro(bgColor) ? Color.WHITE : new Color(15, 23, 42);
-        Color temaBoxColor = isColorOscuro(bgColor)
-                ? new Color(255, 255, 255, 40)
-                : new Color(0, 0, 0, 20);
+        Rectangle hoja = document.getPageSize();
+        float ancho = hoja.getWidth();
+        float alto = hoja.getHeight();
+        float centro = ancho / 2f;
 
-        PdfPTable coverTable = new PdfPTable(1);
-        coverTable.setWidthPercentage(88f);
-        coverTable.setHorizontalAlignment(Element.ALIGN_CENTER);
+        PdfContentByte bajo = writer.getDirectContentUnder();
+        bajo.saveState();
+        bajo.setColorFill(fondo);
+        bajo.rectangle(0, 0, ancho, alto);
+        bajo.fill();
+        bajo.restoreState();
 
-        // Institución con línea inferior
-        PdfPCell universidadCell = crearCeldaCaratula(
-                new Phrase(universidad, fuenteColor(20, Font.BOLD, textColor)),
-                70f, 12f);
-        universidadCell.setBorderWidthBottom(2f);
-        universidadCell.setBorderColor(textColor);
-        coverTable.addCell(universidadCell);
+        PdfContentByte cb = writer.getDirectContent();
 
-        coverTable.addCell(crearCeldaLogo(logoUrl, textColor));
+        // 1. Institución con línea inferior
+        float margen = 46f;
+        float anchoLinea = (ancho - 2 * margen) * 0.9f;
+        float yInstitucion = escribirCentrado(cb, universidad, PdfContenidoRenderer.fuente(19, Font.BOLD, tinta),
+                centro, alto - 52f, anchoLinea, 0.5f);
+        float yLinea = yInstitucion - 9f;
+        cb.saveState();
+        cb.setColorStroke(tinta);
+        cb.setLineWidth(1.6f);
+        cb.moveTo(centro - anchoLinea / 2f, yLinea);
+        cb.lineTo(centro + anchoLinea / 2f, yLinea);
+        cb.stroke();
+        cb.restoreState();
 
-        coverTable.addCell(crearCeldaCaratula(
-                new Phrase(titulo, fuenteColor(22, Font.BOLD, textColor)), 12f, 6f));
-
-        coverTable.addCell(crearCeldaCaratula(
-                new Phrase(modalidad, fuenteColor(15, Font.NORMAL, textColor)), 4f, 18f));
-
-        coverTable.addCell(crearCeldaTema(letraTema, textColor, temaBoxColor));
-
-        PdfPCell instruccionesCell = new PdfPCell(new Phrase(
-                "Instrucciones: " + instrucciones,
-                fuenteColor(12, Font.NORMAL, textColor)));
-        instruccionesCell.setBorder(Rectangle.BOX);
-        instruccionesCell.setBorderWidth(1.5f);
-        instruccionesCell.setBorderColor(textColor);
-        instruccionesCell.setPaddingTop(26f);
-        instruccionesCell.setPaddingBottom(14f);
-        instruccionesCell.setPaddingLeft(14f);
-        instruccionesCell.setPaddingRight(14f);
-        instruccionesCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        coverTable.addCell(instruccionesCell);
-
-        coverTable.addCell(crearCeldaCaratula(
-                new Phrase("Examen de Admisión Oficial", fuenteColor(11, Font.NORMAL, textColor)),
-                16f, 8f));
-
-        document.add(coverTable);
-    }
-
-    private PdfPCell crearCeldaCaratula(Phrase contenido, float paddingTop, float paddingBottom) {
-        PdfPCell cell = new PdfPCell(contenido);
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell.setPaddingTop(paddingTop);
-        cell.setPaddingBottom(paddingBottom);
-        return cell;
-    }
-
-    private PdfPCell crearCeldaLogo(String logoUrl, Color textColor) throws DocumentException {
-        PdfPCell cell = new PdfPCell();
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell.setPaddingTop(12f);
-        cell.setPaddingBottom(12f);
-
-        Image logo = cargarImagenLogo(logoUrl);
+        // 2. Logo (o recuadro punteado "LOGO")
+        float ladoLogo = 86f;
+        float yLogoArriba = Math.min(alto - 168f, yLinea - 40f);
+        Image logo = PdfContenidoRenderer.cargarImagen(logoUrl, ladoLogo * 1.3f, ladoLogo * 1.3f);
         if (logo != null) {
-            logo.scaleToFit(105f, 105f);
-            PdfPTable logoTable = new PdfPTable(1);
-            logoTable.setWidthPercentage(28f);
-            logoTable.setHorizontalAlignment(Element.ALIGN_CENTER);
-            PdfPCell logoCell = new PdfPCell(logo, false);
-            logoCell.setBorder(Rectangle.NO_BORDER);
-            logoCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-            logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-            logoTable.addCell(logoCell);
-            cell.addElement(logoTable);
-            return cell;
+            logo.setAbsolutePosition(centro - logo.getScaledWidth() / 2f, yLogoArriba - logo.getScaledHeight());
+            cb.addImage(logo);
+        } else {
+            cb.saveState();
+            cb.setColorStroke(tinta);
+            cb.setLineWidth(1.2f);
+            cb.setLineDash(4f, 3f, 0f);
+            cb.roundRectangle(centro - ladoLogo / 2f, yLogoArriba - ladoLogo, ladoLogo, ladoLogo, 7f);
+            cb.stroke();
+            cb.restoreState();
+            ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
+                    new Phrase("LOGO", PdfContenidoRenderer.fuente(9, Font.NORMAL, tinta)),
+                    centro, yLogoArriba - ladoLogo / 2f - 3f, 0);
         }
 
-        PdfPTable placeholder = new PdfPTable(1);
-        placeholder.setWidthPercentage(28f);
-        placeholder.setHorizontalAlignment(Element.ALIGN_CENTER);
-        PdfPCell ph = new PdfPCell(new Phrase("LOGO", fuenteColor(10, Font.BOLD, textColor)));
-        ph.setFixedHeight(105f);
-        ph.setHorizontalAlignment(Element.ALIGN_CENTER);
-        ph.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        ph.setBorderWidth(2f);
-        ph.setBorderColor(textColor);
-        placeholder.addCell(ph);
-        cell.addElement(placeholder);
-        return cell;
-    }
+        // 3. Título y modalidad
+        float yTitulo = escribirCentrado(cb, titulo, PdfContenidoRenderer.fuente(21, Font.BOLD, tinta),
+                centro, alto * 0.585f, ancho - 2 * margen, 0.5f);
+        escribirCentrado(cb, modalidad, PdfContenidoRenderer.fuente(11.5f, Font.BOLD, tinta),
+                centro, Math.min(alto * 0.455f, yTitulo - 60f), ancho - 2 * margen, 1.2f);
 
-    private PdfPCell crearCeldaTema(char letraTema, Color textColor, Color temaBoxColor) {
-        PdfPTable temaInner = new PdfPTable(1);
-        temaInner.setWidthPercentage(100f);
+        // 4. Recuadro TEMA (borde redondeado, relleno translúcido)
+        float anchoTema = 170f;
+        float altoTema = 118f;
+        float yTemaArriba = alto * 0.345f;
+        float xTema = centro - anchoTema / 2f;
+        cb.saveState();
+        PdfGState translucido = new PdfGState();
+        translucido.setFillOpacity(0.14f);
+        cb.setGState(translucido);
+        cb.setColorFill(Color.WHITE);
+        cb.roundRectangle(xTema, yTemaArriba - altoTema, anchoTema, altoTema, 11f);
+        cb.fill();
+        cb.restoreState();
+        cb.saveState();
+        cb.setColorStroke(tinta);
+        cb.setLineWidth(1.2f);
+        cb.roundRectangle(xTema, yTemaArriba - altoTema, anchoTema, altoTema, 11f);
+        cb.stroke();
+        cb.restoreState();
+        Chunk etiquetaTema = new Chunk("TEMA", PdfContenidoRenderer.fuente(12, Font.BOLD, tinta));
+        etiquetaTema.setCharacterSpacing(2f);
+        ColumnText.showTextAligned(cb, Element.ALIGN_CENTER, new Phrase(etiquetaTema),
+                centro + 1f, yTemaArriba - 26f, 0);
+        ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
+                new Phrase(String.valueOf(letraTema), PdfContenidoRenderer.fuente(56, Font.BOLD, tinta)),
+                centro, yTemaArriba - altoTema + 24f, 0);
 
-        PdfPCell temaLabel = new PdfPCell(new Phrase("TEMA", fuenteColor(14, Font.BOLD, textColor)));
-        temaLabel.setBorder(Rectangle.NO_BORDER);
-        temaLabel.setHorizontalAlignment(Element.ALIGN_CENTER);
-        temaLabel.setPaddingBottom(8f);
-        temaInner.addCell(temaLabel);
+        // 5. Instrucciones en recuadro punteado al pie
+        float xInstr = 40f;
+        float anchoInstr = ancho - 2 * xInstr;
+        float yInstrAbajo = textoPie != null ? 62f : 42f;
+        float relleno = 13f;
+        float interlineado = 14f;
+        // Se mide la altura del texto para dimensionar el recuadro.
+        ColumnText medida = new ColumnText(cb);
+        medida.setSimpleColumn(fraseInstrucciones(instrucciones, tinta), xInstr + relleno, 0,
+                xInstr + anchoInstr - relleno, 400f, interlineado, Element.ALIGN_LEFT);
+        medida.go(true);
+        float altoInstr = (400f - medida.getYLine()) + 2 * relleno - 4f;
+        cb.saveState();
+        cb.setColorStroke(tinta);
+        cb.setLineWidth(1f);
+        cb.setLineDash(4f, 3f, 0f);
+        cb.roundRectangle(xInstr, yInstrAbajo, anchoInstr, altoInstr, 8f);
+        cb.stroke();
+        cb.restoreState();
+        ColumnText instr = new ColumnText(cb);
+        instr.setSimpleColumn(fraseInstrucciones(instrucciones, tinta), xInstr + relleno, yInstrAbajo,
+                xInstr + anchoInstr - relleno, yInstrAbajo + altoInstr - relleno + 2f, interlineado, Element.ALIGN_LEFT);
+        instr.go();
 
-        PdfPCell letraCell = new PdfPCell(new Phrase(String.valueOf(letraTema), fuenteColor(68, Font.BOLD, textColor)));
-        letraCell.setBorder(Rectangle.NO_BORDER);
-        letraCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        letraCell.setPaddingTop(2f);
-        temaInner.addCell(letraCell);
-
-        PdfPCell outerCell = new PdfPCell(temaInner);
-        outerCell.setBorderWidth(2f);
-        outerCell.setBorderColor(textColor);
-        outerCell.setBackgroundColor(temaBoxColor);
-        outerCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        outerCell.setPaddingTop(16f);
-        outerCell.setPaddingBottom(16f);
-        outerCell.setPaddingLeft(40f);
-        outerCell.setPaddingRight(40f);
-
-        PdfPTable temaWrapper = new PdfPTable(1);
-        temaWrapper.setWidthPercentage(42f);
-        temaWrapper.setHorizontalAlignment(Element.ALIGN_CENTER);
-        temaWrapper.setSpacingBefore(4f);
-        temaWrapper.setSpacingAfter(8f);
-        temaWrapper.addCell(outerCell);
-
-        PdfPCell wrapperCell = new PdfPCell(temaWrapper);
-        wrapperCell.setBorder(Rectangle.NO_BORDER);
-        wrapperCell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        wrapperCell.setPadding(0f);
-        return wrapperCell;
-    }
-
-    private Image cargarImagenLogo(String logoUrl) {
-        if (logoUrl == null || logoUrl.isBlank()) {
-            return null;
-        }
-        try {
-            if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
-                return Image.getInstance(new URL(logoUrl));
-            }
-            byte[] bytes = decodificarImagenBase64(logoUrl);
-            if (bytes != null) {
-                return Image.getInstance(bytes);
-            }
-        } catch (Exception ignored) {
-        }
-        return null;
-    }
-
-    private Image cargarImagen(String urlString, float maxWidth, float maxHeight) {
-        System.out.println("[DIAG] URL imagen que ingresa a cargarImagen: " + urlString);
-        if (urlString == null || urlString.isBlank()) {
-            System.out.println("[DIAG] URL nula o vacía en cargarImagen.");
-            return null;
-        }
-        try {
-            byte[] bytes = null;
-            if (urlString.startsWith("http://") || urlString.startsWith("https://")) {
-                bytes = descargarBytesImagen(urlString);
-            } else {
-                bytes = decodificarImagenBase64(urlString);
-            }
-
-            if (bytes == null || bytes.length == 0) {
-                System.out.println("[DIAG] Los bytes de imagen obtenidos son nulos o vacíos.");
-                return null;
-            }
-
-            Image img = null;
-            try {
-                // Intento 1: Carga directa
-                img = Image.getInstance(bytes);
-                System.out.println("[DIAG] Imagen creada correctamente (Intento 1)");
-                System.out.println("[DIAG] Ancho (width): " + img.getWidth());
-                System.out.println("[DIAG] Alto (height): " + img.getHeight());
-                System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
-            } catch (Exception e1) {
-                System.out.println("[DIAG] Falló Intento 1 (Carga directa). Excepción:");
-                e1.printStackTrace();
-
-                // Intento 2: Fallback para Cloudinary forzando conversión a PNG en CDN
-                if (urlString.contains("cloudinary.com")) {
-                    String fallbackUrl = urlString.replace("/upload/", "/upload/f_png/");
-                    System.out.println("[DIAG] Aplicando fallback Cloudinary (Intento 2). URL: " + fallbackUrl);
-                    byte[] fallbackBytes = descargarBytesImagen(fallbackUrl);
-                    if (fallbackBytes != null) {
-                        try {
-                            img = Image.getInstance(fallbackBytes);
-                            System.out.println("[DIAG] Imagen creada correctamente (Intento 2 - Cloudinary PNG)");
-                            System.out.println("[DIAG] Ancho (width): " + img.getWidth());
-                            System.out.println("[DIAG] Alto (height): " + img.getHeight());
-                            System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
-                        } catch (Exception e2) {
-                            System.out.println("[DIAG] Falló Intento 2 (Cloudinary PNG). Excepción:");
-                            e2.printStackTrace();
-                        }
-                    }
-                }
-                
-                // Intento 3: Conversión en memoria usando ImageIO
-                if (img == null) {
-                    System.out.println("[DIAG] Aplicando fallback en memoria (Intento 3).");
-                    byte[] convertedBytes = convertirAPngEnMemoria(bytes);
-                    if (convertedBytes != null) {
-                        try {
-                            img = Image.getInstance(convertedBytes);
-                            System.out.println("[DIAG] Imagen creada correctamente (Intento 3 - Conversión ImageIO)");
-                            System.out.println("[DIAG] Ancho (width): " + img.getWidth());
-                            System.out.println("[DIAG] Alto (height): " + img.getHeight());
-                            System.out.println("[DIAG] Tipo de imagen (iText type): " + img.type());
-                        } catch (Exception e3) {
-                            System.out.println("[DIAG] Falló Intento 3 (Conversión ImageIO). Excepción:");
-                            e3.printStackTrace();
-                        }
-                    }
-                }
-            }
-
-            if (img != null) {
-                escalarImagen(img, maxWidth, maxHeight);
-                return img;
-            } else {
-                System.out.println("[DIAG] Objeto Image no pudo ser creado en ningún intento.");
-            }
-        } catch (Exception e) {
-            System.out.println("[DIAG] Excepción general en cargarImagen:");
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private void escalarImagen(Image img, float maxWidth, float maxHeight) {
-        float originalWidth = img.getWidth();
-        float originalHeight = img.getHeight();
-        if (originalWidth > 0 && originalHeight > 0) {
-            float ratioWidth = maxWidth / originalWidth;
-            float ratioHeight = maxHeight / originalHeight;
-            float scaleRatio = Math.min(ratioWidth, ratioHeight);
-            if (scaleRatio < 1.0f) {
-                img.scaleAbsolute(originalWidth * scaleRatio, originalHeight * scaleRatio);
-            } else {
-                img.scaleAbsolute(originalWidth, originalHeight);
-            }
+        if (textoPie != null) {
+            escribirCentrado(cb, textoPie, PdfContenidoRenderer.fuente(9, Font.NORMAL, tinta),
+                    centro, 44f, ancho - 2 * margen, 0f);
         }
     }
 
-    private byte[] descargarBytesImagen(String urlString) {
-        System.out.println("[DIAG] Descargando: " + urlString);
-        try {
-            URL url = new URL(urlString);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36");
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(8000);
-            conn.setInstanceFollowRedirects(true);
-            
-            int status = conn.getResponseCode();
-            System.out.println("[DIAG] HTTP Status: " + status);
-            if (status == HttpURLConnection.HTTP_OK) {
-                String contentType = conn.getContentType();
-                System.out.println("[DIAG] Content-Type: " + contentType);
-                if (contentType != null && contentType.startsWith("image/")) {
-                    try (InputStream is = conn.getInputStream(); ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        while ((bytesRead = is.read(buffer)) != -1) {
-                            baos.write(buffer, 0, bytesRead);
-                        }
-                        byte[] bytes = baos.toByteArray();
-                        System.out.println("[DIAG] Content-Length (header): " + conn.getContentLength());
-                        System.out.println("[DIAG] Bytes realmente descargados: " + bytes.length);
-                        if (bytes.length > 0) {
-                            return bytes;
-                        } else {
-                            System.out.println("[DIAG] Descarga completada pero con 0 bytes de contenido.");
-                        }
-                    }
-                } else {
-                    System.out.println("[DIAG] Rechazado por Content-Type no es imagen para la URL " + urlString + ": " + contentType);
-                }
-            } else if (status == HttpURLConnection.HTTP_MOVED_TEMP || status == HttpURLConnection.HTTP_MOVED_PERM || status == 307 || status == 308) {
-                String newUrl = conn.getHeaderField("Location");
-                System.out.println("[DIAG] Redireccionando descarga de " + urlString + " a: " + newUrl);
-                return descargarBytesImagen(newUrl);
-            } else {
-                System.out.println("[DIAG] Fallo en descarga. Respuesta HTTP no fue 200 para la URL " + urlString + ": " + status);
-            }
-        } catch (Exception e) {
-            System.out.println("[DIAG] Excepción al descargar bytes de la imagen para " + urlString + ":");
-            e.printStackTrace();
-        }
-        return null;
+    private Phrase fraseInstrucciones(String instrucciones, Color tinta) {
+        Phrase frase = new Phrase();
+        frase.add(new Chunk("Instrucciones: ", PdfContenidoRenderer.fuente(10, Font.BOLD, tinta)));
+        frase.add(new Chunk(instrucciones, PdfContenidoRenderer.fuente(10, Font.NORMAL, tinta)));
+        return frase;
     }
 
-    private byte[] convertirAPngEnMemoria(byte[] bytes) {
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            BufferedImage bi = ImageIO.read(bais);
-            if (bi != null) {
-                boolean success = ImageIO.write(bi, "png", baos);
-                if (success) {
-                    return baos.toByteArray();
-                }
-            }
-        } catch (Exception e) {
-            System.out.println("[DIAG] Excepción en convertirAPngEnMemoria:");
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private String clasificarUrl(String url) {
-        if (url == null) return "NULL";
-        if (url.isBlank()) return "VACÍA";
-        if (url.startsWith("data:")) return "Base64";
-        if (url.contains("cloudinary.com")) return "Cloudinary";
-        if (url.contains("localhost") || url.contains("127.0.0.1")) return "Localhost";
-        return "Otro servidor/desconocido";
-    }
-
-    private byte[] decodificarImagenBase64(String logoUrl) {
-        try {
-            if (logoUrl.startsWith("data:")) {
-                int comma = logoUrl.indexOf(',');
-                if (comma > 0) {
-                    return java.util.Base64.getDecoder().decode(logoUrl.substring(comma + 1).replaceAll("\\s+", ""));
-                }
-            }
-            if (logoUrl.contains("base64,")) {
-                return java.util.Base64.getDecoder().decode(logoUrl.split("base64,")[1].replaceAll("\\s+", ""));
-            }
-            return java.util.Base64.getDecoder().decode(logoUrl.replaceAll("\\s+", ""));
-        } catch (Exception e) {
-            return null;
-        }
+    /**
+     * Escribe texto centrado (con salto de línea si no entra) empezando en {@code yArriba}.
+     * Devuelve la coordenada Y donde terminó el texto.
+     */
+    private float escribirCentrado(PdfContentByte cb, String texto, Font fuente, float centro, float yArriba,
+                                   float anchoMax, float espaciado) throws DocumentException {
+        Chunk chunk = new Chunk(texto, fuente);
+        if (espaciado > 0) chunk.setCharacterSpacing(espaciado);
+        ColumnText ct = new ColumnText(cb);
+        ct.setSimpleColumn(new Phrase(chunk), centro - anchoMax / 2f, yArriba - 200f, centro + anchoMax / 2f, yArriba,
+                fuente.getSize() * 1.25f, Element.ALIGN_CENTER);
+        ct.go();
+        return ct.getYLine();
     }
 
     private String resolverTexto(String override, String examen, String defecto) {
@@ -526,118 +403,189 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     // CONTENIDO A 2 COLUMNAS
     // ─────────────────────────────────────────────────────────────────
 
-    private void agregarContenidoDobleColumna(Document document, ExamenVersion version)
-            throws DocumentException {
-
+    private void agregarContenidoDobleColumna(Document document, ExamenVersion version) throws DocumentException {
         Map<String, List<ExamenPregunta>> porCurso = agruparPorCurso(version);
         int numeroVisual = 1;
 
         MultiColumnText mct = new MultiColumnText();
-        mct.addRegularColumns(document.left(), document.right(), 24f, 2);
+        mct.addRegularColumns(document.left(), document.right(), SEPARACION_COLUMNAS, 2);
 
-        float pageWidth = document.right() - document.left();
-        float columnWidth = (pageWidth - 24f) / 2f;
-        float maxEnunciadoWidth = columnWidth * 0.55f;
-        float maxEnunciadoHeight = 100f;
-        float maxAlternativaWidth = columnWidth * 0.45f;
-        float maxAlternativaHeight = 70f;
+        float anchoColumna = (document.right() - document.left() - SEPARACION_COLUMNAS) / 2f;
 
         for (Map.Entry<String, List<ExamenPregunta>> entry : porCurso.entrySet()) {
-            // --- Cabecera del curso ---
-            PdfPTable cabeceraCurso = new PdfPTable(1);
-            cabeceraCurso.setWidthPercentage(100f);
-            PdfPCell celdaCurso = new PdfPCell(new Phrase(entry.getKey().toUpperCase(), fuente(10, Font.BOLD)));
-            celdaCurso.setBackgroundColor(new Color(230, 230, 230));
-            celdaCurso.setBorderWidth(0f);
-            celdaCurso.setPaddingTop(4f);
-            celdaCurso.setPaddingBottom(4f);
-            cabeceraCurso.addCell(celdaCurso);
-
-            cabeceraCurso.setSpacingAfter(4f);
-            mct.addElement(cabeceraCurso);
-
-            // --- Preguntas del curso ---
+            boolean primera = true;
             for (ExamenPregunta examenPregunta : entry.getValue()) {
-                Pregunta pregunta = examenPregunta.getPregunta();
-                
-                System.out.println("========== DIAGNÓSTICO PREGUNTA ID: " + pregunta.getId() + " ==========");
-                System.out.println("[DIAG] URL del enunciado: " + pregunta.getImagenUrl());
-                System.out.println("[DIAG] Clasificación URL enunciado: " + clasificarUrl(pregunta.getImagenUrl()));
-                System.out.println("[DIAG] Cantidad de alternativas: " + (pregunta.getAlternativas() != null ? pregunta.getAlternativas().size() : 0));
-                if (pregunta.getAlternativas() != null) {
-                    for (Alternativa a : pregunta.getAlternativas()) {
-                        System.out.println("[DIAG] Alternativa " + a.getLetra() + " -> tipo: " + a.getTipo() + ", imagenUrl: " + a.getImagenUrl() + ", tipo de URL: " + clasificarUrl(a.getImagenUrl()));
-                    }
-                }
-                
-                Paragraph pEnunciado = new Paragraph();
-                pEnunciado.setSpacingAfter(4f);
-
-                String enunciadoLimpio = ContenidoBloqueUtil.extraerEnunciado(pregunta.getEnunciado());
-                pEnunciado.add(new Chunk(numeroVisual + ". " + enunciadoLimpio, fuente(9, Font.BOLD)));
-                numeroVisual++;
-                mct.addElement(pEnunciado);
-
-                // If question has image:
-                if (pregunta.getImagenUrl() != null && !pregunta.getImagenUrl().isBlank()) {
-                    Image img = cargarImagen(pregunta.getImagenUrl(), maxEnunciadoWidth, maxEnunciadoHeight);
-                    if (img != null) {
-                        System.out.println("[DIAG] Agregando imagen del enunciado al PDF");
-                        img.setAlignment(Image.ALIGN_CENTER);
-                        img.setSpacingBefore(4f);
-                        img.setSpacingAfter(6f);
-                        mct.addElement(img);
-                    } else {
-                        System.out.println("[DIAG] FAILED: No se pudo agregar la imagen del enunciado al PDF.");
-                        Paragraph pErr = new Paragraph("   [No se pudo cargar la imagen]", fuenteColor(8, Font.ITALIC, Color.GRAY));
-                        pErr.setSpacingAfter(4f);
-                        mct.addElement(pErr);
-                    }
-                }
-
-                for (Alternativa alternativa : ordenarAlternativas(examenPregunta)) {
-                    Paragraph pAlt = new Paragraph();
-                    pAlt.setSpacingAfter(2f);
-                    pAlt.add(new Chunk("   " + alternativa.getLetra() + ") ", fuente(8, Font.NORMAL)));
-
-                    boolean hasText = false;
-                    if (alternativa.getContenidoTexto() != null && !alternativa.getContenidoTexto().isBlank()) {
-                        String texto = ContenidoBloqueUtil.extraerTextoPlano(alternativa.getContenidoTexto());
-                        if (!texto.isBlank() && !texto.equals("[Imagen]")) {
-                            pAlt.add(new Chunk(texto, fuente(8, Font.NORMAL)));
-                            hasText = true;
-                        }
-                    }
-                    mct.addElement(pAlt);
-
-                    if (alternativa.getImagenUrl() != null && !alternativa.getImagenUrl().isBlank()) {
-                        Image img = cargarImagen(alternativa.getImagenUrl(), maxAlternativaWidth, maxAlternativaHeight);
-                        if (img != null) {
-                            System.out.println("[DIAG] Agregando imagen de alternativa " + alternativa.getLetra() + " al PDF");
-                            img.setAlignment(Image.ALIGN_LEFT);
-                            img.setSpacingBefore(3f);
-                            img.setSpacingAfter(4f);
-                            mct.addElement(img);
-                        } else {
-                            System.out.println("[DIAG] FAILED: No se pudo agregar la imagen de alternativa " + alternativa.getLetra() + " al PDF.");
-                            Paragraph pErr = new Paragraph("   [No se pudo cargar la imagen]", fuenteColor(8, Font.ITALIC, Color.GRAY));
-                            pErr.setSpacingAfter(2f);
-                            mct.addElement(pErr);
-                        }
-                    }
-                }
-                
-                Paragraph pSpacing = new Paragraph(" ", fuente(4, Font.NORMAL));
-                pSpacing.setSpacingAfter(4f);
-                mct.addElement(pSpacing);
+                // El título del curso viaja junto a su primera pregunta para no quedar suelto al final de una columna.
+                agregarPregunta(mct, examenPregunta, numeroVisual++, anchoColumna, primera ? entry.getKey() : null);
+                primera = false;
             }
         }
 
         document.add(mct);
     }
 
+    private PdfPTable crearCabeceraCurso(String curso) {
+        PdfPTable cabecera = new PdfPTable(1);
+        cabecera.setWidthPercentage(100f);
+        PdfPCell celda = new PdfPCell(new Phrase(curso.toUpperCase(), PdfContenidoRenderer.fuente(10, Font.BOLD, COLOR_TINTA)));
+        celda.setBackgroundColor(COLOR_FRANJA_CURSO);
+        celda.setBorder(Rectangle.LEFT);
+        celda.setBorderWidthLeft(3f);
+        celda.setBorderColor(COLOR_TINTA);
+        celda.setPaddingTop(3f);
+        celda.setPaddingBottom(5f);
+        celda.setPaddingLeft(7f);
+        cabecera.addCell(celda);
+        cabecera.setSpacingBefore(4f);
+        cabecera.setSpacingAfter(8f);
+        return cabecera;
+    }
+
+    /**
+     * Cada pregunta va dentro de una tabla de una sola celda: así el enunciado, su figura
+     * y sus alternativas no se separan entre columnas o páginas.
+     */
+    private void agregarPregunta(MultiColumnText mct, ExamenPregunta examenPregunta, int numero, float anchoColumna,
+                                 String tituloCurso) throws DocumentException {
+        Pregunta pregunta = examenPregunta.getPregunta();
+        List<Bloque> bloques = PdfContenidoRenderer.quitarNumeroInicial(
+                PdfContenidoRenderer.parsearBloques(pregunta.getEnunciado()));
+
+        PdfPCell contenedor = new PdfPCell();
+        contenedor.setBorder(Rectangle.NO_BORDER);
+        contenedor.setPadding(0f);
+        contenedor.setPaddingBottom(9f);
+        if (tituloCurso != null) {
+            contenedor.addElement(crearCabeceraCurso(tituloCurso));
+        }
+
+        // Enunciado con sangría francesa: el número queda colgando a la izquierda.
+        Paragraph enunciado = new Paragraph();
+        enunciado.setLeading(0, 1.3f);
+        enunciado.setIndentationLeft(SANGRIA_NUMERO);
+        enunciado.setFirstLineIndent(-SANGRIA_NUMERO);
+        enunciado.setSpacingAfter(3f);
+        enunciado.add(new Chunk(numero + ".  ", PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA)));
+        PdfContenidoRenderer.agregarTextoYFormulas(enunciado, bloques, TAM_TEXTO, COLOR_TINTA);
+        contenedor.addElement(enunciado);
+
+        // Figuras del enunciado (bloques de imagen + imagen principal heredada)
+        List<String> figuras = new ArrayList<>(PdfContenidoRenderer.urlsImagenes(bloques));
+        String imagenSuelta = PdfContenidoRenderer.imagenPrincipalVisible(bloques, pregunta.getImagenUrl());
+        if (imagenSuelta != null) {
+            figuras.add(imagenSuelta);
+        }
+        for (String url : figuras) {
+            contenedor.addElement(crearFigura(url, anchoColumna - SANGRIA_NUMERO, 150f));
+        }
+
+        for (Element alternativa : crearAlternativas(ordenarAlternativas(examenPregunta), anchoColumna)) {
+            contenedor.addElement(alternativa);
+        }
+
+        PdfPTable bloquePregunta = new PdfPTable(1);
+        bloquePregunta.setWidthPercentage(100f);
+        bloquePregunta.setSplitLate(true);
+        bloquePregunta.addCell(contenedor);
+        mct.addElement(bloquePregunta);
+    }
+
+    private Element crearFigura(String url, float maxAncho, float maxAlto) {
+        Image img = PdfContenidoRenderer.cargarImagen(url, maxAncho, maxAlto, COLOR_PAPEL);
+        if (img == null) {
+            Paragraph error = new Paragraph("[No se pudo cargar la imagen]",
+                    PdfContenidoRenderer.fuente(8, Font.ITALIC, Color.GRAY));
+            error.setIndentationLeft(SANGRIA_NUMERO);
+            error.setSpacingAfter(4f);
+            return error;
+        }
+        img.setAlignment(Image.ALIGN_CENTER);
+        img.setSpacingBefore(4f);
+        img.setSpacingAfter(6f);
+        return img;
+    }
+
+    private List<Element> crearAlternativas(List<Alternativa> alternativas, float anchoColumna) throws DocumentException {
+        boolean conImagenes = alternativas.stream().anyMatch(this::alternativaTieneImagen);
+        if (conImagenes) {
+            return List.of(crearGrillaAlternativasConFiguras(alternativas, anchoColumna));
+        }
+        List<Element> elementos = new ArrayList<>();
+        for (int i = 0; i < alternativas.size(); i++) {
+            Paragraph p = new Paragraph();
+            p.setLeading(0, 1.25f);
+            p.setIndentationLeft(SANGRIA_NUMERO + SANGRIA_ALTERNATIVA);
+            p.setFirstLineIndent(-SANGRIA_ALTERNATIVA);
+            p.setSpacingAfter(1.5f);
+            String letra = LETRAS_IMPRESAS[Math.min(i, LETRAS_IMPRESAS.length - 1)] + ")  ";
+            p.add(new Chunk(letra, PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA)));
+            PdfContenidoRenderer.agregarTextoYFormulas(p,
+                    PdfContenidoRenderer.parsearBloques(alternativas.get(i).getContenidoTexto()), TAM_TEXTO, COLOR_TINTA);
+            elementos.add(p);
+        }
+        return elementos;
+    }
+
+    /** Alternativas con figura: grilla de 3 columnas (A B C / D E) con la letra sobre cada figura. */
+    private PdfPTable crearGrillaAlternativasConFiguras(List<Alternativa> alternativas, float anchoColumna)
+            throws DocumentException {
+        int columnas = 3;
+        PdfPTable grilla = new PdfPTable(columnas);
+        grilla.setTotalWidth(anchoColumna - SANGRIA_NUMERO);
+        grilla.setLockedWidth(true);
+        grilla.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        grilla.setSpacingBefore(2f);
+        float anchoCelda = (anchoColumna - SANGRIA_NUMERO) / columnas - 8f;
+
+        for (int i = 0; i < alternativas.size(); i++) {
+            Alternativa alternativa = alternativas.get(i);
+            List<Bloque> bloques = PdfContenidoRenderer.parsearBloques(alternativa.getContenidoTexto());
+
+            PdfPCell celda = new PdfPCell();
+            celda.setBorder(Rectangle.NO_BORDER);
+            celda.setPadding(3f);
+            celda.setPaddingBottom(6f);
+
+            Paragraph cabecera = new Paragraph();
+            cabecera.setLeading(0, 1.3f);
+            cabecera.setSpacingAfter(3f);
+            cabecera.add(new Chunk(LETRAS_IMPRESAS[Math.min(i, 4)] + ") ",
+                    PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA)));
+            PdfContenidoRenderer.agregarTextoYFormulas(cabecera, bloques, TAM_TEXTO - 0.5f, COLOR_TINTA);
+            celda.addElement(cabecera);
+
+            List<String> urls = new ArrayList<>(PdfContenidoRenderer.urlsImagenes(bloques));
+            String imagenAlternativa = PdfContenidoRenderer.imagenPrincipalVisible(bloques, alternativa.getImagenUrl());
+            if (imagenAlternativa != null) {
+                urls.add(imagenAlternativa);
+            }
+            for (String url : urls) {
+                Image img = PdfContenidoRenderer.cargarImagen(url, anchoCelda, 62f, COLOR_PAPEL);
+                if (img != null) {
+                    img.setAlignment(Image.ALIGN_CENTER);
+                    celda.addElement(img);
+                }
+            }
+            grilla.addCell(celda);
+        }
+        // Completa la última fila para que la tabla se dibuje.
+        int sobrantes = (columnas - alternativas.size() % columnas) % columnas;
+        for (int i = 0; i < sobrantes; i++) {
+            PdfPCell vacia = new PdfPCell();
+            vacia.setBorder(Rectangle.NO_BORDER);
+            grilla.addCell(vacia);
+        }
+        return grilla;
+    }
+
+    private boolean alternativaTieneImagen(Alternativa alternativa) {
+        if (alternativa.getImagenUrl() != null && !alternativa.getImagenUrl().isBlank()) return true;
+        return !PdfContenidoRenderer.urlsImagenes(
+                PdfContenidoRenderer.parsearBloques(alternativa.getContenidoTexto())).isEmpty();
+    }
+
     // ─────────────────────────────────────────────────────────────────
-    // SOLUCIONARIO (sin cambios estructurales)
+    // SOLUCIONARIO
     // ─────────────────────────────────────────────────────────────────
 
     private byte[] generarPdfSolucionarioVersion(ExamenVersion version) {
@@ -650,19 +598,23 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
             agregarCeldaHeader(table, "Código pregunta");
             agregarCeldaHeader(table, "Respuesta");
 
-            List<ExamenPregunta> preguntasOrdenadas = version.getPreguntas().stream()
-                    .sorted(Comparator.comparing(ExamenPregunta::getNumeroOrden))
-                    .toList();
-            for (int index = 0; index < preguntasOrdenadas.size(); index++) {
-                ExamenPregunta examenPregunta = preguntasOrdenadas.get(index);
-                Alternativa correcta = examenPregunta.getPregunta().getAlternativas().stream()
-                        .filter(alternativa -> Boolean.TRUE.equals(alternativa.getEsCorrecta()))
-                        .findFirst()
-                        .orElse(null);
-                table.addCell(celda(String.valueOf(index + 1)));
-                table.addCell(celda(examenPregunta.getPregunta().getCurso().getNombre()));
-                table.addCell(celda(examenPregunta.getPregunta().getCodigo()));
-                table.addCell(celda(correcta == null ? "-" : correcta.getLetra().name()));
+            int numero = 1;
+            // Mismo orden que el examen impreso (agrupado por curso).
+            for (List<ExamenPregunta> grupo : agruparPorCurso(version).values()) {
+                for (ExamenPregunta examenPregunta : grupo) {
+                    List<Alternativa> ordenadas = ordenarAlternativas(examenPregunta);
+                    String respuesta = "-";
+                    for (int i = 0; i < ordenadas.size(); i++) {
+                        if (Boolean.TRUE.equals(ordenadas.get(i).getEsCorrecta())) {
+                            respuesta = LETRAS_IMPRESAS[Math.min(i, 4)];
+                            break;
+                        }
+                    }
+                    table.addCell(celda(String.valueOf(numero++)));
+                    table.addCell(celda(examenPregunta.getPregunta().getCurso().getNombre()));
+                    table.addCell(celda(examenPregunta.getPregunta().getCodigo()));
+                    table.addCell(celda(respuesta));
+                }
             }
             document.add(table);
         });
@@ -702,15 +654,6 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         document.add(new Paragraph(" "));
     }
 
-    private void agregarInstrucciones(Document document) throws DocumentException {
-        Paragraph instrucciones = new Paragraph(
-                "INSTRUCCIONES: Lea cuidadosamente cada pregunta y marque solo una alternativa. " +
-                "No se permiten borrones ni enmendaduras. Prohibido el uso de dispositivos electrónicos.",
-                fuente(9, Font.BOLD));
-        instrucciones.setSpacingAfter(10f);
-        document.add(instrucciones);
-    }
-
     private Map<String, List<ExamenPregunta>> agruparPorCurso(ExamenVersion version) {
         Map<String, List<ExamenPregunta>> porCurso = new LinkedHashMap<>();
         version.getPreguntas().stream()
@@ -723,13 +666,15 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     private List<Alternativa> ordenarAlternativas(ExamenPregunta examenPregunta) {
         List<LetraAlternativa> letrasOrdenadas = parsearLetras(examenPregunta.getAlternativasOrdenadas());
+        List<Alternativa> todas = examenPregunta.getPregunta().getAlternativas();
         if (letrasOrdenadas.isEmpty()) {
-            return examenPregunta.getPregunta().getAlternativas().stream()
-                    .sorted(Comparator.comparing(Alternativa::getOrdenVisualizacion, Comparator.nullsLast(Integer::compareTo)))
+            return todas.stream()
+                    .sorted(Comparator.comparing(Alternativa::getOrdenVisualizacion, Comparator.nullsLast(Integer::compareTo))
+                            .thenComparing(Alternativa::getLetra))
                     .toList();
         }
         return letrasOrdenadas.stream()
-                .map(letra -> examenPregunta.getPregunta().getAlternativas().stream()
+                .map(letra -> todas.stream()
                         .filter(alternativa -> alternativa.getLetra() == letra)
                         .findFirst()
                         .orElse(null))
@@ -759,36 +704,16 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     }
 
     private Font fuente(int size, int style) {
-        return new Font(Font.HELVETICA, size, style);
+        return PdfContenidoRenderer.fuente(size, style, Color.BLACK);
     }
 
     private Font fuenteColor(int size, int style, Color color) {
-        return new Font(Font.HELVETICA, size, style, color);
+        return PdfContenidoRenderer.fuente(size, style, color);
     }
 
-    private PdfPCell celdasColumnaSinBorde() {
-        PdfPCell celda = new PdfPCell();
-        celda.setBorderWidth(0f);
-        celda.setPaddingRight(8f);
-        return celda;
-    }
-
-    private void agregarLinea(Document document, Color color, PdfWriter writer) throws DocumentException {
-        PdfContentByte cb = writer.getDirectContent();
-        cb.setColorStroke(color);
-        cb.setLineWidth(0.5f);
-        float y = writer.getVerticalPosition(false);
-        cb.moveTo(document.leftMargin(), y - 2);
-        cb.lineTo(document.right(), y - 2);
-        cb.stroke();
-        // Paragraph vacío para dar espacio
-        Paragraph sep = new Paragraph(" ", fuente(6, Font.NORMAL));
-        document.add(sep);
-    }
-
-    /** Parsea un color HEX (#RRGGBB) a java.awt.Color. Retorna gris azulado si es inválido/null. */
+    /** Parsea un color HEX (#RRGGBB) a java.awt.Color. Retorna índigo si es inválido/null. */
     private Color parseColor(String hex) {
-        if (hex == null || hex.isBlank()) return new Color(99, 102, 241); // indigo por defecto
+        if (hex == null || hex.isBlank()) return new Color(99, 102, 241);
         try {
             String limpio = hex.startsWith("#") ? hex.substring(1) : hex;
             if (limpio.length() == 6) {
@@ -801,13 +726,10 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         return new Color(99, 102, 241);
     }
 
-    /**
-     * Determina si un color es "oscuro" para decidir si el texto debe ser blanco.
-     * Usa la fórmula de luminancia relativa (WCAG).
-     */
+    /** Mismo criterio que la vista de Configuración: YIQ < 128 es fondo oscuro (texto blanco). */
     private boolean isColorOscuro(Color color) {
-        double luminancia = (0.299 * color.getRed() + 0.587 * color.getGreen() + 0.114 * color.getBlue()) / 255.0;
-        return luminancia < 0.5;
+        double yiq = (color.getRed() * 299 + color.getGreen() * 587 + color.getBlue() * 114) / 1000.0;
+        return yiq < 128;
     }
 
     private String nombrePdf(ExamenVersion version, boolean solucionario) {

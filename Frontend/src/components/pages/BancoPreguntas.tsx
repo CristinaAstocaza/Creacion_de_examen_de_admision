@@ -12,6 +12,12 @@ import {
   uploadRecorte,
 } from '../../services/preguntaService';
 import { ContentRenderer } from '../ui/ContentRenderer';
+import {
+  bloquesATextoEditable,
+  construirContenido,
+  imagenPrincipalVisible,
+  primeraImagen,
+} from '../../utils/contenidoBloques';
 
 interface Curso {
   id: number;
@@ -93,15 +99,6 @@ const extractTextFromBlocks = (contentStr: string): string => {
   return contentStr;
 };
 
-const isBlockFormat = (contentStr: string): boolean => {
-  if (!contentStr) return false;
-  try {
-    return Array.isArray(JSON.parse(contentStr));
-  } catch (_e) {
-    return false;
-  }
-};
-
 export default function BancoPreguntas() {
   const [preguntas, setPreguntas] = useState<PreguntaResponse[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
@@ -112,6 +109,8 @@ export default function BancoPreguntas() {
   const [selectedQuestion, setSelectedQuestion] = useState<PreguntaResponse | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  // Pregunta tal como está guardada: se usa para no perder figuras extra ni fórmulas al editar.
+  const [preguntaOriginal, setPreguntaOriginal] = useState<PreguntaResponse | null>(null);
   const [formData, setFormData] = useState<FormDataPregunta>(crearFormVacio());
   const [isSaving, setIsSaving] = useState(false);
 
@@ -200,6 +199,7 @@ export default function BancoPreguntas() {
 
   const handleOpenCreateForm = () => {
     setEditingId(null);
+    setPreguntaOriginal(null);
     const nuevo = crearFormVacio();
     nuevo.codigo = generarCodigoAutomatico(preguntas);
     setFormData(nuevo);
@@ -209,11 +209,15 @@ export default function BancoPreguntas() {
 
   const handleOpenEditForm = (question: PreguntaResponse) => {
     setEditingId(question.id);
+    setPreguntaOriginal(question);
+    // La figura editable es la recortada (bloque de imagen); nunca la captura completa de la importación.
+    const figuraEnunciado =
+      primeraImagen(question.enunciado) ?? imagenPrincipalVisible(question.enunciado, question.imagenUrl) ?? '';
     setFormData({
       codigo: question.codigo || '',
       cursoId: String(question.cursoId),
-      enunciado: extractTextFromBlocks(question.enunciado),
-      imagenUrl: question.imagenUrl || '',
+      enunciado: bloquesATextoEditable(question.enunciado),
+      imagenUrl: figuraEnunciado,
       dificultad: question.dificultad || 'MEDIO',
       activo: question.activo,
       alternativas: letras.map((letra, index) => {
@@ -221,18 +225,18 @@ export default function BancoPreguntas() {
         return {
           letra,
           tipo: alt?.tipo || 'TEXTO',
-          contenidoTexto: extractTextFromBlocks(alt?.contenidoTexto || ''),
-          imagenUrl: alt?.imagenUrl || '',
+          contenidoTexto: bloquesATextoEditable(alt?.contenidoTexto || ''),
+          imagenUrl: primeraImagen(alt?.contenidoTexto) ?? alt?.imagenUrl ?? '',
           esCorrecta: alt?.esCorrecta || false,
           ordenVisualizacion: alt?.ordenVisualizacion || index + 1,
         };
       }),
     });
     resetImageState();
-    if (question.imagenUrl) setEnunciadoImagePreview(question.imagenUrl);
+    if (figuraEnunciado) setEnunciadoImagePreview(figuraEnunciado);
     const existingPreviews = letras.map((l) => {
       const a = question.alternativas.find((alt) => alt.letra === l);
-      return a?.imagenUrl || '';
+      return primeraImagen(a?.contenidoTexto) ?? a?.imagenUrl ?? '';
     });
     setAltImagePreviews(existingPreviews);
     setIsFormModalOpen(true);
@@ -351,27 +355,20 @@ export default function BancoPreguntas() {
           if (altImageFiles[idx]) {
             finalAltUrl = await uploadRecorte(altImageFiles[idx]!);
           }
-          const hasText = alt.contenidoTexto.trim().length > 0;
-          const hasImage = finalAltUrl.trim().length > 0;
-          // Auto-compute tipo: only IMAGEN when no text, else TEXTO (contenidoTexto carries content)
-          const tipo: 'TEXTO' | 'IMAGEN' = hasImage && !hasText ? 'IMAGEN' : 'TEXTO';
-          return { ...alt, imagenUrl: finalAltUrl, tipo };
+          // La figura va dentro de los bloques del contenido (igual que en la importación),
+          // por eso el tipo siempre es TEXTO.
+          return { ...alt, imagenUrl: finalAltUrl, tipo: 'TEXTO' as const };
         })
       );
 
-      const wrapInTextBlock = (text: string): string => {
-        if (!text) return '';
-        try {
-          const parsed = JSON.parse(text);
-          if (Array.isArray(parsed)) return text;
-        } catch (e) {}
-        return JSON.stringify([{ tipo: 'texto', valor: text }]);
-      };
+      const altOriginal = (letra: string) =>
+        preguntaOriginal?.alternativas.find((a) => a.letra === letra)?.contenidoTexto ?? null;
 
       const payload = {
         codigo: formData.codigo.trim() || null,
-        enunciado: wrapInTextBlock(formData.enunciado.trim()),
-        imagenUrl: enunciadoFinalUrl.trim() || null,
+        // Texto + fórmulas ($...$) + figura recortada, todo en bloques.
+        enunciado: construirContenido(formData.enunciado.trim(), enunciadoFinalUrl.trim() || null, preguntaOriginal?.enunciado),
+        imagenUrl: null,
         tieneImagen: !!enunciadoFinalUrl.trim(),
         dificultad: formData.dificultad,
         activo: formData.activo,
@@ -379,8 +376,8 @@ export default function BancoPreguntas() {
         alternativas: alternativasFinales.map((alt) => ({
           letra: alt.letra,
           tipo: alt.tipo,
-          contenidoTexto: alt.contenidoTexto.trim() ? wrapInTextBlock(alt.contenidoTexto.trim()) : null,
-          imagenUrl: alt.imagenUrl.trim() || null,
+          contenidoTexto: construirContenido(alt.contenidoTexto.trim(), alt.imagenUrl.trim() || null, altOriginal(alt.letra)),
+          imagenUrl: null,
           esCorrecta: alt.esCorrecta,
           ordenVisualizacion: alt.ordenVisualizacion,
         })),
@@ -744,11 +741,11 @@ export default function BancoPreguntas() {
               <div className="question-text" style={{ marginBottom: 16 }}>
                 <ContentRenderer contentStr={selectedQuestion.enunciado} />
               </div>
-              {/* Solo mostrar imagen legacy si no es formato de bloques */}
-              {selectedQuestion.imagenUrl && !isBlockFormat(selectedQuestion.enunciado) && (
+              {/* Imagen suelta antigua: nunca la captura completa de una importación */}
+              {imagenPrincipalVisible(selectedQuestion.enunciado, selectedQuestion.imagenUrl) && (
                 <div style={{ textAlign: 'center', marginBottom: 16 }}>
                   <img
-                    src={selectedQuestion.imagenUrl}
+                    src={selectedQuestion.imagenUrl!}
                     alt="Imagen del enunciado"
                     className="question-image-detail"
                     onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -768,9 +765,9 @@ export default function BancoPreguntas() {
                              <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
                            )}
                            {/* Renderizar imagen si existe */}
-                           {opt.imagenUrl && !isBlockFormat(opt.contenidoTexto || '') && (
+                           {imagenPrincipalVisible(opt.contenidoTexto, opt.imagenUrl) && (
                              <img
-                               src={opt.imagenUrl}
+                               src={opt.imagenUrl!}
                                alt={`Alternativa ${opt.letra}`}
                                className="option-image-detail"
                                onError={(e) => (e.currentTarget.style.display = 'none')}

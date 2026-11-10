@@ -64,6 +64,12 @@
             <artifactId>openpdf</artifactId>
             <version>2.0.3</version>
         </dependency>
+        <!-- Renderiza fórmulas LaTeX como imagen para el PDF -->
+        <dependency>
+            <groupId>org.scilab.forge</groupId>
+            <artifactId>jlatexmath</artifactId>
+            <version>1.0.7</version>
+        </dependency>
         <!-- PDFBox for image extraction -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>

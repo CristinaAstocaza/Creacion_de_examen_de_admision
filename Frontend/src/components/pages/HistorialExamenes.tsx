@@ -1,16 +1,14 @@
-import { useState, useEffect, type MouseEvent } from 'react';
+import { useState, useEffect } from 'react';
 import './HistorialExamenes.css';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import {
   listarExamenes,
   obtenerExamen,
-  obtenerVersionExamen,
+  obtenerPdfVersionUrl,
   descargarPdfVersion,
-  descargarPdfSolucionario,
   descargarPdfsVersiones
 } from '../../services/examenService';
 import { listarCategorias } from '../../services/categoriaService';
-import { ContentRenderer } from '../ui/ContentRenderer';
 
 interface Version {
   id: number;
@@ -49,8 +47,17 @@ export const HistorialExamenes = () => {
 
   const [vistaActiva, setVistaActiva] = useState<'tabla' | 'previsualizacion'>('tabla');
   const [versionActivaNombre, setVersionActivaNombre] = useState<string>('');
-  const [versionData, setVersionData] = useState<any>(null);
+  const [versionActiva, setVersionActiva] = useState<{ examenId: number; codigoVersion: string; nombre: string } | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingVersion, setLoadingVersion] = useState<boolean>(false);
+  const [errorPreview, setErrorPreview] = useState<string | null>(null);
+
+  // Libera el PDF anterior de memoria cuando cambia o se sale de la vista previa.
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) window.URL.revokeObjectURL(pdfUrl);
+    };
+  }, [pdfUrl]);
 
   useEffect(() => {
     cargarExamenes();
@@ -94,25 +101,37 @@ export const HistorialExamenes = () => {
     }
   };
 
-  const handleContextMenu = (e: MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-  };
-
   const handleVerPreviewA4 = async (examenId: number, examenNombre: string, versionLetra: string) => {
     setVersionActivaNombre(`${examenNombre} - Versión ${versionLetra}`);
+    setVersionActiva({ examenId, codigoVersion: versionLetra, nombre: examenNombre });
     setVistaActiva('previsualizacion');
     setExamenSeleccionado(null);
+    setPdfUrl(null);
+    setErrorPreview(null);
 
     try {
       setLoadingVersion(true);
-      const data = await obtenerVersionExamen(examenId, versionLetra);
-      setVersionData({ ...data, examenId, codigoVersion: versionLetra });
+      setPdfUrl(await obtenerPdfVersionUrl(examenId, versionLetra));
     } catch (err) {
-      console.error('Error al cargar la versión del examen:', err);
-      alert('Error al cargar la vista previa de esta versión.');
-      setVistaActiva('tabla');
+      console.error('Error al generar la vista previa del examen:', err);
+      setErrorPreview('No se pudo generar la vista previa de esta versión.');
     } finally {
       setLoadingVersion(false);
+    }
+  };
+
+  const cerrarPreview = () => {
+    setVistaActiva('tabla');
+    setPdfUrl(null);
+    setVersionActiva(null);
+  };
+
+  const handleDescargarPdf = async (examenId: number, version: string, nombre: string) => {
+    try {
+      await descargarPdfVersion(examenId, version, nombre);
+    } catch (err) {
+      console.error('Error al descargar PDF:', err);
+      alert('No se pudo descargar el PDF. Revisa que el backend esté corriendo y vuelve a intentarlo.');
     }
   };
 
@@ -137,69 +156,8 @@ export const HistorialExamenes = () => {
     return new Date(fecha).toLocaleDateString();
   };
 
-  const getCoverConfig = () => {
-    const savedConfig = localStorage.getItem('configuracionExamen');
-    let config = {
-      institutionName: 'UNIVERSIDAD NACIONAL',
-      headerText: 'EXAMEN DE ADMISIÓN 2025',
-      instructions: 'Lea cuidadosamente cada pregunta y marque solo una alternativa.',
-      logoUrl: null,
-      modalidad: 'MODALIDAD ORDINARIO',
-      colorPortada: '#6366f1'
-    };
-    if (savedConfig) {
-      try {
-        config = { ...config, ...JSON.parse(savedConfig) };
-      } catch (e) {}
-    }
-    return config;
-  };
-
-  const getContrastColor = (hexColor: string) => {
-    const hex = (hexColor || '#ffffff').replace('#', '');
-    if (hex.length === 6) {
-      const r = parseInt(hex.substring(0, 2), 16);
-      const g = parseInt(hex.substring(2, 4), 16);
-      const b = parseInt(hex.substring(4, 6), 16);
-      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-      return (yiq >= 128) ? '#0f172a' : '#ffffff';
-    }
-    return '#ffffff';
-  };
-
-  const removeLeadingNumber = (contentStr: string) => {
-    if (!contentStr) return '';
-    try {
-      const blocks = JSON.parse(contentStr);
-      if (Array.isArray(blocks)) {
-        const firstText = blocks.find((b: any) => b.tipo === 'texto');
-        if (firstText && typeof firstText.valor === 'string') {
-          firstText.valor = firstText.valor.replace(/^\d+[\.\-\)]\s*/, '');
-        }
-        return JSON.stringify(blocks);
-      }
-    } catch (e) {}
-    return contentStr.replace(/^\d+[\.\-\)]\s*/, '');
-  };
-
-  // Renderizado de la Vista Previa A4 (Dos páginas)
+  // Vista previa: se muestra el PDF real generado por el backend (idéntico a la descarga).
   if (vistaActiva === 'previsualizacion') {
-    const coverConfig = getCoverConfig();
-    const previewTextColor = getContrastColor(coverConfig.colorPortada);
-    
-    // Agrupar preguntas por curso con numeracion global 1-100
-    const preguntasPorCurso: Record<string, any[]> = {};
-    if (versionData && versionData.preguntas) {
-      let globalCounter = 1;
-      versionData.preguntas.forEach((p: any) => {
-        const curso = p.cursoNombre || 'OTROS';
-        if (!preguntasPorCurso[curso]) {
-          preguntasPorCurso[curso] = [];
-        }
-        preguntasPorCurso[curso].push({ ...p, globalNumber: globalCounter++ });
-      });
-    }
-
     return (
       <div className="preview-container">
         <div className="preview-toolbar">
@@ -208,17 +166,14 @@ export const HistorialExamenes = () => {
             <p style={{ margin: '4px 0 0 0', color: '#5f6368', fontSize: '0.9rem' }}>{versionActivaNombre}</p>
           </div>
           <div className="toolbar-actions">
-            <button className="btn btn-outline" onClick={() => setVistaActiva('tabla')}>
+            <button className="btn btn-outline" onClick={cerrarPreview}>
               Volver al Historial
             </button>
-            {versionData && (
+            {versionActiva && (
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  const exam = examenes.find((e) => e.id === versionData.examenId);
-                  const customName = exam ? exam.nombre : '';
-                  descargarPdfVersion(versionData.examenId, versionData.codigoVersion, customName);
-                }}
+                disabled={loadingVersion}
+                onClick={() => handleDescargarPdf(versionActiva.examenId, versionActiva.codigoVersion, versionActiva.nombre)}
               >
                 Descargar PDF
               </button>
@@ -226,93 +181,31 @@ export const HistorialExamenes = () => {
           </div>
         </div>
 
-        <div className="a4-preview-scroll-wrapper" onContextMenu={handleContextMenu}>
-          <div className="a4-pages-flex">
-            
-            {/* PÁGINA 1: PORTADA */}
-            <div className="a4-sheet cover-page" style={{ backgroundColor: coverConfig.colorPortada, color: previewTextColor }}>
-              <div className="cover-preview-content">
-                <div className="cover-institution">
-                  {coverConfig.institutionName || 'UNIVERSIDAD'}
-                </div>
-                
-                {coverConfig.logoUrl ? (
-                  <img src={coverConfig.logoUrl} alt="Logo" className="cover-logo" />
-                ) : (
-                  <div className="cover-logo-placeholder" style={{ borderColor: previewTextColor }}>LOGO</div>
-                )}
-                
-                <div className="cover-title">
-                  {coverConfig.headerText || 'EXAMEN DE ADMISIÓN'}
-                </div>
-
-                <div className="cover-modality">
-                  {coverConfig.modalidad || 'MODALIDAD'}
-                </div>
-
-                <div className="cover-theme-section" style={{ borderColor: previewTextColor }}>
-                  <div className="cover-theme-label">TEMA</div>
-                  <div className="cover-theme-letter">{versionData?.codigoVersion || 'A'}</div>
-                  <div className="cover-theme-hint">(Generado automáticamente)</div>
-                </div>
-
-                <div className="cover-instructions" style={{ borderColor: previewTextColor }}>
-                  <strong>Instrucciones:</strong> {coverConfig.instructions || 'Sin instrucciones adicionales.'}
-                </div>
-                
-                <div className="cover-footer-text">
-                  Examen de Admisión Oficial
-                </div>
-              </div>
+        <div className="pdf-preview-frame-wrapper">
+          {loadingVersion ? (
+            <div className="pdf-preview-status">
+              <div className="pdf-preview-spinner" />
+              <p>Generando PDF de la versión...</p>
             </div>
-
-            {/* PÁGINA 2: CONTENIDO ORDENADO POR CURSOS */}
-            <div className="a4-sheet questions-page">
-              <header className="exam-header-compact">
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontWeight: 'bold' }}>TEMA {versionData?.codigoVersion || 'A'}</span>
-                  <span style={{ textTransform: 'uppercase' }}>{coverConfig.institutionName}</span>
-                </div>
-              </header>
-
-              {loadingVersion ? (
-                <p style={{ textAlign: 'center', marginTop: '20px' }}>Cargando preguntas de la versión...</p>
-              ) : Object.keys(preguntasPorCurso).length > 0 ? (
-                <div className="questions-grouped-container">
-                  {Object.entries(preguntasPorCurso).map(([curso, listaPreguntas]) => (
-                    <div key={curso} className="course-group-section">
-                      <h3 className="course-group-title">{curso.toUpperCase()}</h3>
-                      <div className="questions-list-by-course">
-                        {listaPreguntas.map((p: any) => (
-                          <div className="question-item-grouped" key={p.id || p.globalNumber}>
-                            <div className="question-text-grouped" style={{ display: 'flex', gap: '8px' }}>
-                              <strong>{p.globalNumber}.</strong> 
-                              <div style={{ flex: 1 }}>
-                                <ContentRenderer contentStr={removeLeadingNumber(p.enunciado)} />
-                              </div>
-                            </div>
-                            <div className="options-grid-grouped">
-                              {p.alternativas?.map((alt: any) => (
-                                <div className="option-item-grouped" key={alt.id} style={{ display: 'flex', gap: '8px' }}>
-                                  <strong>{alt.letra})</strong> 
-                                  <div style={{ flex: 1 }}>
-                                    {alt.contenidoTexto ? <ContentRenderer contentStr={alt.contenidoTexto} /> : null}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ textAlign: 'center', marginTop: '20px' }}>No hay datos disponibles para esta versión.</p>
+          ) : errorPreview ? (
+            <div className="pdf-preview-status error">
+              <p>{errorPreview}</p>
+              {versionActiva && (
+                <button
+                  className="btn btn-outline"
+                  onClick={() => handleVerPreviewA4(versionActiva.examenId, versionActiva.nombre, versionActiva.codigoVersion)}
+                >
+                  Reintentar
+                </button>
               )}
             </div>
-
-          </div>
+          ) : pdfUrl ? (
+            <iframe
+              className="pdf-preview-frame"
+              src={`${pdfUrl}#view=FitH&toolbar=1`}
+              title={`Vista previa ${versionActivaNombre}`}
+            />
+          ) : null}
         </div>
       </div>
     );
@@ -488,13 +381,7 @@ export const HistorialExamenes = () => {
                       </button>
                       <button
                         className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfSolucionario(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
-                      >
-                        Solucionario
-                      </button>
-                      <button
-                        className="btn-action btn-action-outline"
-                        onClick={() => descargarPdfVersion(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
+                        onClick={() => handleDescargarPdf(examenSeleccionado.id, v.codigoVersion, examenSeleccionado.nombre)}
                       >
                         PDF
                       </button>
