@@ -36,7 +36,10 @@ Dokploy soporta despliegues de múltiples contenedores usando Docker Compose con
    - El contenedor `postgres` se iniciará e importará automáticamente `bd_limpia_con_preguntas.sql` (todas las preguntas, cursos y configuraciones limpias sin historial de exámenes).
    - El `backend` compilará la app de Spring Boot y configurará Python para los scripts.
    - El `frontend` compilará la SPA y la servirá con Nginx.
-5. Asigna tu dominio público con SSL (Let's Encrypt) desde la interfaz de Dokploy.
+5. **Asignar tu único dominio público con SSL (Let's Encrypt):**
+   - Ve a la pestaña **Domains** en Dokploy.
+   - Apunta tu dominio (ej. `tudominio.com`) al servicio `frontend` en el puerto `80`.
+   - ¡Listo! No necesitas exponer el puerto 8080 del backend ni crear un subdominio para la API; Nginx se encarga de servir el frontend y redirigir internamente `/api/` hacia Spring Boot en la misma red privada de Docker.
 
 ---
 
