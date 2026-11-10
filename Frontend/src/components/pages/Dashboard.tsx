@@ -129,7 +129,7 @@ export const Dashboard: React.FC = () => {
               Resumen Académico
             </h1>
             <p style={{ fontSize: "14px", color: "#64748b", margin: "4px 0 0 0" }}>
-              Panel de Control del Sistema de Exámenes
+              Panel de Control · Admissio
             </p>
           </div>
         </div>
