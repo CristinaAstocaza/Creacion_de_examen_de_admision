@@ -88,3 +88,4 @@ Si prefieres administrar cada servicio por separado:
 * Abre tu frontend en `https://tudominio.com`.
 * El Banco de Preguntas mostrará las 364 preguntas cargadas.
 * El Historial estará limpio y listo para generar nuevos exámenes.
+
