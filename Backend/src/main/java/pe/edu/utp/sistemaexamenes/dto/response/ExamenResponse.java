@@ -1,5 +1,7 @@
 package pe.edu.utp.sistemaexamenes.dto.response;
 
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
+
 import pe.edu.utp.sistemaexamenes.enums.EstadoExamen;
 
 import java.time.LocalDateTime;
@@ -20,6 +22,8 @@ public record ExamenResponse(
         Long categoriaExamenId,
         String categoriaExamenNombre,
         List<ExamenCursoUsadoResponse> cursosUsados,
-        List<ExamenVersionResponse> versiones
+        List<ExamenVersionResponse> versiones,
+        String tipoPrueba,
+        FormatoHoja formatoHoja
 ) {
 }

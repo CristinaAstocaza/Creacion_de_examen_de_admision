@@ -6,6 +6,6 @@ import pe.edu.utp.sistemaexamenes.dto.response.ArchivoDescargaResponse;
 public interface ExamenPdfService {
     ArchivoDescargaResponse generarPdfVersion(Long examenId, String version);
     ArchivoDescargaResponse generarPdfVersion(Long examenId, String version, CaratulaPdfRequest caratula);
-    ArchivoDescargaResponse generarZipVersiones(Long examenId);
+    ArchivoDescargaResponse generarZipVersiones(Long examenId, CaratulaPdfRequest caratula);
     ArchivoDescargaResponse generarPdfSolucionario(Long examenId, String version);
 }

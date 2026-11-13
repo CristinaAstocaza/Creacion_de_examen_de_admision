@@ -335,3 +335,18 @@ table:not(.shadcn-table) td { padding: 16px 12px; font-size: 14px; color: var(--
   line-height: 1.5;
   margin: 0 0 24px 0;
 }
+
+/* ── Tipo de prueba, hoja y temas por versión ── */
+.form-group-wide { grid-column: 1 / -1; }
+.field-hint { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.tema-versiones { display: flex; flex-wrap: wrap; gap: 10px; }
+.tema-version-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--text-muted); font-weight: 500;
+}
+.tema-input {
+  width: 64px; padding: 8px 6px; border: 1px solid var(--border-color); border-radius: 6px;
+  font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; outline: none;
+}
+.tema-input:focus { border-color: var(--primary-blue); }
+.tema-input-error { border-color: var(--danger); background: #fef2f2; }

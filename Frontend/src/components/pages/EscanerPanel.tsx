@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { listarEscaneres, escanearPagina, extraerPreguntasEscaneadas } from '../../services/escanerService';
+import { toast } from '../ui/toast';
 
 interface Dispositivo {
   id: string;
@@ -24,13 +25,17 @@ interface Props {
   cursoId: number | '';
   /** Recibe las preguntas tal como las devuelve el backend (mismo formato que la importación por imagen). */
   onPreguntasExtraidas: (preguntas: PreguntaEscaneada[]) => void;
+  /** Leer las hojas con OCR local (sin IA ni internet). Devuelve true si se procesaron. */
+  onExtraerSinIA: (paginas: File[]) => Promise<boolean>;
+  /** Hay conexión a internet (la IA la necesita). */
+  enLinea: boolean;
 }
 
 /**
  * Escanea hojas desde una impresora multifunción / escáner conectado a la PC
- * (o recibe PDFs y fotos ya escaneadas) y extrae todas sus preguntas con el agente IA.
+ * (o recibe PDFs y fotos ya escaneadas) y extrae sus preguntas con el agente IA o con OCR local (sin internet).
  */
-export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas }) => {
+export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas, onExtraerSinIA, enLinea }) => {
   const [dispositivos, setDispositivos] = useState<Dispositivo[]>([]);
   const [dispositivoId, setDispositivoId] = useState<string>('');
   const [buscando, setBuscando] = useState(false);
@@ -40,7 +45,6 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
   const [escaneando, setEscaneando] = useState(false);
   const [extrayendo, setExtrayendo] = useState(false);
   const [paginas, setPaginas] = useState<File[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const archivoRef = useRef<HTMLInputElement>(null);
 
   // Miniaturas de las páginas (se liberan al cambiar la lista).
@@ -52,13 +56,12 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
 
   const buscarEscaneres = async () => {
     setBuscando(true);
-    setError(null);
     try {
       const lista: Dispositivo[] = await listarEscaneres();
       setDispositivos(lista);
       setDispositivoId(lista[0]?.id ?? '');
     } catch (err) {
-      setError(mensajeDe(err, 'No se pudo buscar escáneres.'));
+      toast.error(mensajeDe(err, 'No se pudo buscar escáneres.'));
       setDispositivos([]);
     } finally {
       setBuscando(false);
@@ -69,12 +72,12 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
   const escanear = async () => {
     if (!dispositivoId) return;
     setEscaneando(true);
-    setError(null);
     try {
       const pagina = await escanearPagina({ dispositivoId, dpi: Number(dpi), modo });
       setPaginas(prev => [...prev, pagina]);
+      toast.success('Página escaneada.');
     } catch (err) {
-      setError(mensajeDe(err, 'No se pudo escanear la página.'));
+      toast.error(mensajeDe(err, 'No se pudo escanear la página.'));
     } finally {
       setEscaneando(false);
     }
@@ -89,24 +92,30 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
   };
 
   const extraer = async () => {
-    if (!cursoId) { setError('Selecciona el curso destino arriba.'); return; }
+    if (!cursoId) { toast.error('Selecciona el curso destino arriba.'); return; }
     if (paginas.length === 0) return;
     setExtrayendo(true);
-    setError(null);
     try {
       const resultado = await extraerPreguntasEscaneadas(paginas, cursoId);
       const preguntas = resultado?.preguntas ?? [];
       if (preguntas.length === 0) {
-        setError('No se encontraron preguntas en las hojas. Revisa que el escaneo sea legible.');
+        toast.error('No se encontraron preguntas en las hojas. Revisa que el escaneo sea legible.');
         return;
       }
       onPreguntasExtraidas(preguntas);
       setPaginas([]);
+      toast.success(`Se extrajeron ${preguntas.length} pregunta(s).`);
     } catch (err) {
-      setError(mensajeDe(err, 'Tu agente IA no pudo leer las hojas escaneadas.'));
+      toast.error(mensajeDe(err, 'Tu agente IA no pudo leer las hojas escaneadas.'));
     } finally {
       setExtrayendo(false);
     }
+  };
+
+  const extraerSinIA = async () => {
+    if (!cursoId) { toast.error('Selecciona el curso destino arriba.'); return; }
+    if (paginas.length === 0) return;
+    if (await onExtraerSinIA(paginas)) setPaginas([]);
   };
 
   const ocupado = escaneando || extrayendo;
@@ -114,12 +123,12 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
   return (
     <div className="import-card scanner-card">
       <div className="scanner-card-header">
-        <div className="card-icon">🖨️</div>
+        <div className="card-icon"><span className="material-icons-outlined">print</span></div>
         <div>
           <h3>Escanear desde impresora</h3>
           <p>
-            Conecta tu impresora multifunción o escáner, escanea las hojas del examen y tu agente IA extraerá
-            todas las preguntas, con sus fórmulas y figuras.
+            Escanea las hojas o sube PDF/fotos. <strong>Con IA</strong> se leen fórmulas y se recortan los gráficos;
+            <strong> sin IA</strong> se lee el texto en esta computadora, sin internet, y los gráficos los recortas tú.
           </p>
         </div>
       </div>
@@ -172,7 +181,7 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
                 </>
               )}
             </div>
-            {busquedaHecha && !buscando && dispositivos.length === 0 && !error && (
+            {busquedaHecha && !buscando && dispositivos.length === 0 && (
               <p className="scanner-hint">
                 No se encontró ningún escáner. Revisa que la impresora esté encendida, conectada por USB o a la
                 misma red, y que su driver esté instalado en Windows. También puedes subir las hojas ya escaneadas.
@@ -213,7 +222,7 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
                 {miniaturas[i] ? (
                   <img src={miniaturas[i]!} alt={`Página ${i + 1}`} />
                 ) : (
-                  <div className="scanner-page-pdf">📄<span>{pagina.name}</span></div>
+                  <div className="scanner-page-pdf"><span className="material-icons-outlined">picture_as_pdf</span><span>{pagina.name}</span></div>
                 )}
                 <span className="scanner-page-label">Hoja {i + 1}</span>
                 {!ocupado && (
@@ -230,19 +239,26 @@ export const EscanerPanel: React.FC<Props> = ({ cursoId, onPreguntasExtraidas })
           </div>
         )}
 
-        {error && <div className="card-recommendation-warning">⚠️ {error}</div>}
       </div>
 
-      <div className="import-card-footer">
+      <div className="import-card-footer import-footer-doble">
+        <button
+          className="btn btn-secondary"
+          onClick={extraerSinIA}
+          disabled={paginas.length === 0 || !cursoId || ocupado}
+          title="Lee el texto de las hojas en esta computadora, sin IA ni internet"
+        >
+          Sin IA
+        </button>
         <button
           className="btn btn-primary"
-          style={{ width: '100%' }}
           onClick={extraer}
-          disabled={paginas.length === 0 || !cursoId || ocupado}
+          disabled={paginas.length === 0 || !cursoId || ocupado || !enLinea}
+          title={enLinea ? 'Tu agente IA lee texto, fórmulas y recorta los gráficos' : 'Sin internet: usa "Sin IA"'}
         >
           {extrayendo
-            ? `Tu agente IA está leyendo ${paginas.length} hoja(s)…`
-            : `Extraer preguntas${paginas.length ? ` (${paginas.length} hoja${paginas.length > 1 ? 's' : ''})` : ''}`}
+            ? `Leyendo ${paginas.length} hoja(s)…`
+            : `Con IA${paginas.length ? ` (${paginas.length} hoja${paginas.length > 1 ? 's' : ''})` : ''}`}
         </button>
       </div>
     </div>

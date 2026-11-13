@@ -1,0 +1,55 @@
+.content-renderer { display: block; width: 100%; }
+.content-renderer.cr-inline { display: inline; }
+
+.cr-texto { white-space: pre-wrap; line-height: 1.6; }
+.latex-inline { padding: 0 3px; display: inline-block; vertical-align: middle; }
+.latex-block { overflow-x: auto; padding: 8px 0; text-align: center; }
+
+.cr-parrafo { margin: 0 0 6px; line-height: 1.6; }
+.cr-parrafo:last-child { margin-bottom: 0; }
+.cr-h1, .cr-h2, .cr-h3 { margin: 4px 0 6px; line-height: 1.3; color: inherit; }
+.cr-h1 { font-size: 1.35em; font-weight: 700; }
+.cr-h2 { font-size: 1.2em; font-weight: 700; }
+.cr-h3 { font-size: 1.05em; font-weight: 700; }
+.cr-cita { margin: 6px 0; padding: 4px 12px; border-left: 3px solid #cbd5e1; color: #475569; font-style: italic; }
+.cr-codigo {
+  margin: 6px 0; padding: 8px 10px; border-radius: 6px; background: #f1f5f9;
+  font-family: 'Consolas', 'Courier New', monospace; font-size: 0.92em; white-space: pre-wrap;
+}
+.cr-lista { margin: 4px 0 6px; padding-left: 22px; line-height: 1.6; }
+
+.cr-tabla-wrap { overflow-x: auto; margin: 6px 0; }
+.cr-tabla { border-collapse: collapse; font-size: 0.95em; }
+.cr-tabla th, .cr-tabla td { border: 1px solid #cbd5e1; padding: 4px 10px; text-align: center; vertical-align: middle; }
+.cr-tabla th { background: #f1f5f9; font-weight: 700; }
+
+.cr-imagen { display: flex; justify-content: center; margin: 8px 0; }
+.cr-inline .cr-imagen { margin: 4px 0; }
+.cr-imagen img { max-width: 100%; border-radius: 8px; display: block; margin: 0 auto; }
+.cr-imagen-pendiente {
+  padding: 12px; border: 1px dashed #ccc; border-radius: 8px; color: #666; text-align: center; background: #fafafa;
+}
+
+/* Imagen con botón para quitarla (revisión de importación) */
+.cr-imagen-marco { position: relative; display: inline-block; max-width: 100%; }
+.cr-quitar-imagen {
+  position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: rgba(220, 38, 38, 0.92); color: #fff; cursor: pointer;
+  display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  opacity: 0.85; transition: opacity 0.15s, transform 0.15s;
+}
+.cr-quitar-imagen .material-icons-outlined { font-size: 18px; }
+.cr-imagen--editable:hover .cr-quitar-imagen, .cr-quitar-imagen:focus-visible { opacity: 1; }
+.cr-quitar-imagen:hover { transform: scale(1.08); background: #b91c1c; }
+.cr-imagen-pendiente-acciones { display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+/* Las imágenes del contenido siempre van en su propio renglón, debajo del texto (nunca al costado).
+   Mayor especificidad que .q-image-container (inline-block) de la pantalla de importar. */
+.content-renderer .cr-imagen,
+.content-renderer .q-image-container.cr-imagen {
+  display: flex; justify-content: center; width: 100%; box-sizing: border-box;
+  margin: 10px 0 4px; padding: 10px; background: #f8f9fa; border: 1px solid #e8eaed; border-radius: 10px;
+}
+.content-renderer .cr-imagen img { max-height: 320px; object-fit: contain; }
+.content-renderer.cr-inline .cr-imagen { padding: 6px; }
+.content-renderer .cr-imagen-pendiente { display: block; width: 100%; box-sizing: border-box; margin: 10px 0 4px; }

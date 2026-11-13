@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import './BancoPreguntas.css';
+import './Gestion.css';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { listarCursos } from '../../services/cursoService';
 import {
   actualizarPregunta,
@@ -9,15 +10,19 @@ import {
   listarPreguntas,
   eliminarPregunta,
   obtenerPregunta,
-  uploadRecorte,
 } from '../../services/preguntaService';
 import { ContentRenderer } from '../ui/ContentRenderer';
+import { EditorRico } from '../ui/editor/EditorRico';
 import {
   bloquesATextoEditable,
-  construirContenido,
   imagenPrincipalVisible,
-  primeraImagen,
+  parsearBloques,
+  tieneBloquesImagen,
 } from '../../utils/contenidoBloques';
+import { tieneContenido } from '../../utils/importacion';
+import { quitarFormato } from '../../utils/formatoTexto';
+import { toast } from '../ui/toast';
+import { confirmar } from '../ui/confirm';
 
 interface Curso {
   id: number;
@@ -49,9 +54,8 @@ interface PreguntaResponse {
 
 interface AlternativaForm {
   letra: 'A' | 'B' | 'C' | 'D' | 'E';
-  tipo: 'TEXTO' | 'IMAGEN'; // auto-computed on save, kept for compatibility
-  contenidoTexto: string;
-  imagenUrl: string;
+  /** Contenido enriquecido (JSON de bloques): texto, fórmulas, imágenes, tablas… */
+  contenido: string;
   esCorrecta: boolean;
   ordenVisualizacion: number;
 }
@@ -59,8 +63,8 @@ interface AlternativaForm {
 interface FormDataPregunta {
   codigo: string;
   cursoId: string;
+  /** Contenido enriquecido (JSON de bloques). */
   enunciado: string;
-  imagenUrl: string;
   dificultad: 'FACIL' | 'MEDIO' | 'DIFICIL'; // hidden from UI, always sent as 'MEDIO'
   activo: boolean;
   alternativas: AlternativaForm[];
@@ -72,59 +76,62 @@ const crearFormVacio = (): FormDataPregunta => ({
   codigo: '',
   cursoId: '',
   enunciado: '',
-  imagenUrl: '',
   dificultad: 'MEDIO',
   activo: true,
   alternativas: letras.map((letra, index) => ({
     letra,
-    tipo: 'TEXTO',
-    contenidoTexto: '',
-    imagenUrl: '',
+    contenido: '',
     esCorrecta: false,
     ordenVisualizacion: index + 1,
   })),
 });
 
-const extractTextFromBlocks = (contentStr: string): string => {
-  if (!contentStr) return '';
-  try {
-    const blocks = JSON.parse(contentStr);
-    if (Array.isArray(blocks)) {
-      return blocks
-        .filter((b: any) => b.tipo === 'texto' || b.tipo === 'latex')
-        .map((b: any) => b.valor || '')
-        .join(' ');
-    }
-  } catch (_e) {}
-  return contentStr;
+/** Texto plano para la tabla y la búsqueda (sin marcas de formato ni $ de fórmulas). */
+const textoPlano = (contenido: string) => quitarFormato(bloquesATextoEditable(contenido)).replace(/\$([^$]+)\$/g, '$1');
+
+const sinTildes = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/** Preguntas por página en la tabla. */
+const POR_PAGINA = 25;
+
+/** Tiene alguna figura (en el enunciado, en una alternativa o como imagen suelta antigua). */
+const tieneImagenAlguna = (q: PreguntaResponse) =>
+  tieneBloquesImagen(q.enunciado)
+  || !!imagenPrincipalVisible(q.enunciado, q.imagenUrl)
+  || q.alternativas?.some((a) => tieneBloquesImagen(a.contenidoTexto) || !!imagenPrincipalVisible(a.contenidoTexto, a.imagenUrl));
+
+/** Tiene fórmulas LaTeX. */
+const tieneFormula = (contenido: string) =>
+  parsearBloques(contenido).some((b) => b.tipo === 'latex' || /\$[^$]+\$/.test(b.valor ?? ''));
+
+/**
+ * Las preguntas antiguas guardaban la figura en el campo imagenUrl (fuera del contenido).
+ * Al editar se pasa al contenido para que el editor la muestre y no se pierda.
+ */
+const conImagenSuelta = (contenido: string | null | undefined, imagenUrl: string | null | undefined): string => {
+  const suelta = imagenPrincipalVisible(contenido, imagenUrl);
+  if (!suelta) return contenido ?? '';
+  return JSON.stringify([...parsearBloques(contenido), { tipo: 'imagen', url: suelta }]);
 };
 
 export default function BancoPreguntas() {
   const [preguntas, setPreguntas] = useState<PreguntaResponse[]>([]);
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCursoId, setFilterCursoId] = useState('');
+  // Se puede llegar filtrado desde la sección Cursos: /banco?curso=3
+  const [filterCursoId, setFilterCursoId] = useState(() => searchParams.get('curso') ?? '');
+  const [filtroEstado, setFiltroEstado] = useState<'todas' | 'activas' | 'inactivas'>('todas');
+  const [soloConImagen, setSoloConImagen] = useState(false);
+  const [pagina, setPagina] = useState(1);
   const [selectedQuestion, setSelectedQuestion] = useState<PreguntaResponse | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  // Pregunta tal como está guardada: se usa para no perder figuras extra ni fórmulas al editar.
-  const [preguntaOriginal, setPreguntaOriginal] = useState<PreguntaResponse | null>(null);
   const [formData, setFormData] = useState<FormDataPregunta>(crearFormVacio());
+  /** Cambia al abrir el formulario para que los editores arranquen con el contenido correcto. */
+  const [formKey, setFormKey] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-
-  // ── Enunciado image state ──
-  const [enunciadoImageFile, setEnunciadoImageFile] = useState<File | null>(null);
-  const [enunciadoImagePreview, setEnunciadoImagePreview] = useState('');
-  const [enunciadoUrlMode, setEnunciadoUrlMode] = useState(false);
-  const enunciadoFileRef = useRef<HTMLInputElement>(null);
-
-  // ── Alternativas image state (5 slots A-E) ──
-  const [altImageFiles, setAltImageFiles] = useState<(File | null)[]>([null, null, null, null, null]);
-  const [altImagePreviews, setAltImagePreviews] = useState<string[]>(['', '', '', '', '']);
-  const [altUrlModes, setAltUrlModes] = useState<boolean[]>([false, false, false, false, false]);
-  const altFileRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null, null]);
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -132,9 +139,8 @@ export default function BancoPreguntas() {
       const [preguntasData, cursosData] = await Promise.all([listarPreguntas(), listarCursos()]);
       setPreguntas(preguntasData);
       setCursos(cursosData);
-      setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar preguntas y cursos');
+      toast.error(err instanceof Error ? err.message : 'No se pudieron cargar preguntas y cursos');
     } finally {
       setLoading(false);
     }
@@ -144,17 +150,41 @@ export default function BancoPreguntas() {
     cargarDatos();
   }, [cargarDatos]);
 
-  const filteredQuestions = useMemo(
-    () =>
-      preguntas.filter((q) => {
-        const matchesSearch =
-          q.enunciado.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          q.codigo.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCurso = filterCursoId ? q.cursoId === Number(filterCursoId) : true;
-        return matchesSearch && matchesCurso;
-      }),
-    [filterCursoId, preguntas, searchTerm]
-  );
+  const filteredQuestions = useMemo(() => {
+    const termino = sinTildes(searchTerm.trim());
+    return preguntas.filter((q) => {
+      const matchesSearch = !termino
+        || sinTildes(textoPlano(q.enunciado)).includes(termino)
+        || q.codigo.toLowerCase().includes(termino);
+      const matchesCurso = filterCursoId ? q.cursoId === Number(filterCursoId) : true;
+      const matchesEstado = filtroEstado === 'todas' || (filtroEstado === 'activas' ? q.activo : !q.activo);
+      const matchesImagen = !soloConImagen || tieneImagenAlguna(q);
+      return matchesSearch && matchesCurso && matchesEstado && matchesImagen;
+    });
+  }, [filterCursoId, preguntas, searchTerm, filtroEstado, soloConImagen]);
+
+  // Al cambiar un filtro se vuelve a la primera página.
+  const filtrar = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPagina(1); };
+  const cambiarCurso = (id: string) => {
+    filtrar(setFilterCursoId)(id);
+    const p = new URLSearchParams(searchParams);
+    if (id) p.set('curso', id); else p.delete('curso');
+    setSearchParams(p, { replace: true });
+  };
+
+  const totalPaginas = Math.max(1, Math.ceil(filteredQuestions.length / POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const enPagina = filteredQuestions.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
+  const activas = preguntas.filter((q) => q.activo).length;
+  const conImagen = preguntas.filter(tieneImagenAlguna).length;
+  const cursosConPreguntas = new Set(preguntas.map((q) => q.cursoId)).size;
+  const hayFiltros = !!(searchTerm || filterCursoId || filtroEstado !== 'todas' || soloConImagen);
+  const limpiarFiltros = () => {
+    setSearchTerm('');
+    cambiarCurso('');
+    setFiltroEstado('todas');
+    setSoloConImagen(false);
+  };
 
   // ── Auto-generate PREG-XXXXX code ──
   const generarCodigoAutomatico = (lista: PreguntaResponse[]): string => {
@@ -167,172 +197,73 @@ export default function BancoPreguntas() {
     return `PREG-${String(max + 1).padStart(5, '0')}`;
   };
 
-  const resetImageState = () => {
-    setEnunciadoImageFile(null);
-    setEnunciadoImagePreview('');
-    setEnunciadoUrlMode(false);
-    setAltImageFiles([null, null, null, null, null]);
-    setAltImagePreviews(['', '', '', '', '']);
-    setAltUrlModes([false, false, false, false, false]);
-    if (enunciadoFileRef.current) enunciadoFileRef.current.value = '';
-    altFileRefs.current.forEach((ref) => { if (ref) ref.value = ''; });
-  };
-
   const handleOpenDetail = async (question: PreguntaResponse) => {
     try {
       const data = await obtenerPregunta(question.id);
       setSelectedQuestion(data);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Error al obtener detalle de la pregunta');
+      toast.error(err instanceof Error ? err.message : 'Error al obtener detalle de la pregunta');
     }
   };
 
   const handleDeleteQuestion = async (id: number) => {
-    if (!window.confirm('¿Está seguro de eliminar esta pregunta?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar esta pregunta?', mensaje: 'Se eliminará junto con sus alternativas.', peligro: true }))) return;
     try {
       await eliminarPregunta(id);
       await cargarDatos();
+      toast.success('Pregunta eliminada.');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'No se pudo eliminar la pregunta');
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar la pregunta');
     }
   };
 
-  const handleOpenCreateForm = () => {
-    setEditingId(null);
-    setPreguntaOriginal(null);
-    const nuevo = crearFormVacio();
-    nuevo.codigo = generarCodigoAutomatico(preguntas);
-    setFormData(nuevo);
-    resetImageState();
+  const abrirFormulario = (datos: FormDataPregunta, id: number | null) => {
+    setEditingId(id);
+    setFormData(datos);
+    setFormKey((k) => k + 1);
     setIsFormModalOpen(true);
   };
 
+  const handleOpenCreateForm = () => {
+    const nuevo = crearFormVacio();
+    nuevo.codigo = generarCodigoAutomatico(preguntas);
+    abrirFormulario(nuevo, null);
+  };
+
   const handleOpenEditForm = (question: PreguntaResponse) => {
-    setEditingId(question.id);
-    setPreguntaOriginal(question);
-    // La figura editable es la recortada (bloque de imagen); nunca la captura completa de la importación.
-    const figuraEnunciado =
-      primeraImagen(question.enunciado) ?? imagenPrincipalVisible(question.enunciado, question.imagenUrl) ?? '';
-    setFormData({
+    abrirFormulario({
       codigo: question.codigo || '',
       cursoId: String(question.cursoId),
-      enunciado: bloquesATextoEditable(question.enunciado),
-      imagenUrl: figuraEnunciado,
+      enunciado: conImagenSuelta(question.enunciado, question.imagenUrl),
       dificultad: question.dificultad || 'MEDIO',
       activo: question.activo,
       alternativas: letras.map((letra, index) => {
         const alt = question.alternativas.find((a) => a.letra === letra);
         return {
           letra,
-          tipo: alt?.tipo || 'TEXTO',
-          contenidoTexto: bloquesATextoEditable(alt?.contenidoTexto || ''),
-          imagenUrl: primeraImagen(alt?.contenidoTexto) ?? alt?.imagenUrl ?? '',
+          contenido: conImagenSuelta(alt?.contenidoTexto, alt?.imagenUrl),
           esCorrecta: alt?.esCorrecta || false,
           ordenVisualizacion: alt?.ordenVisualizacion || index + 1,
         };
       }),
-    });
-    resetImageState();
-    if (figuraEnunciado) setEnunciadoImagePreview(figuraEnunciado);
-    const existingPreviews = letras.map((l) => {
-      const a = question.alternativas.find((alt) => alt.letra === l);
-      return primeraImagen(a?.contenidoTexto) ?? a?.imagenUrl ?? '';
-    });
-    setAltImagePreviews(existingPreviews);
-    setIsFormModalOpen(true);
+    }, question.id);
   };
 
-  const handleAlternativaChange = (index: number, field: keyof AlternativaForm, value: string | boolean) => {
-    const alternativas = [...formData.alternativas];
-    alternativas[index] = { ...alternativas[index], [field]: value };
-    setFormData({ ...formData, alternativas });
-  };
-
-  // ── Enunciado image handlers ──
-  const handleEnunciadoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setEnunciadoImageFile(file);
-    setEnunciadoImagePreview(preview);
-    setFormData((prev) => ({ ...prev, imagenUrl: '' }));
-    setEnunciadoUrlMode(false);
-  };
-
-  const handleEnunciadoUrlChange = (url: string) => {
-    setFormData((prev) => ({ ...prev, imagenUrl: url }));
-    setEnunciadoImagePreview(url);
-    setEnunciadoImageFile(null);
-  };
-
-  const handleClearEnunciadoImage = () => {
-    setEnunciadoImageFile(null);
-    setEnunciadoImagePreview('');
-    setEnunciadoUrlMode(false);
-    setFormData((prev) => ({ ...prev, imagenUrl: '' }));
-    if (enunciadoFileRef.current) enunciadoFileRef.current.value = '';
-  };
-
-  // ── Alternativa image handlers ──
-  const handleAltFileSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    const newFiles = [...altImageFiles];
-    const newPreviews = [...altImagePreviews];
-    newFiles[index] = file;
-    newPreviews[index] = preview;
-    setAltImageFiles(newFiles);
-    setAltImagePreviews(newPreviews);
-    handleAlternativaChange(index, 'imagenUrl', '');
-    const newModes = [...altUrlModes];
-    newModes[index] = false;
-    setAltUrlModes(newModes);
-  };
-
-  const handleAltUrlChange = (index: number, url: string) => {
-    handleAlternativaChange(index, 'imagenUrl', url);
-    const newPreviews = [...altImagePreviews];
-    newPreviews[index] = url;
-    setAltImagePreviews(newPreviews);
-    const newFiles = [...altImageFiles];
-    newFiles[index] = null;
-    setAltImageFiles(newFiles);
-  };
-
-  const handleClearAltImage = (index: number) => {
-    const newFiles = [...altImageFiles];
-    const newPreviews = [...altImagePreviews];
-    const newModes = [...altUrlModes];
-    newFiles[index] = null;
-    newPreviews[index] = '';
-    newModes[index] = false;
-    setAltImageFiles(newFiles);
-    setAltImagePreviews(newPreviews);
-    setAltUrlModes(newModes);
-    handleAlternativaChange(index, 'imagenUrl', '');
-    if (altFileRefs.current[index]) altFileRefs.current[index]!.value = '';
-  };
-
-  const toggleAltUrlMode = (index: number) => {
-    const newModes = [...altUrlModes];
-    newModes[index] = !newModes[index];
-    setAltUrlModes(newModes);
+  const cambiarAlternativa = (index: number, contenido: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      alternativas: prev.alternativas.map((a, i) => (i === index ? { ...a, contenido } : a)),
+    }));
   };
 
   const validarFormulario = (): boolean => {
-    if (!formData.cursoId || !formData.enunciado.trim()) {
-      alert('Selecciona un curso y escribe el enunciado.');
+    if (!formData.cursoId || !tieneContenido(formData.enunciado)) {
+      toast.error('Selecciona un curso y escribe el enunciado.');
       return false;
     }
-    const invalidas = formData.alternativas.some((alt, idx) => {
-      const hasText = alt.contenidoTexto.trim().length > 0;
-      const hasUrl = alt.imagenUrl.trim().length > 0;
-      const hasFile = altImageFiles[idx] !== null;
-      return !hasText && !hasUrl && !hasFile;
-    });
-    if (invalidas) {
-      alert('Cada alternativa debe tener al menos texto o imagen.');
+    const vacias = formData.alternativas.filter((alt) => !tieneContenido(alt.contenido)).map((a) => a.letra);
+    if (vacias.length) {
+      toast.error(`Completa las alternativas: ${vacias.join(', ')}.`);
       return false;
     }
     return true;
@@ -342,41 +273,19 @@ export default function BancoPreguntas() {
     if (!validarFormulario()) return;
     setIsSaving(true);
     try {
-      // 1. Upload enunciado image file if present
-      let enunciadoFinalUrl = formData.imagenUrl;
-      if (enunciadoImageFile) {
-        enunciadoFinalUrl = await uploadRecorte(enunciadoImageFile);
-      }
-
-      // 2. Upload alternativa image files if present, auto-compute tipo
-      const alternativasFinales = await Promise.all(
-        formData.alternativas.map(async (alt, idx) => {
-          let finalAltUrl = alt.imagenUrl;
-          if (altImageFiles[idx]) {
-            finalAltUrl = await uploadRecorte(altImageFiles[idx]!);
-          }
-          // La figura va dentro de los bloques del contenido (igual que en la importación),
-          // por eso el tipo siempre es TEXTO.
-          return { ...alt, imagenUrl: finalAltUrl, tipo: 'TEXTO' as const };
-        })
-      );
-
-      const altOriginal = (letra: string) =>
-        preguntaOriginal?.alternativas.find((a) => a.letra === letra)?.contenidoTexto ?? null;
-
       const payload = {
         codigo: formData.codigo.trim() || null,
-        // Texto + fórmulas ($...$) + figura recortada, todo en bloques.
-        enunciado: construirContenido(formData.enunciado.trim(), enunciadoFinalUrl.trim() || null, preguntaOriginal?.enunciado),
+        // Texto con formato, fórmulas, imágenes y tablas: todo va en los bloques del contenido.
+        enunciado: formData.enunciado,
         imagenUrl: null,
-        tieneImagen: !!enunciadoFinalUrl.trim(),
+        tieneImagen: tieneBloquesImagen(formData.enunciado),
         dificultad: formData.dificultad,
         activo: formData.activo,
         cursoId: Number(formData.cursoId),
-        alternativas: alternativasFinales.map((alt) => ({
+        alternativas: formData.alternativas.map((alt) => ({
           letra: alt.letra,
-          tipo: alt.tipo,
-          contenidoTexto: construirContenido(alt.contenidoTexto.trim(), alt.imagenUrl.trim() || null, altOriginal(alt.letra)),
+          tipo: 'TEXTO' as const,
+          contenidoTexto: alt.contenido,
           imagenUrl: null,
           esCorrecta: alt.esCorrecta,
           ordenVisualizacion: alt.ordenVisualizacion,
@@ -390,98 +299,137 @@ export default function BancoPreguntas() {
       }
       setIsFormModalOpen(false);
       await cargarDatos();
+      toast.success(editingId ? 'Pregunta actualizada correctamente.' : 'Pregunta creada correctamente.');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'No se pudo guardar la pregunta');
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar la pregunta');
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="banco-container">
-      <div className="page-header">
-        <h2 className="page-title">Banco de Preguntas</h2>
-        <div className="header-actions">
-          <button className="btn-primary" id="btn-nueva-pregunta" onClick={handleOpenCreateForm}>
-            <span className="material-icons-outlined">add</span>
-            Nueva Pregunta
-          </button>
+    <div className="banco-container gs">
+      <header className="gs-cabecera">
+        <div>
+          <h1>Banco de preguntas</h1>
+          <p>Todas las preguntas disponibles para generar exámenes. Busca, filtra por curso y edita con el editor de fórmulas e imágenes.</p>
         </div>
+        <button type="button" className="gs-btn gs-btn-primario" id="btn-nueva-pregunta" onClick={handleOpenCreateForm}>
+          <span className="material-icons-outlined">add</span> Nueva pregunta
+        </button>
+      </header>
+
+      <section className="gs-resumen" aria-label="Resumen">
+        <div className="gs-kpi"><span className="gs-kpi-icono"><span className="material-icons-outlined">quiz</span></span><div><strong>{preguntas.length.toLocaleString('es-PE')}</strong><span>Preguntas</span></div></div>
+        <div className="gs-kpi gs-kpi--verde"><span className="gs-kpi-icono"><span className="material-icons-outlined">check_circle</span></span><div><strong>{activas.toLocaleString('es-PE')}</strong><span>Activas</span></div></div>
+        <div className="gs-kpi gs-kpi--ambar"><span className="gs-kpi-icono"><span className="material-icons-outlined">image</span></span><div><strong>{conImagen.toLocaleString('es-PE')}</strong><span>Con imagen</span></div></div>
+        <div className="gs-kpi gs-kpi--gris"><span className="gs-kpi-icono"><span className="material-icons-outlined">school</span></span><div><strong>{cursosConPreguntas}</strong><span>Cursos con preguntas</span></div></div>
+      </section>
+
+      <div className="gs-barra">
+        <label className="gs-buscar">
+          <span className="material-icons-outlined">search</span>
+          <input
+            placeholder="Buscar en el enunciado o por código…"
+            value={searchTerm}
+            onChange={(e) => filtrar(setSearchTerm)(e.target.value)}
+            aria-label="Buscar pregunta"
+          />
+          {searchTerm && <button type="button" onClick={() => filtrar(setSearchTerm)('')} aria-label="Limpiar búsqueda"><span className="material-icons-outlined">close</span></button>}
+        </label>
+        <div className="gs-filtro-curso">
+          <Select value={filterCursoId} onValueChange={cambiarCurso}>
+            <SelectTrigger className="w-full"><SelectValue placeholder="Todos los cursos" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos los cursos</SelectItem>
+              {[...cursos].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')).map((curso) => (
+                <SelectItem key={curso.id} value={String(curso.id)}>{curso.nombre}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="gs-segmentado" role="group" aria-label="Filtrar por estado">
+          {(['todas', 'activas', 'inactivas'] as const).map((f) => (
+            <button key={f} type="button" className={filtroEstado === f ? 'is-activo' : ''} onClick={() => filtrar(setFiltroEstado)(f)}>{f[0].toUpperCase() + f.slice(1)}</button>
+          ))}
+        </div>
+        <label className="gs-switch" title="Mostrar solo preguntas con figuras">
+          <input type="checkbox" checked={soloConImagen} onChange={(e) => filtrar(setSoloConImagen)(e.target.checked)} />
+          <span className="gs-switch-pista" aria-hidden="true" />
+          Con imagen
+        </label>
+        <span className="gs-conteo">
+          {filteredQuestions.length.toLocaleString('es-PE')} de {preguntas.length.toLocaleString('es-PE')}
+          {hayFiltros && <> · <button type="button" className="bp-limpiar" onClick={limpiarFiltros}>Quitar filtros</button></>}
+        </span>
       </div>
 
-      {error && <div className="table-card" style={{ padding: '16px', color: 'var(--danger)' }}>{error}</div>}
-
-      <div className="filters-bar">
-        <input
-          type="text"
-          className="filter-input"
-          placeholder="Buscar por palabra clave..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        {/* Filtro Curso */}
-        <Select value={filterCursoId} onValueChange={setFilterCursoId}>
-          <SelectTrigger className="w-full px-3 py-2 text-left">
-            <SelectValue placeholder="Todos los Cursos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="" className="px-3 py-2 cursor-pointer">Todos los Cursos</SelectItem>
-            {cursos.map((curso) => (
-              <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
-                {curso.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="table-card shadcn-table-wrapper">
-        <Table className="shadcn-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Curso</TableHead>
-              <TableHead>Pregunta</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading && (
-              <TableRow>
-                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  Cargando preguntas...
-                </TableCell>
-              </TableRow>
+      <div className="gs-tabla-marco">
+        {loading ? (
+          <div className="gs-cargando">Cargando preguntas…</div>
+        ) : filteredQuestions.length === 0 ? (
+          <div className="gs-vacio">
+            <span className="material-icons-outlined">quiz</span>
+            <strong>{preguntas.length ? 'Ninguna pregunta coincide con los filtros' : 'El banco está vacío'}</strong>
+            {preguntas.length
+              ? <button type="button" className="gs-btn" onClick={limpiarFiltros}>Quitar filtros</button>
+              : <span>Crea una pregunta o impórtalas desde un documento, imagen o escáner.</span>}
+          </div>
+        ) : (
+          <>
+            <table className="gs-tabla">
+              <thead>
+                <tr>
+                  <th>Pregunta</th>
+                  <th className="gs-ocultar-movil">Curso</th>
+                  <th className="gs-col-num">Estado</th>
+                  <th className="gs-col-acciones">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {enPagina.map((q) => (
+                  <tr key={q.id} className="is-clicable" onClick={() => void handleOpenDetail(q)}>
+                    <td>
+                      <span className="gs-recortado bp-enunciado">{textoPlano(q.enunciado) || 'Sin texto (solo imagen)'}</span>
+                      <span className="bp-etiquetas">
+                        <span className="gs-chip gs-chip--codigo">{q.codigo}</span>
+                        {tieneImagenAlguna(q) && <span className="gs-chip gs-chip--azul"><span className="material-icons-outlined">image</span>Imagen</span>}
+                        {tieneFormula(q.enunciado) && <span className="gs-chip gs-chip--azul"><span className="material-icons-outlined">functions</span>Fórmula</span>}
+                      </span>
+                    </td>
+                    <td className="gs-ocultar-movil">{q.cursoNombre}</td>
+                    <td className="gs-col-num">
+                      <span className={`gs-chip ${q.activo ? 'gs-chip--activo' : 'gs-chip--inactivo'}`}>{q.activo ? 'Activa' : 'Inactiva'}</span>
+                    </td>
+                    <td className="gs-col-acciones" onClick={(e) => e.stopPropagation()}>
+                      <span className="gs-acciones">
+                        <button type="button" className="gs-icono" title="Ver" onClick={() => void handleOpenDetail(q)}><span className="material-icons-outlined">visibility</span></button>
+                        <button type="button" className="gs-icono" title="Editar" onClick={() => handleOpenEditForm(q)}><span className="material-icons-outlined">edit</span></button>
+                        <button type="button" className="gs-icono peligro" title="Eliminar" onClick={() => void handleDeleteQuestion(q.id)}><span className="material-icons-outlined">delete_outline</span></button>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {totalPaginas > 1 && (
+              <div className="gs-paginacion">
+                <span>
+                  {((paginaActual - 1) * POR_PAGINA + 1).toLocaleString('es-PE')}–{Math.min(paginaActual * POR_PAGINA, filteredQuestions.length).toLocaleString('es-PE')} de {filteredQuestions.length.toLocaleString('es-PE')}
+                </span>
+                <div>
+                  <button type="button" className="gs-btn gs-btn-sm" disabled={paginaActual === 1} onClick={() => setPagina(paginaActual - 1)}>
+                    <span className="material-icons-outlined">chevron_left</span> Anterior
+                  </button>
+                  <span>Página {paginaActual} de {totalPaginas}</span>
+                  <button type="button" className="gs-btn gs-btn-sm" disabled={paginaActual === totalPaginas} onClick={() => setPagina(paginaActual + 1)}>
+                    Siguiente <span className="material-icons-outlined">chevron_right</span>
+                  </button>
+                </div>
+              </div>
             )}
-            {!loading && filteredQuestions.map((q) => (
-              <TableRow key={q.id}>
-                <TableCell>{q.cursoNombre}</TableCell>
-                <TableCell className="truncate-text" title={extractTextFromBlocks(q.enunciado)}>
-                  {extractTextFromBlocks(q.enunciado)}
-                </TableCell>
-                <TableCell>
-                  <div className="action-buttons">
-                    <button className="btn-icon" title="Ver Detalle" onClick={() => handleOpenDetail(q)}>
-                      <span className="material-icons-outlined">visibility</span>
-                    </button>
-                    <button className="btn-icon" title="Editar" onClick={() => handleOpenEditForm(q)}>
-                      <span className="material-icons-outlined">edit</span>
-                    </button>
-                    <button className="btn-icon delete" title="Eliminar" onClick={() => handleDeleteQuestion(q.id)} style={{ color: 'var(--danger)' }}>
-                      <span className="material-icons-outlined">delete</span>
-                    </button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {!loading && filteredQuestions.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={3} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                  No hay preguntas registradas para los filtros seleccionados.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+          </>
+        )}
       </div>
 
       {/* ── Modal: Crear / Editar pregunta ── */}
@@ -495,206 +443,74 @@ export default function BancoPreguntas() {
               </button>
             </div>
 
-            <div className="modal-body">
-              {/* Fila: Curso */}
-              <div className="form-group mb-0">
-                <label>Curso *</label>
-                <Select
-                  value={formData.cursoId}
-                  onValueChange={(value) => setFormData({ ...formData, cursoId: value })}
-                >
-                  <SelectTrigger className="w-full px-3 py-2 text-left">
-                    <SelectValue placeholder="Seleccione..." />
-                  </SelectTrigger>
-                  <SelectContent className="z-[9999]">
-                    {cursos.map((curso) => (
-                      <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
-                        {curso.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="modal-body" key={formKey}>
+              <div className="bp-form-fila">
+                <div className="form-group mb-0">
+                  <label>Curso *</label>
+                  <Select
+                    value={formData.cursoId}
+                    onValueChange={(value) => setFormData({ ...formData, cursoId: value })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-2 text-left">
+                      <SelectValue placeholder="Seleccione..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      {cursos.map((curso) => (
+                        <SelectItem key={curso.id} value={String(curso.id)} className="px-3 py-2 cursor-pointer">
+                          {curso.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="form-group mb-0">
+                  <label>Estado</label>
+                  <Select
+                    value={formData.activo ? 'Activo' : 'Inactivo'}
+                    onValueChange={(value) => setFormData({ ...formData, activo: value === 'Activo' })}
+                  >
+                    <SelectTrigger className="w-full px-3 py-2 text-left">
+                      <SelectValue placeholder="Seleccione estado" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[9999]">
+                      <SelectItem value="Activo" className="px-3 py-2 cursor-pointer">Activo</SelectItem>
+                      <SelectItem value="Inactivo" className="px-3 py-2 cursor-pointer">Inactivo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Enunciado */}
               <div className="form-group">
                 <label>Enunciado *</label>
-                <textarea
-                  className="form-control"
-                  placeholder="Escribe la pregunta aquí..."
+                <EditorRico
                   value={formData.enunciado}
-                  onChange={(e) => setFormData({ ...formData, enunciado: e.target.value })}
+                  onChange={(enunciado) => setFormData((prev) => ({ ...prev, enunciado }))}
+                  placeholder="Escribe la pregunta aquí. Usa la barra para formato, imágenes, tablas y ecuaciones."
+                  alturaMinima={140}
+                  etiqueta="Enunciado"
                 />
-              </div>
-
-              {/* Imagen del enunciado */}
-              <div className="form-group">
-                <label>Imagen del enunciado <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Opcional)</span></label>
-                <div className="image-upload-zone">
-                  {!enunciadoImagePreview ? (
-                    <div className="image-upload-placeholder">
-                      <span className="material-icons-outlined" style={{ fontSize: '32px', color: 'var(--text-muted)' }}>image</span>
-                      <div className="image-upload-actions">
-                        <button
-                          type="button"
-                          className="btn-upload-action"
-                          onClick={() => enunciadoFileRef.current?.click()}
-                        >
-                          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>upload</span>
-                          Subir imagen
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-upload-action btn-upload-url"
-                          onClick={() => setEnunciadoUrlMode((v) => !v)}
-                        >
-                          <span className="material-icons-outlined" style={{ fontSize: '16px' }}>link</span>
-                          Ingresar URL
-                        </button>
-                      </div>
-                      {enunciadoUrlMode && (
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="https://..."
-                          value={formData.imagenUrl}
-                          onChange={(e) => handleEnunciadoUrlChange(e.target.value)}
-                          style={{ marginTop: '8px' }}
-                        />
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={enunciadoFileRef}
-                        style={{ display: 'none' }}
-                        onChange={handleEnunciadoFileSelect}
-                      />
-                    </div>
-                  ) : (
-                    <div className="image-preview-zone">
-                      <img
-                        src={enunciadoImagePreview}
-                        alt="Preview enunciado"
-                        className="image-preview-img"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                      <div className="image-preview-actions">
-                        <button type="button" className="btn-upload-action" onClick={() => enunciadoFileRef.current?.click()}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>swap_horiz</span>
-                          Reemplazar
-                        </button>
-                        <button type="button" className="btn-upload-action btn-delete-action" onClick={handleClearEnunciadoImage}>
-                          <span className="material-icons-outlined" style={{ fontSize: '14px' }}>delete</span>
-                          Eliminar
-                        </button>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        ref={enunciadoFileRef}
-                        style={{ display: 'none' }}
-                        onChange={handleEnunciadoFileSelect}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="form-group mb-0">
-                <label>Estado</label>
-                <Select
-                  value={formData.activo ? 'Activo' : 'Inactivo'}
-                  onValueChange={(value) => setFormData({ ...formData, activo: value === 'Activo' })}
-                >
-                  <SelectTrigger className="w-full px-3 py-2 text-left">
-                    <SelectValue placeholder="Seleccione estado" />
-                  </SelectTrigger>
-                  <SelectContent className="z-[9999]">
-                    <SelectItem value="Activo" className="px-3 py-2 cursor-pointer">Activo</SelectItem>
-                    <SelectItem value="Inactivo" className="px-3 py-2 cursor-pointer">Inactivo</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Alternativas */}
               <div className="form-group">
                 <label>Alternativas *</label>
-                <div className="options-container">
-                  {formData.alternativas.map((alt, idx) => {
-                    const hasPreview = altImagePreviews[idx];
-                    return (
-                      <div className="alt-mixed-group" key={alt.letra}>
-                        <div className="alt-letter-badge">{alt.letra}</div>
-                        <div className="alt-fields">
-                          {/* Texto */}
-                          <input
-                            type="text"
-                            className="form-control"
-                            placeholder={`Texto de la alternativa ${alt.letra} (opcional)`}
-                            value={alt.contenidoTexto}
-                            onChange={(e) => handleAlternativaChange(idx, 'contenidoTexto', e.target.value)}
-                          />
-
-                          {/* Imagen */}
-                          {!hasPreview ? (
-                            <div className="alt-image-row">
-                              <button
-                                type="button"
-                                className="btn-upload-sm"
-                                onClick={() => altFileRefs.current[idx]?.click()}
-                              >
-                                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>upload</span>
-                                Imagen
-                              </button>
-                              <button
-                                type="button"
-                                className={`btn-upload-sm ${altUrlModes[idx] ? 'btn-upload-sm-active' : ''}`}
-                                onClick={() => toggleAltUrlMode(idx)}
-                              >
-                                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>link</span>
-                                URL
-                              </button>
-                              {altUrlModes[idx] && (
-                                <input
-                                  type="text"
-                                  className="form-control"
-                                  placeholder="https://imagen..."
-                                  value={alt.imagenUrl}
-                                  onChange={(e) => handleAltUrlChange(idx, e.target.value)}
-                                  style={{ flex: 1 }}
-                                />
-                              )}
-                            </div>
-                          ) : (
-                            <div className="alt-image-preview-row">
-                              <img
-                                src={hasPreview}
-                                alt={`Alt ${alt.letra}`}
-                                className="alt-mini-preview"
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                              <button
-                                type="button"
-                                className="btn-upload-sm btn-delete-action"
-                                onClick={() => handleClearAltImage(idx)}
-                              >
-                                <span className="material-icons-outlined" style={{ fontSize: '14px' }}>delete</span>
-                                Eliminar imagen
-                              </button>
-                            </div>
-                          )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            ref={(el) => { altFileRefs.current[idx] = el; }}
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleAltFileSelect(idx, e)}
-                          />
-
-                        </div>
+                <div className="bp-alternativas">
+                  {formData.alternativas.map((alt, idx) => (
+                    <div className="bp-alternativa" key={alt.letra}>
+                      <div className="alt-letter-badge">{alt.letra}</div>
+                      <div className="bp-alternativa-editor">
+                        <EditorRico
+                          value={alt.contenido}
+                          onChange={(contenido) => cambiarAlternativa(idx, contenido)}
+                          placeholder={`Alternativa ${alt.letra}`}
+                          alturaMinima={52}
+                          etiqueta={`Alternativa ${alt.letra}`}
+                        />
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -754,30 +570,24 @@ export default function BancoPreguntas() {
               )}
 
               <ul className="options-list">
-                {selectedQuestion.alternativas.map((opt) => {
-                  return (
-                    <li key={opt.letra} className="option-item">
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                        <span className="option-letter">{opt.letra})</span>
-                        <div style={{ flex: 1 }}>
-                           {/* Renderizar texto si existe */}
-                           {opt.contenidoTexto && (
-                             <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />
-                           )}
-                           {/* Renderizar imagen si existe */}
-                           {imagenPrincipalVisible(opt.contenidoTexto, opt.imagenUrl) && (
-                             <img
-                               src={opt.imagenUrl!}
-                               alt={`Alternativa ${opt.letra}`}
-                               className="option-image-detail"
-                               onError={(e) => (e.currentTarget.style.display = 'none')}
-                             />
-                           )}
-                        </div>
+                {selectedQuestion.alternativas.map((opt) => (
+                  <li key={opt.letra} className="option-item">
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <span className="option-letter">{opt.letra})</span>
+                      <div style={{ flex: 1 }}>
+                        {opt.contenidoTexto && <ContentRenderer contentStr={opt.contenidoTexto} inline={true} />}
+                        {imagenPrincipalVisible(opt.contenidoTexto, opt.imagenUrl) && (
+                          <img
+                            src={opt.imagenUrl!}
+                            alt={`Alternativa ${opt.letra}`}
+                            className="option-image-detail"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                        )}
                       </div>
-                    </li>
-                  );
-                })}
+                    </div>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>

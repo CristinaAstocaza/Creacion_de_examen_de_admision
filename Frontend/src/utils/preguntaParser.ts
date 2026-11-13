@@ -34,17 +34,20 @@ const normalizeUnicodeDigits = (str: string): string => {
 export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor: string }[] => {
   if (!text) return [];
 
-  let formatted = text;
+  // Las reglas solo se aplican al texto: las fórmulas ya escritas como $...$ (p. ej. las fracciones
+  // reconstruidas por el OCR) se respetan tal cual.
+  const transformar = (fragmento: string): string => {
+  let formatted = fragmento;
   const commonElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|Al|Si|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb|U|Pu|Br|I';
 
-  // Auxiliar para convertir fórmulas químicas complejas o elementos a LaTeX correcto sin \mathrm
-  const toChemicalKatex = (str: string): string => {
-    let result = str.replace(
-      new RegExp(`(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)`, 'g'),
-      (_, element, num) => `${element}_{${normalizeUnicodeDigits(num)}}`
-    );
-    return result;
-  };
+  // Las fórmulas químicas se dejan como TEXTO con subíndices Unicode (CO₂, H₂SO₄): se ven rectas
+  // como en un libro (en LaTeX saldrían en cursiva) y el PDF las imprime igual.
+  const SUBS = '₀₁₂₃₄₅₆₇₈₉';
+  const SUPS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  const aSub = (num: string) => normalizeUnicodeDigits(num).split('').map(d => SUBS[+d]).join('');
+  const aSup = (num: string) => normalizeUnicodeDigits(num).split('').map(d => SUPS[+d]).join('');
+  const toChemicalUnicode = (str: string): string =>
+    str.replace(new RegExp(`(${commonElements}|\\))([₀₁₂₃₄₅₆₇₈₉\\d]+)`, 'g'), (_, element, num) => element + aSub(num));
 
   // Límites de palabra que sí reconocen tildes y ñ (\b de JS solo entiende ASCII:
   // con \b, "SINÓNIMO" se leía como la fórmula "SIN" + "ÓNIMO").
@@ -55,36 +58,29 @@ export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor:
   formatted = formatted.replace(
     new RegExp(`${INI}(${commonElements})([₀₁₂₃₄₅₆₇₈₉\\d]*)([+\\-⁺⁻])${FIN}`, 'gu'),
     (_, element, num, charge) => {
-      const normNum = num ? normalizeUnicodeDigits(num) : '';
-      const normCharge = charge === '⁺' || charge === '+' ? '+' : '-';
-      return `$ ${element}^{${normNum}${normCharge}} $`;
+      const signo = charge === '⁺' || charge === '+' ? '⁺' : '⁻';
+      return `${element}${num ? aSup(num) : ''}${signo}`;
     }
   );
 
-  // 2. Isótopos (ej: ⁶Li, ⁷Li, 6Li, 235U)
+  // 2. Isótopos (ej: ⁶Li, 235U, 14C). No si el número es un valor: "H = 1C = 12" no es el isótopo ¹C.
   formatted = formatted.replace(
-    new RegExp(`([⁰¹²³⁴⁵⁶⁷⁸⁹]+|${INI}\\d+)(${commonElements})${FIN}`, 'gu'),
-    (_, num, element) => {
-      const normNum = normalizeUnicodeDigits(num);
-      return `$ {}^{${normNum}}\\mathrm{${element}} $`;
-    }
+    new RegExp(`(?<![=:]\\s*)([⁰¹²³⁴⁵⁶⁷⁸⁹]+|${INI}\\d+)(${commonElements})${FIN}`, 'gu'),
+    (_, num, element) => `${aSup(num)}${element}`
   );
 
-  // 3. Fórmulas químicas multi-elemento (ej: H2O, H₂O, CO2, H2SO4)
+  // 3. Fórmulas químicas multi-elemento (ej: H2O, H₂O, CO2, H2SO4, Ca(OH)2)
   // Solo si llevan algún número: así siglas como "PIB", "II" o "SIN" siguen siendo texto.
   formatted = formatted.replace(
     new RegExp(`${INI}((?:${commonElements})(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?(?:${commonElements})+(?:[₀₁₂₃₄₅₆₇₈₉\\d]+)?)${FIN}`, 'gu'),
-    (match, formula) => (/[\d₀-₉]/.test(formula) ? `$ ${toChemicalKatex(formula)} $` : match)
+    (match, formula) => (/[\d₀-₉]/.test(formula) ? toChemicalUnicode(formula) : match)
   );
 
   // 4. Elementos individuales con números (ej: O2, N2, H2) - Excluimos Si y Al para evitar colisiones con "Si" y "Al" en español
   const singleElements = 'H|He|Li|Be|B|C|N|O|F|Ne|Na|Mg|P|S|Cl|Ar|K|Ca|Fe|Cu|Zn|Ag|Au|Pt|Hg|Pb|U|Pu|Br|I';
   formatted = formatted.replace(
     new RegExp(`${INI}(${singleElements})([₀₁₂₃₄₅₆₇₈₉\\d]+)${FIN}`, 'gu'),
-    (_, element, num) => {
-      const normNum = normalizeUnicodeDigits(num);
-      return `$ ${element}_{${normNum}} $`;
-    }
+    (_, element, num) => element + aSub(num)
   );
 
   // 5. Exponentes algebraicos y unidades (ej: x2, m2, x², m², y³, k⁴)
@@ -96,6 +92,9 @@ export const convertToBlocks = (text: string): { tipo: 'texto' | 'latex'; valor:
       return `$ ${variable}^{${normNum}} $`;
     }
   );
+  return formatted;
+  };
+  const formatted = text.split(/(\$[^$]+\$)/).map((parte, i) => (i % 2 === 1 ? parte : transformar(parte))).join('');
 
   // Dividir por $ para separar texto normal y bloques de LaTeX
   const parts = formatted.split('$');
@@ -125,12 +124,20 @@ export const normalizeText = (text: string): string => {
   // 3. Insertar saltos de línea antes de preguntas numeradas embebidas (ej. "1.", "Pregunta 2.")
   // Limitamos el número a un rango de 1 a 3 dígitos para evitar chocar con años o decimales
   cleaned = cleaned.replace(/\s+((?:Pregunta|PREGUNTA)\s+\d+[\)\.\:\-]?\s+)/gi, '\n$1');
-  cleaned = cleaned.replace(/\s+(\d{1,3}[\)\.\:\-]\s+)/g, '\n$1');
+  // No si el número es el valor de algo: "H = 1." o "x + 2." no inician una pregunta.
+  cleaned = cleaned.replace(/(\S?)\s+(\d{1,3}[\)\.\:\-]\s+)/g, (m, previo: string, numero: string) =>
+    /[=+\-×*/:;,<>(]/.test(previo) ? m : `${previo}\n${numero}`);
 
   // 4. Insertar saltos de línea antes de las alternativas embebidas (ej. " a)", " B.")
   // IMPORTANTE: solo se acepta ) y . como separadores en la fase inline.
   // NO se usa - ni : porque colisionan con vectores ("2i - 6j") y expresiones matemáticas.
   cleaned = cleaned.replace(/\s+([a-eA-E][\)\.][ \t]+)/g, '\n$1');
+  // Alternativas en una sola línea sin espacio tras el paréntesis: "A)3 B)4 C)5 D)6 E)7".
+  // Solo si en la línea hay al menos 3 letras seguidas de ")" (así "f(x) = 2" o "(m∠AEF)" no se parten).
+  cleaned = cleaned.split('\n').map(linea => {
+    const marcas = linea.match(/(?:^|\s)[a-eA-E]\)/g) ?? [];
+    return marcas.length >= 3 ? linea.replace(/\s+([a-eA-E]\))(?=\S)/g, '\n$1') : linea;
+  }).join('\n');
 
   // 5. Limpiar espacios al final de cada línea
   let normalized = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
@@ -160,7 +167,11 @@ const mapToSuperscript = (numStr: string): string => {
  * Corrige errores comunes de OCR en símbolos científicos e inserta
  * subíndices/superíndices en fórmulas químicas y expresiones algebraicas de forma contextual.
  */
-export const formatScientificAndOCR = (text: string): string => {
+export const formatScientificAndOCR = (text: string): string =>
+  // Las fórmulas ya escritas como $...$ no se tocan.
+  text.split(/(\$[^$]+\$)/).map((parte, i) => (i % 2 === 1 ? parte : formatearFragmentoCientifico(parte))).join('');
+
+const formatearFragmentoCientifico = (text: string): string => {
   let formatted = text;
 
   // 1. Corregir errores comunes de OCR
@@ -216,10 +227,11 @@ export const formatScientificAndOCR = (text: string): string => {
     '$1$2'
   );
 
-  // Convertir subíndices después de paréntesis de grupos químicos (ej. (OH)2 -> (OH)₂)
+  // Convertir subíndices después de paréntesis de grupos químicos (ej. (OH)2 -> (OH)₂, Ca(NO3)2 -> Ca(NO₃)₂).
+  // Solo si el paréntesis encierra elementos químicos: así "C)53°" o "A)30" (letra de alternativa) no se tocan.
   formatted = formatted.replace(
-    /\)(\d+)/g,
-    (_, num) => ')' + mapToSubscript(num)
+    /(\((?:[A-Z][a-z]?[\d₀-₉]*)+\))(\d+)/g,
+    (_, grupo, num) => grupo + mapToSubscript(num)
   );
 
   // 4. Convertir a Superíndices en variables algebraicas (ej. x2 -> x², y3 -> y³)
@@ -237,6 +249,30 @@ export const formatScientificAndOCR = (text: string): string => {
   );
 
   return formatted;
+};
+
+/** Renglón que empieza un ítem de lista y debe quedar en su propia línea: "I.", "II)", "•", "- ", "1)". */
+const INICIO_DE_ITEM = /^\s*(?:[IVX]{1,4}[.)]\s|[•▪◦·]\s?|[-–—]\s|\d{1,2}\)\s)/;
+
+/**
+ * Une los renglones de diagramación en texto corrido ("…de un\ntriángulo ABC" → "…de un triángulo ABC").
+ * Se conservan los saltos reales: renglón en blanco (párrafo nuevo) e ítems de lista (I., II., •…).
+ * Una palabra cortada con guion al final del renglón se vuelve a unir ("trián-\ngulo" → "triángulo").
+ */
+export const unirRenglones = (renglones: string[]): string => {
+  let texto = '';
+  for (const crudo of renglones) {
+    const linea = crudo.replace(/[ \t]{2,}/g, ' ').trim();
+    if (!linea) {
+      if (texto && !texto.endsWith('\n')) texto += '\n';
+      continue;
+    }
+    if (!texto || texto.endsWith('\n')) texto += linea;
+    else if (INICIO_DE_ITEM.test(linea)) texto += `\n${linea}`;
+    else if (/\p{L}-$/u.test(texto) && /^\p{Ll}/u.test(linea)) texto = texto.slice(0, -1) + linea;
+    else texto += ` ${linea}`;
+  }
+  return texto.trim();
 };
 
 /**
@@ -388,13 +424,14 @@ export const parseQuestionsHeuristically = (text: string): ParserResult => {
     }
 
     if (currentEnunciadoLines.length > 0 || currentAlternatives.length > 0) {
-      const enunciadoText = currentEnunciadoLines.join('\n').trim();
+      // Los saltos de renglón del documento/imagen son de diagramación: el texto se une en un párrafo corrido.
+      const enunciadoText = unirRenglones(currentEnunciadoLines);
       questions.push({
         numero: currentNumber,
         enunciado: JSON.stringify(convertToBlocks(enunciadoText)),
         alternativas: currentAlternatives.map(alt => ({
           letra: alt.letra,
-          contenido: JSON.stringify(convertToBlocks(alt.text))
+          contenido: JSON.stringify(convertToBlocks(unirRenglones(alt.text.split('\n'))))
         }))
       });
     }

@@ -26,10 +26,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bd_examen_admi
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Imágenes en disco (sin internet). Usa 'cloudinary' para subirlas a la nube.
+      IMAGENES_ALMACENAMIENTO: ${IMAGENES_ALMACENAMIENTO:-local}
+      IMAGENES_DIRECTORIO: /app/uploads
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-divad3mq2}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-477812598369763}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-3lxFKvOX8ojOcfNY-hlNHDdZwZs}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-AQ.Ab8RN6LblEMXePJYODfZlvglvhJdVjoRS6ri42iOlhS5gUq9vQ}
+    volumes:
+      - imagenes_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,3 +54,4 @@ services:
 
 volumes:
   postgres_data:
+  imagenes_data:

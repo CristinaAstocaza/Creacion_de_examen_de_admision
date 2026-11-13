@@ -1,5 +1,7 @@
 package pe.edu.utp.sistemaexamenes.mapper;
 
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
+
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenAlternativaVistaResponse;
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenCursoUsadoResponse;
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenPreguntaVistaResponse;
@@ -47,7 +49,9 @@ public class ExamenMapper {
                 examen.getCategoriaExamen().getId(),
                 examen.getCategoriaExamen().getNombre(),
                 cursos,
-                versiones
+                versiones,
+                examen.getTipoPrueba(),
+                examen.getFormatoHoja() == null ? FormatoHoja.A4 : examen.getFormatoHoja()
         );
     }
 

@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.edu.utp.sistemaexamenes.exception.BusinessException;
 import pe.edu.utp.sistemaexamenes.service.CursoService;
 import pe.edu.utp.sistemaexamenes.service.EscanerService;
+import pe.edu.utp.sistemaexamenes.util.ImagenesLocales;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -92,6 +93,7 @@ public class EscanerController {
             }
 
             ProcessBuilder pb = new ProcessBuilder(comando);
+            ImagenesLocales.configurarEntorno(pb);
             pb.redirectErrorStream(true);
             pb.redirectOutput(log);
             Process proceso = pb.start();

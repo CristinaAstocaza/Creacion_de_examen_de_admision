@@ -497,3 +497,10 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+/* ── Formulario con editor enriquecido ── */
+.bp-form-fila { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bp-alternativas { display: flex; flex-direction: column; gap: 10px; }
+.bp-alternativa { display: flex; gap: 10px; align-items: flex-start; }
+.bp-alternativa .alt-letter-badge { margin-top: 8px; flex-shrink: 0; }
+.bp-alternativa-editor { flex: 1; min-width: 0; }
+@media (max-width: 720px) { .bp-form-fila { grid-template-columns: 1fr; } }

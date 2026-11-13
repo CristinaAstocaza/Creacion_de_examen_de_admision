@@ -1,5 +1,7 @@
 package pe.edu.utp.sistemaexamenes.dto.request;
 
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -35,6 +37,15 @@ public record GenerarExamenRequest(
         /** Color de fondo de la portada en formato HEX (ej: "#FF5733"). Usa blanco si es null. */
         String colorPortada,
         String logoUrl,
-        String instruccionesPortada
+        String instruccionesPortada,
+
+        // --- Tipo de prueba, hoja y letras de versión ---
+        /** Modalidad / tipo de prueba (texto libre, ej. "Admisión ordinaria"). */
+        @Size(max = 100, message = "El tipo de prueba no debe superar los 100 caracteres")
+        String tipoPrueba,
+        /** A4 u OFICIO. Si es null se usa A4. */
+        FormatoHoja formatoHoja,
+        /** Letra (tema) de cada versión, en orden. Si es null se usa A, B, C... */
+        List<String> codigosVersion
 ) {
 }

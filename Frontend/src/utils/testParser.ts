@@ -6,7 +6,7 @@ let failed = 0;
 const check = (label: string, actual: string, expected: string) => {
   const ok = actual === expected;
   if (ok) passed++; else failed++;
-  console.log(`${ok ? '✅' : '❌'} ${label}\n   actual:   "${actual}"\n   expected: "${expected}"`);
+  console.log(`${ok ? 'OK   ' : 'FALLA'} ${label}\n   actual:   "${actual}"\n   expected: "${expected}"`);
 };
 
 const checkQ = (label: string, text: string, expectedAlt: string[]) => {
@@ -17,7 +17,7 @@ const checkQ = (label: string, text: string, expectedAlt: string[]) => {
   }) ?? [];
   const allMatch = alts.length === expectedAlt.length && alts.every((a, i) => a === expectedAlt[i]);
   if (allMatch) passed++; else failed++;
-  console.log(`${allMatch ? '✅' : '❌'} ${label}`);
+  console.log(`${allMatch ? 'OK   ' : 'FALLA'} ${label}`);
   if (!allMatch) {
     console.log('   actual:   ', alts);
     console.log('   expected: ', expectedAlt);

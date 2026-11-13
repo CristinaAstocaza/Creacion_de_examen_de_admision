@@ -1,22 +1,15 @@
 import api from './api';
+import { obtenerCaratula, caratulaCompleta, caratulaAPayload, modalidadIdPorNombre } from '../utils/caratulas';
 
-const leerConfiguracionCaratula = () => {
-  const savedConfig = localStorage.getItem('configuracionExamen');
-  if (!savedConfig) return null;
-  try {
-    const parsed = JSON.parse(savedConfig);
-    return {
-      nombreUniversidad: parsed.institutionName?.trim() || null,
-      tituloExamen: parsed.headerText?.trim() || null,
-      modalidad: parsed.modalidad?.trim() || null,
-      colorPortada: parsed.colorPortada || null,
-      logoUrl: parsed.logoUrl || null,
-      instruccionesPortada: parsed.instructions?.trim() || null,
-      textoPie: parsed.footerText?.trim() || null,
-    };
-  } catch {
-    return null;
-  }
+/**
+ * Carátula guardada para el área + modalidad del examen (Configuración).
+ * Si no existe se envía null y el backend usa la carátula con la que se generó.
+ * @param {{ categoriaExamenId?: number, tipoPrueba?: string } | null | undefined} examen
+ */
+const leerConfiguracionCaratula = (examen) => {
+  if (!examen) return null;
+  const caratula = obtenerCaratula(examen.categoriaExamenId, modalidadIdPorNombre(examen.tipoPrueba));
+  return caratulaCompleta(caratula) ? caratulaAPayload(caratula) : null;
 };
 
 export const listarExamenes = async () => {
@@ -47,6 +40,9 @@ export const generarExamen = async ({
   colorPortada,
   logoUrl,
   instruccionesPortada,
+  tipoPrueba,
+  formatoHoja,
+  codigosVersion,
 }) => {
   const { data } = await api.post('/examenes/generar', {
     idCategoria,
@@ -67,6 +63,17 @@ export const generarExamen = async ({
     colorPortada: colorPortada || null,
     logoUrl: logoUrl || null,
     instruccionesPortada: instruccionesPortada || null,
+    tipoPrueba: tipoPrueba || null,
+    formatoHoja: formatoHoja || 'A4',
+    codigosVersion: codigosVersion && codigosVersion.length ? codigosVersion : null,
+  });
+  return data;
+};
+
+/** Cambia la letra (tema) de una versión ya generada, p. ej. de "A" a "P". */
+export const cambiarTemaVersion = async (examenId, versionActual, nuevoTema) => {
+  const { data } = await api.put(`/examenes/${examenId}/versiones/${versionActual}/tema`, {
+    codigoVersion: nuevoTema,
   });
   return data;
 };
@@ -110,29 +117,33 @@ const descargarArchivo = async (url, nombreFallback, config = {}) => {
  * Pide al backend el mismo PDF que se descarga y devuelve una URL local (blob:)
  * para mostrarlo en la vista previa. Quien la use debe liberarla con URL.revokeObjectURL.
  */
-export const obtenerPdfVersionUrl = async (examenId, version) => {
+export const obtenerPdfVersionUrl = async (examenId, version, examen) => {
   const response = await api.post(
     `/examenes/${examenId}/versiones/${version}/pdf`,
-    leerConfiguracionCaratula(),
+    leerConfiguracionCaratula(examen),
     { responseType: 'blob' },
   );
   return window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
 };
 
-export const descargarPdfVersion = (examenId, version, customName) => descargarArchivo(
+/** Descarga una versión como "<nombre> - Version <tema>.pdf". */
+export const descargarPdfVersion = (examenId, version, customName, examen) => descargarArchivo(
   `/examenes/${examenId}/versiones/${version}/pdf`,
   `examen_version_${version}.pdf`,
   {
     method: 'post',
-    body: leerConfiguracionCaratula(),
-    customName,
+    body: leerConfiguracionCaratula(examen),
+    customName: `${(customName || 'Examen').trim()} - Version ${version}`,
   },
 );
 
-export const descargarPdfsVersiones = (examenId, customName) => descargarArchivo(
+/** ZIP con todas las versiones; dentro, cada PDF se llama "<nombre>_Version_<tema>.pdf". */
+export const descargarPdfsVersiones = (examenId, customName, examen) => descargarArchivo(
   `/examenes/${examenId}/pdfs`,
   'examen_versiones.zip',
   {
+    method: 'post',
+    body: leerConfiguracionCaratula(examen),
     customName,
   }
 );
