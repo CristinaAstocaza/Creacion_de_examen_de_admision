@@ -26,10 +26,10 @@ Dokploy soporta despliegues de múltiples contenedores usando Docker Compose con
 3. Configura las variables de entorno en la pestaña **Environment**:
    ```env
    DB_PASSWORD=tu_contraseña_segura_aqui
-   CLOUDINARY_CLOUD_NAME=divad3mq2
-   CLOUDINARY_API_KEY=477812598369763
-   CLOUDINARY_API_SECRET=3lxFKvOX8ojOcfNY-hlNHDdZwZs
-   GEMINI_API_KEY=tu_api_key_de_gemini
+   CLOUDINARY_CLOUD_NAME=tu_cloud_name
+   CLOUDINARY_API_KEY=tu_api_key
+   CLOUDINARY_API_SECRET=tu_api_secret
+   GEMINI_API_KEY=tu_clave_de_gemini
    VITE_API_BASE_URL=/api/v1
    ```
 4. Haz clic en **Deploy**.
@@ -63,10 +63,10 @@ Si prefieres administrar cada servicio por separado:
    SPRING_DATASOURCE_URL=jdbc:postgresql://<host_de_tu_bd_postgres>:5432/bd_examen_admi
    SPRING_DATASOURCE_USERNAME=postgres
    SPRING_DATASOURCE_PASSWORD=<contraseña_de_postgres>
-   CLOUDINARY_CLOUD_NAME=divad3mq2
-   CLOUDINARY_API_KEY=477812598369763
-   CLOUDINARY_API_SECRET=3lxFKvOX8ojOcfNY-hlNHDdZwZs
-   GEMINI_API_KEY=AQ.Ab8RN6LGJ_MhCBTsUE7_7HMBeW_0zR842eyvGmfHWNPUIenfWw
+   CLOUDINARY_CLOUD_NAME=tu_cloud_name
+   CLOUDINARY_API_KEY=tu_api_key
+   CLOUDINARY_API_SECRET=tu_api_secret
+   GEMINI_API_KEY=tu_clave_de_gemini
    ```
 6. En **Ports**, mapea el puerto `8080`.
 7. Asigna un dominio para la API (por ejemplo `api.tudominio.com`).

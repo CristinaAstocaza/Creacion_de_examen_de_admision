@@ -29,10 +29,10 @@ services:
       # Imágenes en disco (sin internet). Usa 'cloudinary' para subirlas a la nube.
       IMAGENES_ALMACENAMIENTO: ${IMAGENES_ALMACENAMIENTO:-local}
       IMAGENES_DIRECTORIO: /app/uploads
-      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-divad3mq2}
-      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-477812598369763}
-      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-3lxFKvOX8ojOcfNY-hlNHDdZwZs}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-AQ.Ab8RN6LblEMXePJYODfZlvglvhJdVjoRS6ri42iOlhS5gUq9vQ}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - imagenes_data:/app/uploads
     depends_on:

@@ -32,3 +32,8 @@ Thumbs.db
 # ─── Archivos de datos / pruebas ──────────────────
 *.zip
 *.pdf
+
+# ─── Variables de entorno con claves reales (NUNCA subir) ───
+.env
+.env.local
+!.env.example
