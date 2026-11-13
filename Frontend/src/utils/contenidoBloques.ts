@@ -5,11 +5,34 @@
  * En el texto editable las fórmulas se escriben entre signos $, por ejemplo: "Si $x^2 = 4$, halle x".
  */
 
+/**
+ * Bloques del contenido de una pregunta o alternativa.
+ * - texto / latex / imagen: formato original (todo fluye en una línea, como lo genera la IA).
+ * - parrafo / lista / tabla: los genera el editor enriquecido solo cuando hay títulos, alineación,
+ *   listas, citas o tablas. Su texto admite **negrita**, *cursiva*, __subrayado__ y fórmulas $...$.
+ */
 export interface Bloque {
-  tipo: 'texto' | 'latex' | 'imagen';
+  tipo: 'texto' | 'latex' | 'imagen' | 'parrafo' | 'lista' | 'tabla';
   valor?: string;
   url?: string | null;
+  /** parrafo */
+  estilo?: 'normal' | 'h1' | 'h2' | 'h3' | 'codigo' | 'cita';
+  alineacion?: 'izquierda' | 'centro' | 'derecha' | 'justificado';
+  /** lista */
+  ordenada?: boolean;
+  items?: string[];
+  /** tabla: la primera fila es encabezado si `encabezado` es true */
+  filas?: string[][];
+  encabezado?: boolean;
 }
+
+/** Textos visibles de un bloque (para buscar, resumir o validar). */
+export const textosDeBloque = (b: Bloque): string[] => {
+  if (b.tipo === 'lista') return b.items ?? [];
+  if (b.tipo === 'tabla') return (b.filas ?? []).flat();
+  if (b.tipo === 'imagen') return [];
+  return b.valor ? [b.valor] : [];
+};
 
 export const parsearBloques = (contenido: string | null | undefined): Bloque[] => {
   if (!contenido) return [];
@@ -45,8 +68,8 @@ export const imagenPrincipalVisible = (contenido: string | null | undefined, ima
 /** Bloques → texto editable (las fórmulas quedan como $...$; las imágenes se editan aparte). */
 export const bloquesATextoEditable = (contenido: string | null | undefined): string =>
   parsearBloques(contenido)
-    .filter(b => b.tipo !== 'imagen' && b.valor)
-    .map(b => (b.tipo === 'latex' ? `$${b.valor!.trim()}$` : b.valor!.trim()))
+    .flatMap(b => (b.tipo === 'latex' ? (b.valor ? [`$${b.valor.trim()}$`] : []) : textosDeBloque(b).map(t => t.trim())))
+    .filter(Boolean)
     .join(' ')
     .trim();
 

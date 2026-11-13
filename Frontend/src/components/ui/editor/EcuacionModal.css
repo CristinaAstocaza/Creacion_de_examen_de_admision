@@ -1,0 +1,62 @@
+/* El teclado virtual de MathLive debe quedar por encima del modal */
+body { --keyboard-zindex: 3200; }
+
+.eq-overlay {
+  position: fixed; inset: 0; z-index: 2800; padding: 16px;
+  display: flex; align-items: flex-start; justify-content: center;
+  background: rgba(15, 23, 42, 0.5);
+  overflow-y: auto;
+}
+.eq-modal {
+  width: 100%; max-width: 720px; margin-top: 6vh;
+  background: #fff; border-radius: 14px; padding: 24px 28px 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+}
+.eq-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+.eq-header h3 { margin: 0; font-size: 22px; font-weight: 600; color: #202124; }
+.eq-cerrar { border: none; background: none; cursor: pointer; color: #5f6368; padding: 4px; border-radius: 50%; display: grid; place-items: center; }
+.eq-cerrar:hover { background: #f1f3f4; }
+
+.eq-label { display: block; margin: 0 0 6px; font-size: 15px; color: #202124; }
+
+.eq-campo-wrap {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 18px;
+  border: 2px solid #202124; border-radius: 6px; padding: 6px 8px; min-height: 60px;
+}
+.eq-campo-wrap:focus-within { border-color: #1a73e8; box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15); }
+.eq-campo-host { flex: 1; min-width: 0; }
+.eq-campo { width: 100%; font-size: 22px; border: none; outline: none; background: transparent; --primary: #1a73e8; }
+.eq-campo::part(virtual-keyboard-toggle), .eq-campo::part(menu-toggle) { display: none; }
+.eq-teclado {
+  border: none; background: none; cursor: pointer; color: #1a73e8; padding: 6px; border-radius: 6px;
+  display: grid; place-items: center;
+}
+.eq-teclado:hover { background: #e8f0fe; }
+.eq-teclado .material-icons-outlined { font-size: 26px; }
+
+.eq-codigo {
+  width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #5f6368; border-radius: 4px;
+  font-family: 'Consolas', 'Courier New', monospace; font-size: 15px; resize: vertical;
+}
+.eq-codigo:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.15); }
+
+.eq-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.eq-btn { padding: 10px 22px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.eq-btn-sec { background: #fff; border: 1px solid #1a73e8; color: #1a73e8; }
+.eq-btn-sec:hover { background: #f5f9ff; }
+.eq-btn-pri { background: #1a73e8; border: 1px solid #1a73e8; color: #fff; }
+.eq-btn-pri:hover:not(:disabled) { background: #1557b0; }
+.eq-btn-pri:disabled { background: #9aa0a6; border-color: #9aa0a6; cursor: not-allowed; }
+
+/* Atajos de símbolos */
+.eq-atajos { display: flex; flex-wrap: wrap; gap: 4px; margin: -8px 0 16px; }
+.eq-atajo {
+  min-width: 38px; height: 36px; padding: 0 8px; border: 1px solid #dadce0; border-radius: 8px; background: #fff;
+  font-size: 17px; font-family: 'Times New Roman', Georgia, serif; color: #202124; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.eq-atajo:hover { background: #e8f0fe; border-color: #1a73e8; color: #1a56c4; }
+.eq-atajo sub, .eq-atajo sup { font-size: 10px; }
+.eq-frac { display: inline-flex; flex-direction: column; align-items: center; font-size: 11px; line-height: 1; }
+.eq-frac span:first-child { border-bottom: 1px solid currentColor; padding: 0 2px; }
+.eq-sobre { text-decoration: overline; font-size: 14px; }

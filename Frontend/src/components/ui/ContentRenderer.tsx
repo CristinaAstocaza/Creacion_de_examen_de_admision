@@ -1,115 +1,171 @@
 import React, { useMemo } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import './ContentRenderer.css';
+import { partirFormato, etiquetaDeTramo } from '../../utils/formatoTexto';
+import { parsearBloques, type Bloque } from '../../utils/contenidoBloques';
 
-export interface ContentBlock {
-  tipo: 'texto' | 'latex' | 'imagen';
-  valor?: string;
-  url?: string | null;
-}
+/** @deprecated usar Bloque de utils/contenidoBloques */
+export type ContentBlock = Bloque;
 
 interface Props {
   contentStr: string | null | undefined;
   className?: string;
   onImageClick?: (url: string) => void;
   onCropClick?: (blockIndex: number) => void;
+  /** Si se indica, cada imagen muestra un botón para quitarla. */
+  onQuitarImagen?: (blockIndex: number) => void;
   inline?: boolean;
 }
 
-export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImageClick, onCropClick, inline = false }) => {
-  const blocks = useMemo(() => {
-    if (!contentStr) return [];
-    try {
-      const parsed = JSON.parse(contentStr);
-      if (Array.isArray(parsed)) {
-        return parsed as ContentBlock[];
-      }
-    } catch (e) {
-      // not a json string, fallback to plain text
-    }
-    return [{ tipo: 'texto', valor: contentStr }] as ContentBlock[];
-  }, [contentStr]);
+const BotonQuitarImagen: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    type="button"
+    className="cr-quitar-imagen"
+    title="Quitar imagen"
+    aria-label="Quitar imagen"
+    onClick={(e) => { e.stopPropagation(); onClick(); }}
+  >
+    <span className="material-icons-outlined">close</span>
+  </button>
+);
 
+const ALINEACION_CSS: Record<NonNullable<Bloque['alineacion']>, React.CSSProperties['textAlign']> = {
+  izquierda: 'left', centro: 'center', derecha: 'right', justificado: 'justify',
+};
+
+/** Fórmula LaTeX con KaTeX; si es inválida se muestra el código tal cual. */
+const Formula: React.FC<{ latex: string; display?: boolean }> = ({ latex, display = false }) => {
+  let html: string | null = null;
+  try {
+    html = katex.renderToString(latex.replace(/\$\$/g, ''), { throwOnError: true, displayMode: display });
+  } catch {
+    // Fórmula inválida: se muestra el código tal cual.
+  }
+  if (html === null) return <span className="cr-texto">{latex}</span>;
+  return display
+    ? <div className="latex-block" dangerouslySetInnerHTML={{ __html: html }} />
+    : <span className="latex-inline" dangerouslySetInnerHTML={{ __html: html }} />;
+};
+
+/** Texto con **negrita**, *cursiva*, __subrayado__, fórmulas $...$ y saltos de línea. */
+const TextoEnLinea: React.FC<{ texto: string }> = ({ texto }) => {
+  const partes: React.ReactNode[] = [];
+  let ultimo = 0;
+  let clave = 0;
+  const agregarTexto = (fragmento: string) => {
+    partirFormato(fragmento).forEach((t) => {
+      const lineas = t.texto.split('\n').flatMap((l, i) => (i > 0 ? [<br key={`br${clave++}`} />, l] : [l]));
+      const Etiqueta = etiquetaDeTramo(t);
+      partes.push(Etiqueta ? <Etiqueta key={clave++}>{lineas}</Etiqueta> : <React.Fragment key={clave++}>{lineas}</React.Fragment>);
+    });
+  };
+  for (const m of texto.matchAll(/\$([^$]+)\$/g)) {
+    agregarTexto(texto.slice(ultimo, m.index));
+    partes.push(<Formula key={clave++} latex={m[1]} />);
+    ultimo = (m.index ?? 0) + m[0].length;
+  }
+  agregarTexto(texto.slice(ultimo));
+  return <>{partes}</>;
+};
+
+export const ContentRenderer: React.FC<Props> = ({ contentStr, className, onImageClick, onCropClick, onQuitarImagen, inline = false }) => {
+  const blocks = useMemo(() => parsearBloques(contentStr), [contentStr]);
   if (blocks.length === 0) return null;
 
-  const wrapperStyle: React.CSSProperties = inline 
-    ? { display: 'inline', gap: '4px' }
-    : { display: 'block', width: '100%' };
-
   return (
-    <div className={`content-renderer ${className || ''}`} style={wrapperStyle}>
+    <div className={`content-renderer ${inline ? 'cr-inline' : ''} ${className || ''}`}>
       {blocks.map((b, i) => {
-        if (b.tipo === 'texto') {
-          return (
-            <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-              {b.valor}
-            </span>
-          );
-        }
-        if (b.tipo === 'latex') {
-          try {
-            // Un bloque LaTeX es de tipo display (bloque entero centrado) solo si contiene marcadores de display math
-            const hasDisplayMarker = b.valor?.includes('$$') || b.valor?.includes('\\begin{');
-            const isDisplay = !inline && hasDisplayMarker;
-            const cleanValor = b.valor?.replace(/\$\$/g, '') || '';
-            const html = katex.renderToString(cleanValor, { throwOnError: true, displayMode: isDisplay });
-            
-            return isDisplay ? (
-              <div 
-                key={i} 
-                className="latex-block" 
-                dangerouslySetInnerHTML={{ __html: html }} 
-                style={{ overflowX: 'auto', padding: '8px 0', textAlign: 'center' }}
-              />
-            ) : (
-              <span 
-                key={i} 
-                className="latex-inline" 
-                dangerouslySetInnerHTML={{ __html: html }} 
-                style={{ padding: '0 4px', display: 'inline-block', verticalAlign: 'middle' }}
-              />
-            );
-          } catch (e) {
-            console.warn(`[ContentRenderer] Error de sintaxis KaTeX en expresión: ${b.valor}`, e);
+        switch (b.tipo) {
+          case 'texto':
+            // Formato original: el texto fluye en línea; solo interpretamos marcas de formato.
             return (
-              <span key={i} style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
-                {b.valor}
+              <span key={i} className="cr-texto">
+                {partirFormato(b.valor || '').map((t, j) => {
+                  const Etiqueta = etiquetaDeTramo(t);
+                  return Etiqueta ? <Etiqueta key={j}>{t.texto}</Etiqueta> : <React.Fragment key={j}>{t.texto}</React.Fragment>;
+                })}
               </span>
             );
+
+          case 'latex': {
+            const display = !inline && (!!b.valor?.includes('$$') || !!b.valor?.includes('\\begin{'));
+            return <Formula key={i} latex={b.valor || ''} display={display} />;
           }
-        }
-        if (b.tipo === 'imagen') {
-          if (!b.url) {
-             return (
-               <div key={i} style={{ padding: 12, border: '1px dashed #ccc', borderRadius: 8, color: '#666', textAlign: 'center', background: '#fafafa', display: inline ? 'inline-block' : 'block' }}>
-                 🖼 Imagen pendiente de recorte
-                 {onCropClick && (
-                   <div style={{ marginTop: 8 }}>
-                     <button className="btn-small" onClick={() => onCropClick(i)}>
-                       ✂️ Recortar Imagen
-                     </button>
-                   </div>
-                 )}
-               </div>
-             );
+
+          case 'parrafo': {
+            const estilo = { textAlign: b.alineacion ? ALINEACION_CSS[b.alineacion] : undefined };
+            const contenido = <TextoEnLinea texto={b.valor || ''} />;
+            if (b.estilo === 'codigo') return <pre key={i} className="cr-codigo">{b.valor}</pre>;
+            if (b.estilo === 'cita') return <blockquote key={i} className="cr-cita" style={estilo}>{contenido}</blockquote>;
+            if (b.estilo === 'h1') return <h3 key={i} className="cr-h1" style={estilo}>{contenido}</h3>;
+            if (b.estilo === 'h2') return <h4 key={i} className="cr-h2" style={estilo}>{contenido}</h4>;
+            if (b.estilo === 'h3') return <h5 key={i} className="cr-h3" style={estilo}>{contenido}</h5>;
+            return <p key={i} className="cr-parrafo" style={estilo}>{contenido}</p>;
           }
-          return (
-             <div 
-               key={i} 
-               className="q-image-container" 
-               onClick={() => onImageClick && onImageClick(b.url!)} 
-               style={{ 
-                 cursor: onImageClick ? 'pointer' : 'default', 
-                 margin: inline ? '4px 0' : '8px 0',
-                 display: 'flex',
-                 justifyContent: 'center' // Centrar la imagen en medio
-               }}
-             >
-               <img src={b.url} alt="Bloque de imagen" style={{ maxWidth: '100%', borderRadius: 8, display: 'block', margin: '0 auto' }} />
-             </div>
-          );
+
+          case 'lista': {
+            const Lista = b.ordenada ? 'ol' : 'ul';
+            return (
+              <Lista key={i} className="cr-lista">
+                {(b.items ?? []).map((item, j) => <li key={j}><TextoEnLinea texto={item} /></li>)}
+              </Lista>
+            );
+          }
+
+          case 'tabla':
+            return (
+              <div key={i} className="cr-tabla-wrap">
+                <table className="cr-tabla">
+                  <tbody>
+                    {(b.filas ?? []).map((fila, j) => (
+                      <tr key={j}>
+                        {fila.map((celda, k) => {
+                          const Celda = j === 0 && b.encabezado ? 'th' : 'td';
+                          return <Celda key={k}><TextoEnLinea texto={celda} /></Celda>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+
+          case 'imagen':
+            if (!b.url) {
+              return (
+                <div key={i} className="cr-imagen-pendiente">
+                  <span className="material-icons-outlined mi">image_not_supported</span> Imagen pendiente de recorte
+                  {(onCropClick || onQuitarImagen) && (
+                    <div className="cr-imagen-pendiente-acciones">
+                      {onCropClick && (
+                        <button className="btn-small" onClick={() => onCropClick(i)}><span className="material-icons-outlined mi">crop</span> Recortar imagen</button>
+                      )}
+                      {onQuitarImagen && (
+                        <button className="btn-small danger" onClick={() => onQuitarImagen(i)}><span className="material-icons-outlined mi">close</span> No hace falta</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <div
+                key={i}
+                className={`q-image-container cr-imagen ${onQuitarImagen ? 'cr-imagen--editable' : ''}`}
+                onClick={() => onImageClick?.(b.url!)}
+                style={{ cursor: onImageClick ? 'pointer' : 'default' }}
+              >
+                <div className="cr-imagen-marco">
+                  <img src={b.url} alt="Figura" />
+                  {onQuitarImagen && <BotonQuitarImagen onClick={() => onQuitarImagen(i)} />}
+                </div>
+              </div>
+            );
+
+          default:
+            return null;
         }
-        return null;
       })}
     </div>
   );

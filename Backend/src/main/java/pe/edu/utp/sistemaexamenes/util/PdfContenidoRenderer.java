@@ -45,6 +45,13 @@ public final class PdfContenidoRenderer {
     private static final Pattern NUMERO_INICIAL = Pattern.compile("^\\s*\\d+[\\.\\-\\)]\\s*");
     /** Separa texto plano de fórmulas escritas como $...$ dentro de un bloque de texto. */
     private static final Pattern LATEX_EN_TEXTO = Pattern.compile("\\$([^$]+)\\$");
+    /**
+     * Formato del editor: **negrita**, __subrayado__, *cursiva*. Mismo patrón que el frontend
+     * (utils/formatoTexto.ts). La cursiva no se aplica si el * está pegado a letras/números ("2*3*4")
+     * y el subrayado no toma los espacios para completar ("_____").
+     */
+    private static final Pattern FORMATO = Pattern.compile(
+            "\\*\\*(.+?)\\*\\*|__([^_\\s](?:[^_]*?[^_\\s])?)__|(?<![\\p{L}\\p{N}*])\\*([^*\\s](?:[^*]*?[^*\\s])?)\\*(?![\\p{L}\\p{N}*])");
     /** Etiquetas HTML <sub>/<sup> que a veces devuelve la IA. */
     private static final Pattern SUB_SUP = Pattern.compile("<(sub|sup)>(.*?)</\\1>", Pattern.CASE_INSENSITIVE);
     /** Separador markdown ("---", "***", "___") en su propia línea. */
@@ -126,7 +133,31 @@ public final class PdfContenidoRenderer {
     // Bloques de contenido
     // ─────────────────────────────────────────────────────────────────
 
-    public record Bloque(String tipo, String valor, String url) {
+    /**
+     * Bloque de contenido.
+     * <ul>
+     *   <li>texto / latex / imagen: formato original (el texto fluye en un solo párrafo).</li>
+     *   <li>parrafo (estilo normal|h1|h2|h3|codigo|cita, alineacion), lista (ordenada, items) y
+     *       tabla (filas, encabezado): los genera el editor enriquecido.</li>
+     * </ul>
+     */
+    public record Bloque(String tipo, String valor, String url, String estilo, String alineacion,
+                         boolean ordenada, List<String> items, List<List<String>> filas, boolean encabezado) {
+        public Bloque(String tipo, String valor, String url) {
+            this(tipo, valor, url, null, null, false, List.of(), List.of(), false);
+        }
+
+        public boolean esEnriquecido() {
+            return "parrafo".equals(tipo) || "lista".equals(tipo) || "tabla".equals(tipo);
+        }
+
+        /** Textos visibles del bloque (para validar o como respaldo en línea). */
+        public List<String> textos() {
+            if ("lista".equals(tipo)) return items;
+            if ("tabla".equals(tipo)) return filas.stream().flatMap(List::stream).toList();
+            if ("imagen".equals(tipo) || valor == null) return List.of();
+            return List.of(valor);
+        }
     }
 
     public static List<Bloque> parsearBloques(String contenido) {
@@ -139,10 +170,13 @@ public final class PdfContenidoRenderer {
                 Object valor = b.get("valor");
                 Object url = b.get("url");
                 String texto = valor == null ? null : valor.toString();
-                if (texto != null && "texto".equals(tipo)) {
+                if (texto != null && ("texto".equals(tipo) || "parrafo".equals(tipo))) {
                     texto = limpiarTextoImportado(texto);
                 }
-                bloques.add(new Bloque(tipo, texto, url == null ? null : url.toString()));
+                bloques.add(new Bloque(tipo, texto, url == null ? null : url.toString(),
+                        cadena(b.get("estilo")), cadena(b.get("alineacion")),
+                        Boolean.TRUE.equals(b.get("ordenada")), listaTextos(b.get("items")),
+                        listaFilas(b.get("filas")), Boolean.TRUE.equals(b.get("encabezado"))));
             }
         } catch (Exception e) {
             bloques.add(new Bloque("texto", contenido, null));
@@ -150,16 +184,29 @@ public final class PdfContenidoRenderer {
         return bloques;
     }
 
+    private static String cadena(Object o) {
+        return o == null ? null : o.toString();
+    }
+
+    private static List<String> listaTextos(Object o) {
+        if (!(o instanceof List<?> lista)) return List.of();
+        return lista.stream().map(x -> x == null ? "" : x.toString()).toList();
+    }
+
+    private static List<List<String>> listaFilas(Object o) {
+        if (!(o instanceof List<?> lista)) return List.of();
+        return lista.stream().map(PdfContenidoRenderer::listaTextos).toList();
+    }
+
     /**
      * Restos que dejan los chats de IA al copiar preguntas: nada de esto debe imprimirse.
-     * Corta en un separador "---", quita claves "Respuesta: x" y el formato markdown (* y **).
+     * Corta en un separador "---" y quita claves "Respuesta: x".
+     * Las marcas ** * __ no se borran: se imprimen como negrita, cursiva y subrayado.
      */
     static String limpiarTextoImportado(String texto) {
         Matcher separador = SEPARADOR_MARKDOWN.matcher(texto);
         if (separador.find()) texto = texto.substring(0, separador.start());
         texto = LINEA_CLAVE.matcher(texto).replaceAll("");
-        texto = texto.replaceAll("\\*\\*(.+?)\\*\\*", "$1");
-        texto = texto.replaceAll("(^|[\\s(¿¡\"«:])\\*(\\S[^*]*?)\\*", "$1$2");
         return texto;
     }
 
@@ -168,16 +215,23 @@ public final class PdfContenidoRenderer {
         List<Bloque> resultado = new ArrayList<>(bloques);
         for (int i = 0; i < resultado.size(); i++) {
             Bloque b = resultado.get(i);
-            if ("texto".equals(b.tipo()) && b.valor() != null && !b.valor().isBlank()) {
-                resultado.set(i, new Bloque("texto", NUMERO_INICIAL.matcher(b.valor()).replaceFirst(""), null));
+            if (("texto".equals(b.tipo()) || "parrafo".equals(b.tipo())) && b.valor() != null && !b.valor().isBlank()) {
+                resultado.set(i, new Bloque(b.tipo(), NUMERO_INICIAL.matcher(b.valor()).replaceFirst(""), null,
+                        b.estilo(), b.alineacion(), false, List.of(), List.of(), false));
                 break;
             }
+            if (!"imagen".equals(b.tipo())) break; // listas/tablas al inicio: no se toca nada
         }
         return resultado;
     }
 
     public static boolean tieneTextoVisible(List<Bloque> bloques) {
-        return bloques.stream().anyMatch(b -> !"imagen".equals(b.tipo()) && b.valor() != null && !b.valor().isBlank());
+        return bloques.stream().anyMatch(b -> b.textos().stream().anyMatch(t -> !t.isBlank()));
+    }
+
+    /** El contenido usa párrafos, listas o tablas del editor enriquecido. */
+    public static boolean esEnriquecido(List<Bloque> bloques) {
+        return bloques.stream().anyMatch(Bloque::esEnriquecido);
     }
 
     public static List<String> urlsImagenes(List<Bloque> bloques) {
@@ -195,46 +249,235 @@ public final class PdfContenidoRenderer {
         boolean primero = true;
         for (Bloque b : bloques) {
             if ("imagen".equals(b.tipo())) continue;
-            String valor = b.valor();
-            if (valor == null || valor.isBlank()) continue;
-            if (!primero) destino.add(new Chunk(" ", fuente(size, Font.NORMAL, color)));
             if ("latex".equals(b.tipo())) {
-                agregarLatex(destino, valor, size, color);
-            } else {
-                agregarTextoConFormulas(destino, valor.strip(), size, color);
+                if (b.valor() == null || b.valor().isBlank()) continue;
+                if (!primero) destino.add(new Chunk(" ", fuente(size, Font.NORMAL, color)));
+                agregarLatex(destino, b.valor(), size, color);
+                primero = false;
+                continue;
             }
+            // Párrafos, listas y tablas en un solo renglón: respaldo para quien no use crearElementos.
+            String separador = "tabla".equals(b.tipo()) ? " | " : "lista".equals(b.tipo()) ? "; " : " ";
+            String valor = String.join(separador, b.textos().stream().map(String::strip).filter(t -> !t.isEmpty()).toList());
+            if (valor.isBlank()) continue;
+            if (!primero) destino.add(new Chunk(" ", fuente(size, Font.NORMAL, color)));
+            agregarTextoConFormulas(destino, valor.strip(), size, color);
             primero = false;
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Contenido enriquecido: párrafos con estilo, listas, tablas e imágenes en su lugar
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Convierte el contenido en elementos del PDF respetando el orden: párrafos (títulos, cita, código,
+     * alineación), listas, tablas e imágenes. El {@code prefijo} (número de pregunta o letra) se coloca
+     * colgando al inicio del primer párrafo.
+     *
+     * @param sangria      sangría izquierda de todo el contenido
+     * @param sangriaPrefijo cuánto cuelga el prefijo hacia la izquierda en la primera línea
+     * @param anchoDisponible ancho para tablas e imágenes
+     * @param maxAltoImagen alto máximo de las imágenes
+     * @param urlImagenFallida se llama con la URL de una imagen que no se pudo cargar (puede ser null)
+     */
+    public static List<com.lowagie.text.Element> crearElementos(List<Bloque> bloques, float size, Color color,
+                                                                Chunk prefijo, float sangria, float sangriaPrefijo,
+                                                                float anchoDisponible, float maxAltoImagen,
+                                                                java.util.function.Function<String, com.lowagie.text.Element> urlImagenFallida) {
+        List<com.lowagie.text.Element> elementos = new ArrayList<>();
+        Paragraph enLinea = null; // texto/latex del formato original que fluye junto
+        Chunk pendiente = prefijo;
+
+        for (Bloque b : bloques) {
+            switch (b.tipo()) {
+                case "texto", "latex" -> {
+                    if (enLinea == null) {
+                        enLinea = nuevoParrafo(size, sangria, pendiente != null ? sangriaPrefijo : 0f);
+                        if (pendiente != null) { enLinea.add(pendiente); pendiente = null; }
+                        elementos.add(enLinea);
+                    } else {
+                        enLinea.add(new Chunk(" ", fuente(size, Font.NORMAL, color)));
+                    }
+                    agregarTextoYFormulas(enLinea, List.of(b), size, color);
+                }
+                case "parrafo" -> {
+                    enLinea = null;
+                    if (b.valor() == null || b.valor().isBlank()) continue;
+                    Paragraph p = crearParrafoEstilizado(b, size, color, sangria, pendiente, sangriaPrefijo);
+                    pendiente = null;
+                    elementos.add(p);
+                }
+                case "lista" -> {
+                    enLinea = null;
+                    int n = 1;
+                    for (String item : b.items()) {
+                        if (item.isBlank()) continue;
+                        // El prefijo (número/letra) cuelga junto al primer ítem: "E)  • 55 t".
+                        Paragraph p = nuevoParrafo(size, sangria, pendiente != null ? sangriaPrefijo : 0f);
+                        if (pendiente != null) { p.add(pendiente); pendiente = null; }
+                        p.add(new Chunk(b.ordenada() ? (n++) + ". " : "•  ", fuente(size, Font.NORMAL, color)));
+                        agregarTextoConFormulas(p, item.strip(), size, color);
+                        elementos.add(p);
+                    }
+                }
+                case "tabla" -> {
+                    enLinea = null;
+                    if (pendiente != null) { elementos.add(soloPrefijo(pendiente, size, sangria, sangriaPrefijo)); pendiente = null; }
+                    com.lowagie.text.pdf.PdfPTable tabla = crearTabla(b, size, color, anchoDisponible);
+                    if (tabla != null) elementos.add(tabla);
+                }
+                case "imagen" -> {
+                    enLinea = null;
+                    if (b.url() == null || b.url().isBlank()) continue;
+                    if (pendiente != null) { elementos.add(soloPrefijo(pendiente, size, sangria, sangriaPrefijo)); pendiente = null; }
+                    Image img = cargarImagen(b.url(), anchoDisponible, maxAltoImagen);
+                    if (img != null) {
+                        img.setAlignment(Image.ALIGN_CENTER);
+                        img.setSpacingBefore(4f);
+                        img.setSpacingAfter(6f);
+                        elementos.add(img);
+                    } else if (urlImagenFallida != null) {
+                        elementos.add(urlImagenFallida.apply(b.url()));
+                    }
+                }
+                default -> { /* tipo desconocido: se ignora */ }
+            }
+        }
+        if (pendiente != null) elementos.add(0, soloPrefijo(pendiente, size, sangria, sangriaPrefijo));
+        return elementos;
+    }
+
+    private static Paragraph nuevoParrafo(float size, float sangria, float sangriaPrefijo) {
+        Paragraph p = new Paragraph();
+        p.setLeading(0, 1.3f);
+        p.setIndentationLeft(sangria);
+        p.setFirstLineIndent(-sangriaPrefijo);
+        p.setSpacingAfter(3f);
+        return p;
+    }
+
+    private static Paragraph soloPrefijo(Chunk prefijo, float size, float sangria, float sangriaPrefijo) {
+        Paragraph p = nuevoParrafo(size, sangria, sangriaPrefijo);
+        p.add(prefijo);
+        return p;
+    }
+
+    private static Paragraph crearParrafoEstilizado(Bloque b, float size, Color color, float sangria,
+                                                    Chunk prefijo, float sangriaPrefijo) {
+        String estilo = b.estilo() == null ? "normal" : b.estilo();
+        float tam = switch (estilo) {
+            case "h1" -> size * 1.35f;
+            case "h2" -> size * 1.2f;
+            case "h3" -> size * 1.08f;
+            case "codigo" -> size * 0.92f;
+            default -> size;
+        };
+        float sangriaExtra = "cita".equals(estilo) ? 14f : 0f;
+        Paragraph p = nuevoParrafo(tam, sangria + sangriaExtra, prefijo != null ? sangriaPrefijo : 0f);
+        if (prefijo != null) p.add(prefijo);
+
+        if ("codigo".equals(estilo)) {
+            p.add(new Chunk(b.valor(), new Font(Font.COURIER, tam, Font.NORMAL, color)));
+        } else {
+            int base = switch (estilo) {
+                case "h1", "h2", "h3" -> Font.BOLD;
+                case "cita" -> Font.ITALIC;
+                default -> Font.NORMAL;
+            };
+            agregarTextoConFormulas(p, b.valor().strip(), tam, color, base);
+        }
+        p.setAlignment(switch (b.alineacion() == null ? "" : b.alineacion()) {
+            case "centro" -> com.lowagie.text.Element.ALIGN_CENTER;
+            case "derecha" -> com.lowagie.text.Element.ALIGN_RIGHT;
+            case "justificado" -> com.lowagie.text.Element.ALIGN_JUSTIFIED;
+            default -> com.lowagie.text.Element.ALIGN_LEFT;
+        });
+        if (estilo.startsWith("h")) p.setSpacingBefore(2f);
+        return p;
+    }
+
+    private static com.lowagie.text.pdf.PdfPTable crearTabla(Bloque b, float size, Color color, float ancho) {
+        int columnas = b.filas().stream().mapToInt(List::size).max().orElse(0);
+        if (columnas == 0) return null;
+        com.lowagie.text.pdf.PdfPTable tabla = new com.lowagie.text.pdf.PdfPTable(columnas);
+        tabla.setTotalWidth(ancho);
+        tabla.setLockedWidth(true);
+        tabla.setSpacingBefore(4f);
+        tabla.setSpacingAfter(6f);
+        tabla.setHorizontalAlignment(com.lowagie.text.Element.ALIGN_RIGHT);
+        float tam = size * 0.95f;
+        for (int i = 0; i < b.filas().size(); i++) {
+            List<String> fila = b.filas().get(i);
+            boolean encabezado = i == 0 && b.encabezado();
+            for (int c = 0; c < columnas; c++) {
+                String texto = c < fila.size() ? fila.get(c).strip() : "";
+                Paragraph p = new Paragraph();
+                p.setLeading(0, 1.2f);
+                p.setAlignment(com.lowagie.text.Element.ALIGN_CENTER);
+                if (!texto.isEmpty()) agregarTextoConFormulas(p, texto, tam, color, encabezado ? Font.BOLD : Font.NORMAL);
+                com.lowagie.text.pdf.PdfPCell celda = new com.lowagie.text.pdf.PdfPCell();
+                celda.addElement(p);
+                celda.setPadding(3f);
+                celda.setPaddingBottom(5f);
+                celda.setBorderColor(new Color(0x9C, 0xA3, 0xAF));
+                celda.setBorderWidth(0.6f);
+                if (encabezado) celda.setBackgroundColor(new Color(0xF1, 0xF3, 0xF4));
+                tabla.addCell(celda);
+            }
+        }
+        return tabla;
+    }
+
+    /** Separa los tramos con formato (negrita, cursiva, subrayado) y dibuja cada uno con su estilo. */
     private static void agregarTextoConFormulas(Paragraph destino, String texto, float size, Color color) {
+        agregarTextoConFormulas(destino, texto, size, color, Font.NORMAL);
+    }
+
+    /** @param base estilo de todo el texto (p. ej. BOLD en títulos); las marcas se suman a él. */
+    private static void agregarTextoConFormulas(Paragraph destino, String texto, float size, Color color, int base) {
+        Matcher f = FORMATO.matcher(texto);
+        int ultimo = 0;
+        while (f.find()) {
+            agregarTramo(destino, texto.substring(ultimo, f.start()), base, size, color);
+            if (f.group(1) != null) agregarTramo(destino, f.group(1), base | Font.BOLD, size, color);
+            else if (f.group(2) != null) agregarTramo(destino, f.group(2), base | Font.UNDERLINE, size, color);
+            else agregarTramo(destino, f.group(3), base | Font.ITALIC, size, color);
+            ultimo = f.end();
+        }
+        agregarTramo(destino, texto.substring(ultimo), base, size, color);
+    }
+
+    /** Tramo de texto con un mismo estilo, que aún puede contener fórmulas $...$. */
+    private static void agregarTramo(Paragraph destino, String texto, int estilo, float size, Color color) {
+        if (texto.isEmpty()) return;
         Matcher m = LATEX_EN_TEXTO.matcher(texto);
         int ultimo = 0;
         while (m.find()) {
-            agregarTextoEnriquecido(destino, texto.substring(ultimo, m.start()), size, color);
+            agregarTextoEnriquecido(destino, texto.substring(ultimo, m.start()), estilo, size, color);
             agregarLatex(destino, m.group(1), size, color);
             ultimo = m.end();
         }
-        agregarTextoEnriquecido(destino, texto.substring(ultimo), size, color);
+        agregarTextoEnriquecido(destino, texto.substring(ultimo), estilo, size, color);
     }
 
     /** Texto con soporte para <sub>, <sup> y dígitos Unicode ₂ ² (se dibujan con desplazamiento vertical). */
-    private static void agregarTextoEnriquecido(Paragraph destino, String texto, float size, Color color) {
+    private static void agregarTextoEnriquecido(Paragraph destino, String texto, int estilo, float size, Color color) {
         if (texto.isEmpty()) return;
         Matcher m = SUB_SUP.matcher(texto);
         int ultimo = 0;
         while (m.find()) {
-            agregarTextoUnicode(destino, texto.substring(ultimo, m.start()), size, color);
+            agregarTextoUnicode(destino, texto.substring(ultimo, m.start()), estilo, size, color);
             boolean sub = m.group(1).equalsIgnoreCase("sub");
-            agregarIndice(destino, m.group(2), sub, size, color);
+            agregarIndice(destino, m.group(2), sub, estilo, size, color);
             ultimo = m.end();
         }
-        agregarTextoUnicode(destino, texto.substring(ultimo), size, color);
+        agregarTextoUnicode(destino, texto.substring(ultimo), estilo, size, color);
     }
 
-    private static void agregarTextoUnicode(Paragraph destino, String texto, float size, Color color) {
+    private static void agregarTextoUnicode(Paragraph destino, String texto, int estilo, float size, Color color) {
         if (texto.isEmpty()) return;
-        Font normal = fuente(size, Font.NORMAL, color);
+        Font normal = fuente(size, estilo, color);
         StringBuilder actual = new StringBuilder();
         int i = 0;
         while (i < texto.length()) {
@@ -257,13 +500,13 @@ public final class PdfContenidoRenderer {
                 indice.append(NORMALES.charAt(grupo.indexOf(texto.charAt(i))));
                 i++;
             }
-            agregarIndice(destino, indice.toString(), esSub, size, color);
+            agregarIndice(destino, indice.toString(), esSub, estilo, size, color);
         }
         if (!actual.isEmpty()) destino.add(new Chunk(actual.toString(), normal));
     }
 
-    private static void agregarIndice(Paragraph destino, String texto, boolean sub, float size, Color color) {
-        Chunk chunk = new Chunk(texto, fuente(size * 0.7f, Font.NORMAL, color));
+    private static void agregarIndice(Paragraph destino, String texto, boolean sub, int estilo, float size, Color color) {
+        Chunk chunk = new Chunk(texto, fuente(size * 0.7f, estilo, color));
         chunk.setTextRise(sub ? -size * 0.25f : size * 0.38f);
         destino.add(chunk);
     }
@@ -395,6 +638,9 @@ public final class PdfContenidoRenderer {
     }
 
     private static byte[] obtenerBytes(String fuente) {
+        // Imagen guardada en el servidor (almacenamiento local): se lee del disco, sin red.
+        byte[] local = ImagenesLocales.leerDesdeUrl(fuente);
+        if (local != null) return local;
         if (fuente.startsWith("http://") || fuente.startsWith("https://")) {
             byte[] bytes = descargar(fuente, 0);
             // Cloudinary puede convertir al vuelo formatos raros a PNG.

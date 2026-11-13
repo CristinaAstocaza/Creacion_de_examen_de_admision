@@ -1,0 +1,44 @@
+.sf-overlay {
+  position: fixed; inset: 0; z-index: 2000; padding: 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(3px);
+}
+.sf-modal {
+  width: 100%; max-width: 960px; max-height: calc(100vh - 32px);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #fff; border-radius: 16px; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+}
+.sf-header { display: flex; justify-content: space-between; gap: 16px; padding: 18px 20px 12px; }
+.sf-header h3 { margin: 0; font-size: 17px; font-weight: 700; color: #202124; }
+.sf-header p { margin: 4px 0 0; font-size: 13px; color: #5f6368; }
+.sf-cerrar {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; border: none;
+  background: #f1f3f4; color: #5f6368; cursor: pointer; display: grid; place-items: center;
+}
+.sf-cerrar:hover { background: #e8eaed; }
+
+.sf-fuentes { display: flex; gap: 8px; padding: 0 20px 12px; overflow-x: auto; flex-shrink: 0; }
+.sf-fuente {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 7px 12px; border-radius: 999px; border: 1px solid #dadce0; background: #fff;
+  font-size: 13px; font-weight: 500; color: #3c4043; cursor: pointer; font-family: inherit;
+}
+.sf-fuente:hover { border-color: #1a73e8; }
+.sf-fuente.is-active { background: #e8f0fe; border-color: #1a73e8; color: #1a56c4; font-weight: 600; }
+.sf-fuente .material-icons-outlined { font-size: 16px; }
+.sf-fuente-alerta { color: #d97706; }
+.sf-fuente-subir { border-style: dashed; color: #1a73e8; }
+
+.sf-cuerpo {
+  flex: 1; min-height: 240px; overflow: auto; padding: 16px 20px;
+  background: #f1f3f4; display: flex; justify-content: center; align-items: flex-start;
+}
+.sf-imagen { max-width: 100%; max-height: 62vh; object-fit: contain; display: block; }
+.sf-vacio {
+  align-self: center; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: #5f6368; font-size: 14px; text-align: center;
+}
+.sf-vacio .material-icons-outlined { font-size: 40px; color: #94a3b8; }
+
+.sf-footer { display: flex; gap: 8px; align-items: center; padding: 14px 20px; border-top: 1px solid #e8eaed; flex-wrap: wrap; }
+.sf-espacio { flex: 1; }

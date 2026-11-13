@@ -9,7 +9,9 @@ import pe.edu.utp.sistemaexamenes.dto.response.ExamenResponse;
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenSolucionarioResponse;
 import pe.edu.utp.sistemaexamenes.dto.response.ExamenVersionResponse;
 import pe.edu.utp.sistemaexamenes.enums.EstadoExamen;
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
 import pe.edu.utp.sistemaexamenes.enums.LetraAlternativa;
+import java.util.regex.Pattern;
 import pe.edu.utp.sistemaexamenes.enums.NivelDificultad;
 import pe.edu.utp.sistemaexamenes.enums.TipoAccion;
 import pe.edu.utp.sistemaexamenes.exception.BusinessException;
@@ -46,7 +48,10 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class ExamenServiceImpl implements ExamenService {
 
-    private static final int TOTAL_PREGUNTAS_EXAMEN = 100;
+    /** Límite de seguridad; la cantidad real la decide quien arma el examen (100, 60, 40...). */
+    private static final int MAX_PREGUNTAS_EXAMEN = 300;
+    /** Letra o código del tema impreso en el examen: 1 a 5 letras/números (A, B, P, T1...). */
+    private static final Pattern CODIGO_VERSION = Pattern.compile("^[A-Z0-9]{1,5}$");
     private static final List<LetraAlternativa> LETRAS = List.of(
             LetraAlternativa.A,
             LetraAlternativa.B,
@@ -69,7 +74,7 @@ public class ExamenServiceImpl implements ExamenService {
         CategoriaExamen categoria = buscarCategoria(request.idCategoria());
         List<Curso> cursos = validarYCargarCursos(request.cursos());
         List<Pregunta> preguntasBase = seleccionarPreguntasBase(request.cursos(), cursos);
-        validarCantidadPreguntasBase(preguntasBase);
+        validarCantidadPreguntasBase(preguntasBase, totalSolicitado(request));
 
         Examen examen = Examen.builder()
                 .codigo(generarCodigoExamen())
@@ -88,6 +93,8 @@ public class ExamenServiceImpl implements ExamenService {
                 .colorPortada(request.colorPortada())
                 .logoUrl(request.logoUrl())
                 .instruccionesPortada(request.instruccionesPortada())
+                .tipoPrueba(request.tipoPrueba() == null || request.tipoPrueba().isBlank() ? null : request.tipoPrueba().trim())
+                .formatoHoja(request.formatoHoja() == null ? FormatoHoja.A4 : request.formatoHoja())
                 .build();
 
         agregarConfiguraciones(examen, request.cursos(), cursos);
@@ -138,10 +145,61 @@ public class ExamenServiceImpl implements ExamenService {
                 throw new BusinessException("La cantidad total por curso debe ser mayor a 0");
             }
         });
-        int total = request.cursos().stream().mapToInt(GenerarExamenCursoRequest::cantidadTotal).sum();
-        if (total != TOTAL_PREGUNTAS_EXAMEN) {
-            throw new BusinessException("El total general del examen debe ser exactamente 100 preguntas");
+        int total = totalSolicitado(request);
+        if (total < 1 || total > MAX_PREGUNTAS_EXAMEN) {
+            throw new BusinessException("El examen debe tener entre 1 y " + MAX_PREGUNTAS_EXAMEN + " preguntas. Solicitadas: " + total);
         }
+        resolverCodigosVersion(request);
+    }
+
+    private int totalSolicitado(GenerarExamenRequest request) {
+        return request.cursos().stream().mapToInt(GenerarExamenCursoRequest::cantidadTotal).sum();
+    }
+
+    /**
+     * Letras de tema de cada versión. Si no se envían se usan A, B, C...
+     * Deben ser únicas dentro del examen.
+     */
+    private List<String> resolverCodigosVersion(GenerarExamenRequest request) {
+        int cantidad = request.cantidadVersiones();
+        List<String> enviados = request.codigosVersion();
+        if (enviados == null || enviados.isEmpty()) {
+            return IntStream.rangeClosed(1, cantidad).mapToObj(this::codigoVersion).toList();
+        }
+        if (enviados.size() != cantidad) {
+            throw new BusinessException("Debe indicar una letra de tema por cada versión (" + cantidad + ").");
+        }
+        List<String> codigos = enviados.stream().map(this::normalizarCodigoVersion).toList();
+        if (new HashSet<>(codigos).size() != codigos.size()) {
+            throw new BusinessException("Las letras de tema de las versiones no pueden repetirse.");
+        }
+        return codigos;
+    }
+
+    private String normalizarCodigoVersion(String codigo) {
+        String limpio = codigo == null ? "" : codigo.trim().toUpperCase();
+        if (!CODIGO_VERSION.matcher(limpio).matches()) {
+            throw new BusinessException("Letra de tema inválida: '" + codigo + "'. Usa de 1 a 5 letras o números, sin espacios.");
+        }
+        return limpio;
+    }
+
+    @Override
+    @Transactional
+    public ExamenResponse cambiarCodigoVersion(Long id, String versionActual, String nuevoCodigo) {
+        Examen examen = buscarExamen(id);
+        String codigo = normalizarCodigoVersion(nuevoCodigo);
+        ExamenVersion version = examen.getVersiones().stream()
+                .filter(v -> v.getCodigoVersion().equalsIgnoreCase(versionActual))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Versión de examen no encontrada: " + versionActual));
+        boolean repetido = examen.getVersiones().stream()
+                .anyMatch(v -> v != version && v.getCodigoVersion().equalsIgnoreCase(codigo));
+        if (repetido) {
+            throw new BusinessException("Ya existe otra versión con el tema " + codigo + " en este examen.");
+        }
+        version.setCodigoVersion(codigo);
+        return ExamenMapper.toResponse(examenRepository.save(examen), false);
     }
 
     private List<Curso> validarYCargarCursos(List<GenerarExamenCursoRequest> cursosRequest) {
@@ -208,8 +266,9 @@ public class ExamenServiceImpl implements ExamenService {
     }
 
     private void agregarVersiones(Examen examen, GenerarExamenRequest request, List<Pregunta> preguntasBase) {
+        List<String> codigos = resolverCodigosVersion(request);
         for (int i = 1; i <= request.cantidadVersiones(); i++) {
-            String codigoVersion = codigoVersion(i);
+            String codigoVersion = codigos.get(i - 1);
             ExamenVersion version = ExamenVersion.builder()
                     .numero(i)
                     .codigoVersion(codigoVersion)
@@ -230,7 +289,7 @@ public class ExamenServiceImpl implements ExamenService {
                             .alternativasOrdenadas(generarOrdenAlternativas(request.aleatorizarAlternativas()))
                             .build()
             ));
-            validarVersionCompleta(version);
+            validarVersionCompleta(version, preguntasBase.size());
             examen.getVersiones().add(version);
         }
     }
@@ -243,27 +302,28 @@ public class ExamenServiceImpl implements ExamenService {
         return seleccionadas;
     }
 
-    private void validarCantidadPreguntasBase(List<Pregunta> preguntasBase) {
-        if (preguntasBase.size() != TOTAL_PREGUNTAS_EXAMEN) {
-            throw new BusinessException("El conjunto base debe tener exactamente 100 preguntas. Seleccionadas: " + preguntasBase.size());
+    private void validarCantidadPreguntasBase(List<Pregunta> preguntasBase, int total) {
+        if (preguntasBase.size() != total) {
+            throw new BusinessException("Se esperaban " + total + " preguntas y solo se pudieron seleccionar " + preguntasBase.size()
+                    + ". Revise que cada curso tenga suficientes preguntas por dificultad.");
         }
         long unicas = preguntasBase.stream().map(Pregunta::getId).distinct().count();
-        if (unicas != TOTAL_PREGUNTAS_EXAMEN) {
+        if (unicas != total) {
             throw new BusinessException("El conjunto base contiene preguntas repetidas. Revise la configuración de cursos.");
         }
     }
 
-    private void validarVersionCompleta(ExamenVersion version) {
+    private void validarVersionCompleta(ExamenVersion version, int esperado) {
         int total = version.getPreguntas().size();
-        if (total != TOTAL_PREGUNTAS_EXAMEN) {
+        if (total != esperado) {
             throw new BusinessException("La versión " + version.getCodigoVersion()
-                    + " debe tener exactamente 100 preguntas. Generadas: " + total);
+                    + " debe tener " + esperado + " preguntas. Generadas: " + total);
         }
         long unicas = version.getPreguntas().stream()
                 .map(examenPregunta -> examenPregunta.getPregunta().getId())
                 .distinct()
                 .count();
-        if (unicas != TOTAL_PREGUNTAS_EXAMEN) {
+        if (unicas != esperado) {
             throw new BusinessException("La versión " + version.getCodigoVersion() + " contiene preguntas repetidas.");
         }
     }

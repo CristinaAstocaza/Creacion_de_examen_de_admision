@@ -6,9 +6,11 @@ import {
   obtenerExamen,
   obtenerPdfVersionUrl,
   descargarPdfVersion,
-  descargarPdfsVersiones
+  descargarPdfsVersiones,
+  cambiarTemaVersion
 } from '../../services/examenService';
 import { listarCategorias } from '../../services/categoriaService';
+import { toast } from '../ui/toast';
 
 interface Version {
   id: number;
@@ -26,11 +28,14 @@ interface Examen {
   codigo: string;
   fechaCreacion: string;
   nombre: string;
+  categoriaExamenId?: number;
   categoriaExamenNombre: string;
   cantidadVersiones: number;
   aleatorizarPreguntas: boolean;
   versiones?: Version[];
   cursosUsados?: ExamenCursoUsado[];
+  tipoPrueba?: string | null;
+  formatoHoja?: 'A4' | 'OFICIO';
 }
 
 export const HistorialExamenes = () => {
@@ -43,6 +48,9 @@ export const HistorialExamenes = () => {
   const [categorias, setCategorias] = useState<any[]>([]);
 
   const [examenSeleccionado, setExamenSeleccionado] = useState<Examen | null>(null);
+  // Edición de la letra (tema) de una versión ya generada
+  const [temaEditando, setTemaEditando] = useState<{ versionId: number; actual: string; valor: string } | null>(null);
+  const [guardandoTema, setGuardandoTema] = useState(false);
   const [loadingDetalle, setLoadingDetalle] = useState<boolean>(false);
 
   const [vistaActiva, setVistaActiva] = useState<'tabla' | 'previsualizacion'>('tabla');
@@ -82,6 +90,7 @@ export const HistorialExamenes = () => {
     } catch (err) {
       console.error('Error al listar examenes:', err);
       setError('Error al cargar el historial de exámenes.');
+      toast.error('Error al cargar el historial de exámenes.');
     } finally {
       setLoading(false);
     }
@@ -95,11 +104,14 @@ export const HistorialExamenes = () => {
       setExamenSeleccionado(dataCompleta);
     } catch (err) {
       console.error('Error al obtener detalle del examen:', err);
-      alert('Error al cargar los detalles del examen');
+      toast.error('Error al cargar los detalles del examen');
     } finally {
       setLoadingDetalle(false);
     }
   };
+
+  /** Área y modalidad del examen: definen qué carátula de Configuración se aplica al PDF. */
+  const metaExamen = (examenId: number) => examenes.find((e) => e.id === examenId);
 
   const handleVerPreviewA4 = async (examenId: number, examenNombre: string, versionLetra: string) => {
     setVersionActivaNombre(`${examenNombre} - Versión ${versionLetra}`);
@@ -111,7 +123,7 @@ export const HistorialExamenes = () => {
 
     try {
       setLoadingVersion(true);
-      setPdfUrl(await obtenerPdfVersionUrl(examenId, versionLetra));
+      setPdfUrl(await obtenerPdfVersionUrl(examenId, versionLetra, metaExamen(examenId)));
     } catch (err) {
       console.error('Error al generar la vista previa del examen:', err);
       setErrorPreview('No se pudo generar la vista previa de esta versión.');
@@ -128,10 +140,35 @@ export const HistorialExamenes = () => {
 
   const handleDescargarPdf = async (examenId: number, version: string, nombre: string) => {
     try {
-      await descargarPdfVersion(examenId, version, nombre);
+      await descargarPdfVersion(examenId, version, nombre, metaExamen(examenId));
+      toast.success('PDF descargado correctamente.');
     } catch (err) {
       console.error('Error al descargar PDF:', err);
-      alert('No se pudo descargar el PDF. Revisa que el backend esté corriendo y vuelve a intentarlo.');
+      toast.error('No se pudo descargar el PDF. Revisa que el backend esté corriendo y vuelve a intentarlo.');
+    }
+  };
+
+  const guardarTema = async () => {
+    if (!examenSeleccionado || !temaEditando) return;
+    const nuevo = temaEditando.valor.trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,5}$/.test(nuevo)) {
+      toast.error('El tema debe tener de 1 a 5 letras o números, sin espacios.');
+      return;
+    }
+    if (nuevo === temaEditando.actual) {
+      setTemaEditando(null);
+      return;
+    }
+    try {
+      setGuardandoTema(true);
+      const actualizado = await cambiarTemaVersion(examenSeleccionado.id, temaEditando.actual, nuevo);
+      setExamenSeleccionado(actualizado);
+      setTemaEditando(null);
+      toast.success(`Tema cambiado a "${nuevo}".`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo cambiar el tema.');
+    } finally {
+      setGuardandoTema(false);
     }
   };
 
@@ -139,10 +176,11 @@ export const HistorialExamenes = () => {
     const exam = examenes.find((e) => e.id === examenId);
     const customName = exam ? exam.nombre : '';
     try {
-      await descargarPdfsVersiones(examenId, customName);
+      await descargarPdfsVersiones(examenId, customName, exam);
+      toast.success('Paquete ZIP descargado correctamente.');
     } catch (err) {
       console.error('Error al descargar ZIP:', err);
-      alert('Hubo un error al intentar descargar el paquete ZIP de versiones.');
+      toast.error('Hubo un error al intentar descargar el paquete ZIP de versiones.');
     }
   };
 
@@ -349,6 +387,14 @@ export const HistorialExamenes = () => {
                     </span>
                   </div>
                   <div className="summary-item">
+                    <span className="summary-label">Tipo de prueba</span>
+                    <span className="summary-value">{examenSeleccionado.tipoPrueba || 'Admisión ordinaria'}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Formato de hoja</span>
+                    <span className="summary-value">{examenSeleccionado.formatoHoja === 'OFICIO' ? 'Oficio (216 × 330 mm)' : 'A4 (210 × 297 mm)'}</span>
+                  </div>
+                  <div className="summary-item">
                     <span className="summary-label">Aleatorización</span>
                     <span className="summary-value">
                       {examenSeleccionado.aleatorizarPreguntas ? 'Aleatorio (Preguntas y Alternativas)' : 'Orden Fijo'}
@@ -368,8 +414,44 @@ export const HistorialExamenes = () => {
                         </svg>
                       </div>
                       <div className="version-details">
-                        <p className="version-name">Versión {v.codigoVersion}</p>
-                        <p className="version-meta">Generado por sistema</p>
+                        {temaEditando?.versionId === v.id ? (
+                          <div className="tema-edit">
+                            <span className="version-name">Tema</span>
+                            <input
+                              className="tema-edit-input"
+                              value={temaEditando.valor}
+                              maxLength={5}
+                              autoFocus
+                              disabled={guardandoTema}
+                              onChange={(e) => setTemaEditando({ ...temaEditando, valor: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') guardarTema();
+                                if (e.key === 'Escape') setTemaEditando(null);
+                              }}
+                              aria-label="Nueva letra de tema"
+                            />
+                            <button className="btn-action btn-action-primary" onClick={guardarTema} disabled={guardandoTema}>
+                              {guardandoTema ? '...' : 'Guardar'}
+                            </button>
+                            <button className="btn-action btn-action-outline" onClick={() => setTemaEditando(null)} disabled={guardandoTema}>
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <p className="version-name">
+                              Tema {v.codigoVersion}
+                              <button
+                                className="tema-edit-btn"
+                                title="Cambiar la letra de esta versión"
+                                onClick={() => setTemaEditando({ versionId: v.id, actual: v.codigoVersion, valor: v.codigoVersion })}
+                              >
+                                Cambiar letra
+                              </button>
+                            </p>
+                            <p className="version-meta">Archivo: {examenSeleccionado.nombre} - Version {v.codigoVersion}.pdf</p>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="version-actions">

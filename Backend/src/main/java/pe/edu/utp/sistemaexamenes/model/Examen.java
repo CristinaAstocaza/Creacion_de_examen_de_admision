@@ -1,5 +1,7 @@
 package pe.edu.utp.sistemaexamenes.model;
 
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -90,6 +92,15 @@ public class Examen {
 
     @Column(name = "instrucciones_portada", columnDefinition = "TEXT")
     private String instruccionesPortada;
+
+    /** Tipo de prueba / modalidad elegida al generar (ej. "Admisión ordinaria", "Titulados y graduados"). */
+    @Column(name = "tipo_prueba", length = 100)
+    private String tipoPrueba;
+
+    /** Tamaño de hoja del PDF. Null en exámenes antiguos = A4. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "formato_hoja", length = 10)
+    private FormatoHoja formatoHoja;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "categoria_examen_id", nullable = false)

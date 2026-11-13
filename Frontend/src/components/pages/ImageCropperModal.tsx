@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import ReactCrop, { type Crop, type PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import './ImageCropperModal.css';
+import { toast } from '../ui/toast';
 
 interface ImageCropperModalProps {
   imageUrl: string;
@@ -20,7 +21,7 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({ imageUrl, 
   
   const handleSave = async () => {
     if (!completedCrop || !imgRef.current) {
-      alert('Debes realizar un recorte primero.');
+      toast.error('Debes realizar un recorte primero.');
       return;
     }
 
@@ -53,7 +54,7 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({ imageUrl, 
       if (blob) {
         onSave(blob);
       } else {
-        alert('Error al generar el recorte.');
+        toast.error('Error al generar el recorte.');
       }
     }, 'image/png');
   };

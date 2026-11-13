@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -15,11 +13,13 @@ import org.springframework.web.multipart.MultipartFile;
 import pe.edu.utp.sistemaexamenes.dto.request.PreguntaRequest;
 import pe.edu.utp.sistemaexamenes.dto.response.PreguntaResponse;
 import pe.edu.utp.sistemaexamenes.enums.NivelDificultad;
+import pe.edu.utp.sistemaexamenes.service.AlmacenamientoImagenService;
 import pe.edu.utp.sistemaexamenes.service.CursoService;
 import pe.edu.utp.sistemaexamenes.service.GeminiService;
 import pe.edu.utp.sistemaexamenes.service.PdfExtractorService;
 import pe.edu.utp.sistemaexamenes.service.PreguntaService;
 import pe.edu.utp.sistemaexamenes.service.impl.PdfExtractorServiceImpl;
+import pe.edu.utp.sistemaexamenes.util.ImagenesLocales;
 
 import java.util.Base64;
 import java.util.List;
@@ -40,6 +40,7 @@ public class PreguntaController {
     private final PdfExtractorService pdfExtractorService;
     private final GeminiService geminiService;
     private final CursoService cursoService;
+    private final AlmacenamientoImagenService almacenamientoImagenService;
 
     @Value("${cloudinary.cloud-name}")
     private String cloudinaryCloudName;
@@ -133,6 +134,7 @@ public class PreguntaController {
                 tempPdf.getAbsolutePath(),
                 geminiApiKey
             );
+            ImagenesLocales.configurarEntorno(pb);
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
@@ -190,6 +192,7 @@ public class PreguntaController {
 
         try {
             ProcessBuilder pb = new ProcessBuilder(command);
+            ImagenesLocales.configurarEntorno(pb);
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
@@ -250,20 +253,9 @@ public class PreguntaController {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Archivo vacío"));
             }
-            
-            Cloudinary cloudinary = new Cloudinary(ObjectUtils.asMap(
-                "cloud_name", cloudinaryCloudName,
-                "api_key", cloudinaryApiKey,
-                "api_secret", cloudinaryApiSecret,
-                "secure", true
-            ));
-            
-            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
-                "folder", "examenes/recortes",
-                "resource_type", "image"
-            ));
-            
-            String secureUrl = (String) uploadResult.get("secure_url");
+
+            // Local (sin internet) o Cloudinary, según app.imagenes.almacenamiento
+            String secureUrl = almacenamientoImagenService.uploadImage(file.getBytes(), "examenes/recortes");
             return ResponseEntity.ok(Map.of("url", secureUrl));
             
         } catch (Exception e) {

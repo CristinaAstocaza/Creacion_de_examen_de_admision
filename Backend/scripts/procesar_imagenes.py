@@ -2,8 +2,7 @@ import sys
 import json
 import traceback
 import time
-import cloudinary
-import cloudinary.uploader
+from almacen_imagenes import subir, configurar_cloudinary
 from google import genai
 from google.genai import types
 
@@ -53,12 +52,7 @@ def llamar_gemini_con_retry(client, model_name, contents, max_intentos=6):
 def procesar_imagenes(api_key_gemini, folder_name, c_cloud_name, c_api_key, c_api_secret, image_paths):
     client = genai.Client(api_key=api_key_gemini)
     
-    cloudinary.config(
-      cloud_name = c_cloud_name,
-      api_key = c_api_key,
-      api_secret = c_api_secret,
-      secure = True
-    )
+    configurar_cloudinary(c_cloud_name, c_api_key, c_api_secret)
     
     todas_preguntas = []
     
@@ -125,13 +119,8 @@ def procesar_imagenes(api_key_gemini, folder_name, c_cloud_name, c_api_key, c_ap
             
             pregunta_data = limpiar_y_parsear_json(response.text)
             
-            # Subir a Cloudinary si el JSON fue parseado correctamente
-            result_cloudinary = cloudinary.uploader.upload(
-                img_bytes,
-                folder=folder_name,
-                resource_type="image"
-            )
-            imagen_url = result_cloudinary["secure_url"]
+            # Guardar la captura (local o Cloudinary) si el JSON fue parseado correctamente
+            imagen_url = subir(img_bytes, folder_name)
             
             # Enriquecer JSON
             pregunta_data["imagen_url"] = imagen_url

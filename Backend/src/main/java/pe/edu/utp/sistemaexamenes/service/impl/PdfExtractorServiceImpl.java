@@ -11,7 +11,7 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import pe.edu.utp.sistemaexamenes.service.CloudinaryService;
+import pe.edu.utp.sistemaexamenes.service.AlmacenamientoImagenService;
 import pe.edu.utp.sistemaexamenes.service.PdfExtractorService;
 
 import javax.imageio.ImageIO;
@@ -32,7 +32,7 @@ public class PdfExtractorServiceImpl implements PdfExtractorService {
     private static final float PDF_DPI = 72f;
     private static final int PADDING = 12; // px de margen alrededor del recorte
 
-    private final CloudinaryService cloudinaryService;
+    private final AlmacenamientoImagenService cloudinaryService;
 
     /**
      * PASO 1: Intenta extraer imágenes embebidas (XObject) de cada página.
@@ -108,7 +108,7 @@ public class PdfExtractorServiceImpl implements PdfExtractorService {
             g.drawImage(cropped, 0, 0, null);
             g.dispose();
 
-            System.out.println("📤 Subiendo imagen a Cloudinary");
+            System.out.println("Subiendo imagen recortada");
             System.out.println("   Dimensiones: " + output.getWidth() + "x" + output.getHeight());
 
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -121,7 +121,7 @@ public class PdfExtractorServiceImpl implements PdfExtractorService {
     }
 
     private BufferedImage cropRegion(BufferedImage pageImg, List<Integer> bbox, float pageHeightPt) {
-        System.out.println("🔍 Entrando a cropRegion");
+        System.out.println("Entrando a cropRegion");
         System.out.println("   pageImg size: " + pageImg.getWidth() + "x" + pageImg.getHeight());
         System.out.println("   bbox recibido: " + bbox);
         System.out.println("   pageHeightPt: " + pageHeightPt);
@@ -141,7 +141,7 @@ public class PdfExtractorServiceImpl implements PdfExtractorService {
         height = Math.min(height, pageImg.getHeight() - y);
 
         if (width <= 0 || height <= 0) {
-            System.out.println("⚠️ Recorte inválido para bbox: " + bbox);
+            System.out.println("Recorte inválido para bbox: " + bbox);
             return pageImg; // fallback: página completa
         }
 

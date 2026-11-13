@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pe.edu.utp.sistemaexamenes.dto.request.CaratulaPdfRequest;
 import pe.edu.utp.sistemaexamenes.dto.response.ArchivoDescargaResponse;
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
 import pe.edu.utp.sistemaexamenes.enums.LetraAlternativa;
 import pe.edu.utp.sistemaexamenes.exception.ResourceNotFoundException;
 import pe.edu.utp.sistemaexamenes.model.Alternativa;
@@ -39,8 +40,8 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
     private static final String ZIP = "application/zip";
     private static final DateTimeFormatter FECHA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
-    // Letra de tema por índice de versión (0 = A, 1 = B, ...)
-    private static final char[] LETRAS_TEMA = "ABCDEFGHIJ".toCharArray();
+    /** Oficio peruano: 8,5 × 13 pulgadas. */
+    private static final Rectangle HOJA_OFICIO = new Rectangle(612f, 936f);
     // Letras que se imprimen según la posición de la alternativa (no según su letra original)
     private static final String[] LETRAS_IMPRESAS = {"A", "B", "C", "D", "E"};
 
@@ -81,17 +82,17 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     @Override
     @Transactional(readOnly = true)
-    public ArchivoDescargaResponse generarZipVersiones(Long examenId) {
+    public ArchivoDescargaResponse generarZipVersiones(Long examenId, CaratulaPdfRequest caratula) {
         Examen examen = examenRepository.findById(examenId)
                 .orElseThrow(() -> new ResourceNotFoundException("Examen no encontrado: " + examenId));
         try (ByteArrayOutputStream output = new ByteArrayOutputStream(); ZipOutputStream zip = new ZipOutputStream(output)) {
             for (ExamenVersion version : examen.getVersiones().stream().sorted(Comparator.comparing(ExamenVersion::getNumero)).toList()) {
                 zip.putNextEntry(new ZipEntry(nombrePdf(version, false)));
-                zip.write(generarPdfExamen(version, null));
+                zip.write(generarPdfExamen(version, caratula));
                 zip.closeEntry();
             }
             zip.finish();
-            return new ArchivoDescargaResponse("examen_" + limpiar(examen.getCodigo()) + "_versiones.zip", ZIP, output.toByteArray());
+            return new ArchivoDescargaResponse(nombreBase(examen) + "_versiones.zip", ZIP, output.toByteArray());
         } catch (IOException ex) {
             throw new IllegalStateException("No se pudo generar el ZIP de versiones", ex);
         }
@@ -120,11 +121,10 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
      */
     public byte[] generarPdfExamen(ExamenVersion version, CaratulaPdfRequest caratula) {
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            Document document = new Document(PageSize.A4, 45, 45, 45, 45);
+            Document document = new Document(tamanoHoja(version.getExamen()), 45, 45, 45, 45);
             PdfWriter writer = PdfWriter.getInstance(document, output);
 
-            int versionIndex = (version.getNumero() != null ? version.getNumero() : 1) - 1;
-            char letraTema = LETRAS_TEMA[Math.min(versionIndex, LETRAS_TEMA.length - 1)];
+            String letraTema = temaDe(version);
             String universidad = resolverTexto(
                     caratula != null ? caratula.nombreUniversidad() : null,
                     version.getExamen().getNombreUniversidad(),
@@ -150,10 +150,10 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
 
     /** Pinta el fondo, la cabecera, el pie y la línea entre columnas de cada hoja de preguntas. */
     private static final class HojaPreguntasEvent extends PdfPageEventHelper {
-        private final char letraTema;
+        private final String letraTema;
         private final String universidad;
 
-        private HojaPreguntasEvent(char letraTema, String universidad) {
+        private HojaPreguntasEvent(String letraTema, String universidad) {
             this.letraTema = letraTema;
             this.universidad = universidad;
         }
@@ -250,8 +250,7 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
                 examen.getColorPortada(),
                 "#6366f1"));
 
-        int versionIndex = (version.getNumero() != null ? version.getNumero() : 1) - 1;
-        char letraTema = LETRAS_TEMA[Math.min(versionIndex, LETRAS_TEMA.length - 1)];
+        String letraTema = temaDe(version);
 
         // Mismo criterio de contraste que la vista de Configuración.
         Color tinta = isColorOscuro(fondo) ? Color.WHITE : new Color(15, 23, 42);
@@ -334,7 +333,8 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         ColumnText.showTextAligned(cb, Element.ALIGN_CENTER, new Phrase(etiquetaTema),
                 centro + 1f, yTemaArriba - 26f, 0);
         ColumnText.showTextAligned(cb, Element.ALIGN_CENTER,
-                new Phrase(String.valueOf(letraTema), PdfContenidoRenderer.fuente(56, Font.BOLD, tinta)),
+                // Letras de 2 o más caracteres (ej. "T1") se achican para caber en el recuadro.
+                new Phrase(letraTema, PdfContenidoRenderer.fuente(letraTema.length() <= 1 ? 56 : letraTema.length() == 2 ? 44 : 30, Font.BOLD, tinta)),
                 centro, yTemaArriba - altoTema + 24f, 0);
 
         // 5. Instrucciones en recuadro punteado al pie
@@ -459,13 +459,37 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
             contenedor.addElement(crearCabeceraCurso(tituloCurso));
         }
 
+        Chunk numeroPregunta = new Chunk(numero + ".  ", PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA));
+        float anchoContenido = anchoColumna - SANGRIA_NUMERO;
+
+        if (PdfContenidoRenderer.esEnriquecido(bloques)) {
+            // Editor enriquecido: títulos, listas, tablas e imágenes se imprimen en el orden en que se escribieron.
+            for (Element e : PdfContenidoRenderer.crearElementos(bloques, TAM_TEXTO, COLOR_TINTA, numeroPregunta,
+                    SANGRIA_NUMERO, SANGRIA_NUMERO, anchoContenido, 150f, url -> crearFigura(url, anchoContenido, 150f))) {
+                contenedor.addElement(e);
+            }
+            String imagenSuelta = PdfContenidoRenderer.imagenPrincipalVisible(bloques, pregunta.getImagenUrl());
+            if (imagenSuelta != null) {
+                contenedor.addElement(crearFigura(imagenSuelta, anchoContenido, 150f));
+            }
+            for (Element alternativa : crearAlternativas(ordenarAlternativas(examenPregunta), anchoColumna)) {
+                contenedor.addElement(alternativa);
+            }
+            PdfPTable bloqueEnriquecido = new PdfPTable(1);
+            bloqueEnriquecido.setWidthPercentage(100f);
+            bloqueEnriquecido.setSplitLate(true);
+            bloqueEnriquecido.addCell(contenedor);
+            mct.addElement(bloqueEnriquecido);
+            return;
+        }
+
         // Enunciado con sangría francesa: el número queda colgando a la izquierda.
         Paragraph enunciado = new Paragraph();
         enunciado.setLeading(0, 1.3f);
         enunciado.setIndentationLeft(SANGRIA_NUMERO);
         enunciado.setFirstLineIndent(-SANGRIA_NUMERO);
         enunciado.setSpacingAfter(3f);
-        enunciado.add(new Chunk(numero + ".  ", PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA)));
+        enunciado.add(numeroPregunta);
         PdfContenidoRenderer.agregarTextoYFormulas(enunciado, bloques, TAM_TEXTO, COLOR_TINTA);
         contenedor.addElement(enunciado);
 
@@ -512,6 +536,15 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         }
         List<Element> elementos = new ArrayList<>();
         for (int i = 0; i < alternativas.size(); i++) {
+            List<Bloque> bloquesAlt = PdfContenidoRenderer.parsearBloques(alternativas.get(i).getContenidoTexto());
+            if (PdfContenidoRenderer.esEnriquecido(bloquesAlt)) {
+                Chunk letraAlt = new Chunk(LETRAS_IMPRESAS[Math.min(i, LETRAS_IMPRESAS.length - 1)] + ")  ",
+                        PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA));
+                elementos.addAll(PdfContenidoRenderer.crearElementos(bloquesAlt, TAM_TEXTO, COLOR_TINTA, letraAlt,
+                        SANGRIA_NUMERO + SANGRIA_ALTERNATIVA, SANGRIA_ALTERNATIVA,
+                        anchoColumna - SANGRIA_NUMERO - SANGRIA_ALTERNATIVA, 110f, null));
+                continue;
+            }
             Paragraph p = new Paragraph();
             p.setLeading(0, 1.25f);
             p.setIndentationLeft(SANGRIA_NUMERO + SANGRIA_ALTERNATIVA);
@@ -545,6 +578,17 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
             celda.setBorder(Rectangle.NO_BORDER);
             celda.setPadding(3f);
             celda.setPaddingBottom(6f);
+
+            if (PdfContenidoRenderer.esEnriquecido(bloques)) {
+                Chunk letraCelda = new Chunk(LETRAS_IMPRESAS[Math.min(i, 4)] + ") ",
+                        PdfContenidoRenderer.fuente(TAM_TEXTO, Font.BOLD, COLOR_TINTA));
+                for (Element e : PdfContenidoRenderer.crearElementos(bloques, TAM_TEXTO - 0.5f, COLOR_TINTA, letraCelda,
+                        0f, 0f, anchoCelda, 62f, null)) {
+                    celda.addElement(e);
+                }
+                grilla.addCell(celda);
+                continue;
+            }
 
             Paragraph cabecera = new Paragraph();
             cabecera.setLeading(0, 1.3f);
@@ -732,9 +776,26 @@ public class ExamenPdfServiceImpl implements ExamenPdfService {
         return yiq < 128;
     }
 
+    /** Ej.: "Examen_de_admision_Version_P.pdf" (usa la letra de tema guardada en la versión). */
     private String nombrePdf(ExamenVersion version, boolean solucionario) {
-        String suffix = solucionario ? "_SOLUCIONARIO_" : "_VERSION_";
-        return "examen_" + limpiar(version.getExamen().getCodigo()) + suffix + limpiar(version.getCodigoVersion()) + ".pdf";
+        String sufijo = solucionario ? "_Solucionario_" : "_Version_";
+        return nombreBase(version.getExamen()) + sufijo + limpiar(temaDe(version)) + ".pdf";
+    }
+
+    private String nombreBase(Examen examen) {
+        String nombre = examen.getNombre() == null || examen.getNombre().isBlank() ? examen.getCodigo() : examen.getNombre();
+        String sinTildes = java.text.Normalizer.normalize(nombre, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        return limpiar(sinTildes.trim()).replaceAll("_+", "_");
+    }
+
+    /** Letra de tema que se imprime: la guardada en la versión (A, B, P...). */
+    private String temaDe(ExamenVersion version) {
+        String codigo = version.getCodigoVersion();
+        return codigo == null || codigo.isBlank() ? "A" : codigo.trim().toUpperCase();
+    }
+
+    private Rectangle tamanoHoja(Examen examen) {
+        return examen.getFormatoHoja() == FormatoHoja.OFICIO ? HOJA_OFICIO : PageSize.A4;
     }
 
     private String limpiar(String value) {

@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pe.edu.utp.sistemaexamenes.dto.request.CursoRequest;
 import pe.edu.utp.sistemaexamenes.dto.response.CursoResponse;
+import pe.edu.utp.sistemaexamenes.repository.PreguntaRepository;
 import pe.edu.utp.sistemaexamenes.service.CursoService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/cursos")
@@ -24,10 +26,22 @@ import java.util.List;
 public class CursoController {
 
     private final CursoService cursoService;
+    private final PreguntaRepository preguntaRepository;
 
     @GetMapping
     public List<CursoResponse> listar() {
         return cursoService.listar();
+    }
+
+    /** Preguntas del banco por curso (para la sección Cursos), sin descargar las preguntas. */
+    @GetMapping("/conteo-preguntas")
+    public List<Map<String, Object>> conteoPreguntas() {
+        return preguntaRepository.contarPorCurso().stream()
+                .map(fila -> Map.<String, Object>of(
+                        "cursoId", fila[0],
+                        "total", fila[1],
+                        "activas", fila[2] == null ? 0L : fila[2]))
+                .toList();
     }
 
     @GetMapping("/{id}")

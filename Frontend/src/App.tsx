@@ -7,6 +7,8 @@ import { HistorialExamenes } from './components/pages/HistorialExamenes';
 import Cursos from './components/pages/Cursos';
 import { ImportarPreguntas } from './components/pages/ImportarPreguntas'; // <-- 1. Importamos el nuevo componente
 import './App.css';
+import { Toaster } from './components/ui/Toaster';
+import { ConfirmDialog } from './components/ui/ConfirmDialog';
 import { Dashboard } from './components/pages/Dashboard';
 import { Configuracion } from './components/pages/Configuracion';
 
@@ -45,6 +47,8 @@ export default function App() {
             
           </Routes>
         </main>
+        <Toaster />
+        <ConfirmDialog />
       </div>
     </BrowserRouter>
   );

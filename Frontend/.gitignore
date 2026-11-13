@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Recursos copiados desde node_modules (scripts/copiar-recursos.mjs)
+public/ocr/
+public/mathlive/

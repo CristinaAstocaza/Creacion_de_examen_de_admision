@@ -1,0 +1,82 @@
+.cd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(3px);
+  animation: cdFade 0.15s ease-out;
+}
+
+.cd-dialog {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 28px 24px 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+  text-align: center;
+  animation: cdIn 0.2s ease-out;
+}
+
+.cd-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  font-size: 28px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  margin-bottom: 12px;
+}
+.cd-icono.is-danger { background: #fee2e2; color: #dc2626; }
+
+.cd-dialog h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; color: #202124; line-height: 1.35; }
+.cd-dialog p { margin: 0; font-size: 14px; color: #5f6368; line-height: 1.5; }
+
+.cd-advertencia {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+}
+.cd-advertencia .material-icons-outlined { font-size: 18px; flex-shrink: 0; }
+
+.cd-acciones { display: flex; gap: 10px; margin-top: 22px; }
+.cd-btn {
+  flex: 1;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+.cd-btn-cancelar { background: #ffffff; border-color: #dadce0; color: #202124; }
+.cd-btn-cancelar:hover { background: #f8fafc; }
+.cd-btn-primario { background: #1a73e8; color: #ffffff; }
+.cd-btn-primario:hover { background: #1557b0; }
+.cd-btn-peligro { background: #dc2626; color: #ffffff; }
+.cd-btn-peligro:hover { background: #b91c1c; }
+.cd-btn:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+
+@keyframes cdFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cdIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-overlay, .cd-dialog { animation: none; }
+}

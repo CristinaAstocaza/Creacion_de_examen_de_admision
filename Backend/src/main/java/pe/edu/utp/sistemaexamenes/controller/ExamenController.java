@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,7 +72,25 @@ public class ExamenController {
 
     @GetMapping("/{id}/pdfs")
     public ResponseEntity<byte[]> descargarPdfs(@PathVariable Long id) {
-        return descargar(examenPdfService.generarZipVersiones(id));
+        return descargar(examenPdfService.generarZipVersiones(id, null));
+    }
+
+    /** ZIP con todas las versiones aplicando la carátula configurada (igual que la descarga individual). */
+    @PostMapping("/{id}/pdfs")
+    public ResponseEntity<byte[]> descargarPdfsConCaratula(
+            @PathVariable Long id,
+            @RequestBody(required = false) CaratulaPdfRequest caratula) {
+        return descargar(examenPdfService.generarZipVersiones(id, caratula));
+    }
+
+    public record CambiarTemaRequest(String codigoVersion) {
+    }
+
+    /** Cambia la letra (tema) de una versión ya generada. */
+    @PutMapping("/{id}/versiones/{version}/tema")
+    public ExamenResponse cambiarTema(@PathVariable Long id, @PathVariable String version,
+                                      @RequestBody CambiarTemaRequest request) {
+        return examenService.cambiarCodigoVersion(id, version, request.codigoVersion());
     }
 
     @GetMapping("/{id}/versiones/{version}/solucionario-pdf")

@@ -6,6 +6,7 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
 import pe.edu.utp.sistemaexamenes.dto.request.CaratulaPdfRequest;
+import pe.edu.utp.sistemaexamenes.enums.FormatoHoja;
 import pe.edu.utp.sistemaexamenes.enums.LetraAlternativa;
 import pe.edu.utp.sistemaexamenes.enums.NivelDificultad;
 import pe.edu.utp.sistemaexamenes.enums.TipoAlternativa;
@@ -50,7 +51,8 @@ class ExamenPdfPruebaTest {
                 .modalidad("Modalidad Ordinario")
                 .colorPortada("#1e3a5f")
                 .build();
-        ExamenVersion version = ExamenVersion.builder().numero(1).codigoVersion("A").examen(examen).build();
+        // Tema elegido a mano (no "A"): debe imprimirse en la portada y en cada hoja.
+        ExamenVersion version = ExamenVersion.builder().numero(1).codigoVersion("P").examen(examen).build();
 
         List<Pregunta> preguntas = new ArrayList<>();
 
@@ -160,6 +162,17 @@ class ExamenPdfPruebaTest {
             assertFalse(texto.contains("No se pudo cargar"), "La captura completa de la importación no debe imprimirse");
             assertTrue(texto.contains("EXAMEN DE ADMISIÓN 2025"), "La portada debe usar la configuración enviada");
             assertEquals(4, doc.getNumberOfPages(), "Carátula + 3 hojas de preguntas");
+            assertTrue(texto.contains("TEMA P"), "La cabecera debe usar la letra de tema guardada");
+            assertEquals(595f, doc.getPage(0).getMediaBox().getWidth(), 1f, "A4 por defecto");
+        }
+
+        // Mismo examen en hoja Oficio (8,5 x 13 pulgadas)
+        examen.setFormatoHoja(FormatoHoja.OFICIO);
+        byte[] oficio = new ExamenPdfServiceImpl(null, null).generarPdfExamen(version, null);
+        Files.write(Path.of("target", "prueba-examen-oficio.pdf"), oficio);
+        try (PDDocument doc = Loader.loadPDF(oficio)) {
+            assertEquals(612f, doc.getPage(0).getMediaBox().getWidth(), 1f, "Ancho oficio");
+            assertEquals(936f, doc.getPage(0).getMediaBox().getHeight(), 1f, "Alto oficio");
         }
         System.out.println("PDF de prueba generado en: " + salida.toAbsolutePath());
     }

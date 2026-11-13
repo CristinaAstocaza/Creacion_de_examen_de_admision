@@ -1,0 +1,166 @@
+.er {
+  border: 1px solid #c4c7c5;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.er:focus-within { border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.12); }
+
+/* ── Barra ── */
+.er-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e8eaed;
+}
+.er-sep { width: 1px; height: 22px; background: #dadce0; margin: 0 4px; }
+.er-espacio { flex: 1; min-width: 4px; }
+
+.er-btn {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #3c4043;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+.er-btn:hover:not(:disabled) { background: #f1f3f4; color: #202124; }
+.er-btn.is-activo { background: #e8eaed; color: #1a1a1a; }
+.er-btn:disabled { color: #bdc1c6; cursor: default; }
+.er-btn:focus-visible { outline: 2px solid #1a73e8; outline-offset: 1px; }
+.er-btn .material-icons-outlined { font-size: 21px; }
+.er-btn-menu { padding: 0 2px 0 6px; }
+.er-caret { font-size: 18px !important; margin-left: -2px; }
+.er-parrafo { font-size: 20px; font-weight: 700; font-family: Georgia, serif; }
+.er-pi { font-size: 19px; font-weight: 700; font-family: 'Times New Roman', Georgia, serif; }
+.er-subiendo { font-size: 12px; color: #5f6368; margin-right: 6px; }
+
+/* ── Menús ── */
+.er-menu { position: relative; }
+.er-menu-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+  min-width: 200px;
+  padding: 6px 0;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+.er-menu-lista.er-derecha { left: auto; right: 0; }
+.er-opcion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  color: #202124;
+}
+.er-opcion:hover, .er-opcion.is-activo { background: #e8eaed; }
+.er-opcion .material-icons-outlined { font-size: 20px; color: #5f6368; }
+.er-op-normal { font-size: 15px; }
+.er-op-h1 { font-size: 26px; font-weight: 700; }
+.er-op-h2 { font-size: 21px; font-weight: 700; }
+.er-op-h3 { font-size: 17px; font-weight: 700; }
+.er-op-code { font-family: 'Consolas', 'Courier New', monospace; }
+
+/* ── Barra de tabla ── */
+.er-barra-tabla {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 5px 10px; background: #f8f9fa; border-bottom: 1px solid #e8eaed; font-size: 12px;
+}
+.er-barra-tabla-titulo { font-weight: 600; color: #5f6368; margin-right: 4px; }
+.er-barra-tabla button {
+  padding: 4px 10px; border: 1px solid #dadce0; border-radius: 6px; background: #fff;
+  font-size: 12px; cursor: pointer; font-family: inherit; color: #3c4043;
+}
+.er-barra-tabla button:hover { border-color: #1a73e8; color: #1a73e8; }
+.er-barra-tabla .er-peligro { color: #c5221f; }
+.er-barra-tabla .er-peligro:hover { border-color: #c5221f; color: #c5221f; background: #fce8e6; }
+
+/* ── Área de escritura ── */
+.er-area { cursor: text; }
+.er-contenido {
+  min-height: inherit;
+  padding: 12px 16px;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #202124;
+}
+.er-area > .er-contenido { min-height: inherit; }
+.er-contenido > * + * { margin-top: 6px; }
+.er-contenido p { margin: 0; }
+.er-contenido h1 { font-size: 1.5em; margin: 6px 0 4px; }
+.er-contenido h2 { font-size: 1.3em; margin: 6px 0 4px; }
+.er-contenido h3 { font-size: 1.12em; margin: 6px 0 4px; }
+.er-contenido ul, .er-contenido ol { padding-left: 24px; margin: 4px 0; }
+.er-contenido blockquote { margin: 6px 0; padding: 2px 12px; border-left: 3px solid #cbd5e1; color: #475569; font-style: italic; }
+.er-contenido pre {
+  margin: 6px 0; padding: 8px 10px; border-radius: 6px; background: #f1f5f9;
+  font-family: 'Consolas', 'Courier New', monospace; font-size: 0.92em; white-space: pre-wrap;
+}
+.er-contenido img { max-width: 100%; max-height: 280px; display: block; margin: 8px auto; border-radius: 6px; }
+.er-contenido img.ProseMirror-selectednode { outline: 3px solid #1a73e8; }
+.er-contenido p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #9aa0a6;
+  pointer-events: none;
+}
+
+/* Tablas */
+.er-contenido table { border-collapse: collapse; margin: 8px 0; table-layout: fixed; width: 100%; overflow: hidden; }
+.er-contenido th, .er-contenido td {
+  border: 1px solid #c4c7c5; padding: 4px 8px; vertical-align: top; position: relative; min-width: 40px;
+}
+.er-contenido th { background: #f1f3f4; font-weight: 700; }
+.er-contenido .selectedCell::after {
+  content: ''; position: absolute; inset: 0; background: rgba(26, 115, 232, 0.12); pointer-events: none;
+}
+
+/* Fórmulas */
+.er-contenido .tiptap-mathematics-render { cursor: pointer; padding: 0 2px; border-radius: 4px; }
+.er-contenido .tiptap-mathematics-render:hover { background: #e8f0fe; }
+.er-contenido [data-type='block-math'] { text-align: center; margin: 6px 0; }
+
+/* Imagen con botón "Quitar" */
+.er-contenido .er-imagen { position: relative; display: block; width: fit-content; max-width: 100%; margin: 8px auto; }
+.er-contenido .er-imagen img { margin: 0; }
+.er-contenido .er-imagen.is-seleccionada img { outline: 3px solid #1a73e8; }
+.er-imagen-quitar {
+  position: absolute; top: 6px; right: 6px; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px 4px 6px; border-radius: 999px; border: none; cursor: pointer;
+  background: rgba(220, 38, 38, 0.92); color: #fff; font-size: 12px; font-weight: 600; font-family: inherit;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.er-imagen-quitar:hover { background: #b91c1c; }
+.er-imagen-quitar .material-icons-outlined { font-size: 16px; }
+
+/* Subíndice, superíndice y símbolos */
+.er-indice { font-family: 'Times New Roman', Georgia, serif; font-size: 17px; font-style: italic; }
+.er-indice sub, .er-indice sup { font-size: 11px; font-style: normal; }
+.er-simbolo { font-size: 19px; font-family: 'Times New Roman', Georgia, serif; line-height: 1; }
+.er-simbolos { display: grid; grid-template-columns: repeat(8, 36px); gap: 4px; padding: 6px 10px; }
+.er-simbolo-btn {
+  width: 36px; height: 36px; border: 1px solid transparent; border-radius: 6px; background: transparent;
+  font-size: 18px; font-family: 'Times New Roman', Georgia, serif; cursor: pointer; color: #202124;
+}
+.er-simbolo-btn:hover { background: #e8f0fe; border-color: #c6dafc; color: #1a56c4; }
+.er-contenido sub, .er-contenido sup { font-size: 0.75em; }

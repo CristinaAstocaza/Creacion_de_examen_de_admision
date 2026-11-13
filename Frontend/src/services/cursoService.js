@@ -23,3 +23,9 @@ export const actualizarCurso = async (id, payload) => {
 export const eliminarCurso = async (id) => {
   await api.delete(`/cursos/${id}`);
 };
+
+/** Preguntas del banco por curso: [{ cursoId, total, activas }]. */
+export const contarPreguntasPorCurso = async () => {
+  const { data } = await api.get('/cursos/conteo-preguntas');
+  return data;
+};

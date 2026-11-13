@@ -11,7 +11,7 @@ const KpiCard = ({ label, value, sub, trend, icon, accentColor }: any) => (
   <div style={{ background: '#ffffff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>{label}</span>
-      <span style={{ background: accentColor, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: '20px' }}>{icon}</span>
+      <span className="material-icons-outlined" style={{ background: accentColor, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', fontSize: '24px' }}>{icon}</span>
     </div>
     <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#0f172a' }}>{value}</div>
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
@@ -95,7 +95,7 @@ export const Dashboard: React.FC = () => {
     return (
       <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '32px' }}>
         <div style={{ background: '#fee2e2', color: '#dc2626', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #fecaca' }}>
-          <span>⚠️</span> {error}
+          <span className="material-icons-outlined mi">error_outline</span> {error}
         </div>
       </div>
     );
@@ -138,9 +138,9 @@ export const Dashboard: React.FC = () => {
           
           {/* --- KPIs Globales --- */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-            <KpiCard label="Total Preguntas" value={kpis.totalPreguntas.toLocaleString()} sub="en banco activo" icon="📚" accentColor="linear-gradient(90deg,#6366f1,#8b5cf6)" />
-            <KpiCard label="Áreas de Admisión" value={kpis.totalAreas} sub="registradas" icon="🏫" accentColor="linear-gradient(90deg,#06b6d4,#3b82f6)" />
-            <KpiCard label="Exámenes Creados" value={kpis.totalExamenes} sub="este ciclo" icon="📄" accentColor="linear-gradient(90deg,#10b981,#34d399)" />
+            <KpiCard label="Total Preguntas" value={kpis.totalPreguntas.toLocaleString()} sub="en banco activo" icon="library_books" accentColor="linear-gradient(90deg,#6366f1,#8b5cf6)" />
+            <KpiCard label="Áreas de Admisión" value={kpis.totalAreas} sub="registradas" icon="account_balance" accentColor="linear-gradient(90deg,#06b6d4,#3b82f6)" />
+            <KpiCard label="Exámenes Creados" value={kpis.totalExamenes} sub="este ciclo" icon="description" accentColor="linear-gradient(90deg,#10b981,#34d399)" />
           </div>
 
           {/* --- Gráficos (Distribución por Área) --- */}

@@ -15,13 +15,12 @@ import json
 import sys
 import traceback
 
-import cloudinary
-import cloudinary.uploader
 from google import genai
 from google.genai import types
 from PIL import Image, ImageOps
 
 from procesar_imagenes import limpiar_y_parsear_json, llamar_gemini_con_retry
+from almacen_imagenes import subir, configurar_cloudinary
 
 if sys.stdout.encoding != 'utf-8':
     try: sys.stdout.reconfigure(encoding='utf-8')
@@ -122,8 +121,7 @@ def recortar_figura(pagina, box, carpeta):
     if x2 - x1 < 10 or y2 - y1 < 10:
         return None
     recorte = pagina.crop((x1, y1, x2, y2))
-    resultado = cloudinary.uploader.upload(a_png(recorte), folder=carpeta, resource_type='image')
-    return resultado['secure_url']
+    return subir(a_png(recorte), carpeta)
 
 
 def resolver_bloques(bloques, pagina, carpeta):
@@ -148,7 +146,7 @@ def resolver_bloques(bloques, pagina, carpeta):
 
 def procesar(api_key, carpeta, c_cloud, c_key, c_secret, rutas):
     client = genai.Client(api_key=api_key)
-    cloudinary.config(cloud_name=c_cloud, api_key=c_key, api_secret=c_secret, secure=True)
+    configurar_cloudinary(c_cloud, c_key, c_secret)
 
     todas = []
     paginas = cargar_paginas(rutas)
@@ -160,9 +158,8 @@ def procesar(api_key, carpeta, c_cloud, c_key, c_secret, rutas):
                 [types.Part.from_bytes(data=a_png(reducir(pagina)), mime_type='image/png'), PROMPT])
             datos = limpiar_y_parsear_json(respuesta.text)
 
-            # Página completa en Cloudinary: sirve de referencia para recortes manuales.
-            url_pagina = cloudinary.uploader.upload(a_png(reducir(pagina)), folder=carpeta,
-                                                    resource_type='image')['secure_url']
+            # Página completa guardada: sirve de referencia para recortes manuales.
+            url_pagina = subir(a_png(reducir(pagina)), carpeta)
 
             for p in datos.get('preguntas', []):
                 enunciado = resolver_bloques(p.get('enunciado_bloques'), pagina, carpeta)

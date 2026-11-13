@@ -1,234 +1,375 @@
-import React, { useState, type ChangeEvent, type FormEvent, useEffect } from 'react';
+import React, { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import './Configuracion.css';
+import CustomSelect from '../ui/CustomSelect';
+import { PortadaPreview, PortadaMiniatura } from '../ui/PortadaPreview';
 import { listarCategorias } from '../../services/categoriaService';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-
+import { toast } from '../ui/toast';
+import { confirmar } from '../ui/confirm';
+import { TIPOS_PRUEBA } from '../../utils/estructuraExamen';
+import {
+  type Caratula,
+  listarCaratulas,
+  obtenerCaratula,
+  guardarCaratula,
+  eliminarCaratula,
+  leerCaratulaLegacy,
+  nombreModalidad,
+  textoModalidadSugerido,
+  COLOR_PORTADA_DEFECTO,
+} from '../../utils/caratulas';
 
 interface CategoriaExamen {
   id: number;
   nombre: string;
 }
 
-interface ConfigData {
-  institutionName: string;
-  headerText: string;
-  footerText: string;
-  instructions: string;
-  logoUrl: string | null;
-  modalidad: string;
-  colorPortada: string;
-}
+type FormCaratula = Pick<Caratula,
+  'institutionName' | 'headerText' | 'modalidad' | 'footerText' | 'instructions' | 'logoUrl' | 'temaLetra' | 'colorPortada'>;
+
+type Vista = 'editor' | 'galeria';
+
+const COLORES = [
+  { color: '#ffffff', label: 'Blanco' },
+  { color: '#6366f1', label: 'Índigo' },
+  { color: '#ec4899', label: 'Rosa' },
+  { color: '#0ea5e9', label: 'Azul' },
+  { color: '#10b981', label: 'Verde' },
+  { color: '#f59e0b', label: 'Ámbar' },
+  { color: '#ef4444', label: 'Rojo' },
+  { color: '#1e293b', label: 'Oscuro' },
+];
+
+/** Carátula nueva: textos base (los de la configuración anterior si existían) y fondo blanco. */
+const formNuevo = (modalidadId = ''): FormCaratula => {
+  const legacy = leerCaratulaLegacy();
+  return {
+    institutionName: legacy.institutionName || 'UNIVERSIDAD NACIONAL',
+    headerText: legacy.headerText || 'EXAMEN DE ADMISIÓN 2025',
+    modalidad: modalidadId ? textoModalidadSugerido(modalidadId) : '',
+    footerText: legacy.footerText || '',
+    instructions: legacy.instructions || 'Lea cuidadosamente cada pregunta y marque solo una alternativa.',
+    logoUrl: legacy.logoUrl ?? null,
+    temaLetra: legacy.temaLetra || 'A',
+    colorPortada: COLOR_PORTADA_DEFECTO,
+  };
+};
+
+const aForm = (c: Caratula): FormCaratula => ({
+  institutionName: c.institutionName,
+  headerText: c.headerText,
+  modalidad: c.modalidad,
+  footerText: c.footerText,
+  instructions: c.instructions,
+  logoUrl: c.logoUrl,
+  temaLetra: c.temaLetra,
+  colorPortada: c.colorPortada,
+});
+
+const ordenModalidad = (id: string) => {
+  const i = TIPOS_PRUEBA.findIndex((t) => t.id === id);
+  return i === -1 ? 99 : i;
+};
 
 export const Configuracion: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const [vista, setVista] = useState<Vista>('editor');
   const [categorias, setCategorias] = useState<CategoriaExamen[]>([]);
-  const [selectedCategoriaId, setSelectedCategoriaId] = useState<number | ''>('');
-
-  const [formData, setFormData] = useState<ConfigData>({
-    institutionName: 'UNIVERSIDAD NACIONAL',
-    headerText: 'EXAMEN DE ADMISIÓN 2025',
-    footerText: '',
-    instructions: 'Lea cuidadosamente cada pregunta y marque solo una alternativa.',
-    logoUrl: null,
-    modalidad: 'MODALIDAD ORDINARIO',
-    colorPortada: '#6366f1',
+  const [categoriaId, setCategoriaId] = useState<number | ''>(() => Number(searchParams.get('categoria')) || '');
+  const [modalidadId, setModalidadId] = useState<string>(() => searchParams.get('modalidad') || '');
+  const [guardadas, setGuardadas] = useState<Caratula[]>(() => listarCaratulas());
+  const [formData, setFormData] = useState<FormCaratula>(() => {
+    // Viene desde Generar Exámenes con ?categoria=&modalidad=
+    const cat = Number(searchParams.get('categoria'));
+    const mod = searchParams.get('modalidad') || '';
+    const guardada = cat && mod ? obtenerCaratula(cat, mod) : null;
+    return guardada ? aForm(guardada) : formNuevo(mod);
   });
-
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    const loadInitials = async () => {
-      try {
-        const catData = await listarCategorias();
-        setCategorias(catData);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    loadInitials();
-
-    // Cargar formato
-    const savedConfig = localStorage.getItem('configuracionExamen');
-    if (savedConfig) {
-      try {
-        const parsed = JSON.parse(savedConfig);
-        setFormData(prev => ({ ...prev, ...parsed }));
-      } catch (e) {
-        console.error('Error parsing saved config', e);
-      }
-    }
+    listarCategorias()
+      .then((data: CategoriaExamen[]) => setCategorias(data))
+      .catch(() => toast.error('No se pudieron cargar las áreas.'));
   }, []);
+
+  const seleccionCompleta = Boolean(categoriaId && modalidadId);
+  const existente = useMemo(
+    () => guardadas.find((c) => c.categoriaId === categoriaId && c.modalidadId === modalidadId) ?? null,
+    [guardadas, categoriaId, modalidadId],
+  );
+  const nombreArea = (id: number | '') => categorias.find((c) => c.id === id)?.nombre
+    ?? guardadas.find((c) => c.categoriaId === id)?.categoriaNombre ?? '';
+  const categoriaNombre = nombreArea(categoriaId);
+
+  /** Carátulas agrupadas por área (alfabético) y, dentro, en el orden de las modalidades. */
+  const grupos = useMemo(() => {
+    const porArea = new Map<number, Caratula[]>();
+    guardadas.forEach((c) => porArea.set(c.categoriaId, [...(porArea.get(c.categoriaId) ?? []), c]));
+    return [...porArea.entries()]
+      .map(([id, items]) => ({
+        id,
+        nombre: categorias.find((c) => c.id === id)?.nombre ?? items[0].categoriaNombre,
+        items: items.sort((a, b) => ordenModalidad(a.modalidadId) - ordenModalidad(b.modalidadId)),
+      }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [guardadas, categorias]);
+
+  /**
+   * Cambia el área/modalidad. Si esa combinación ya tiene carátula se carga para editarla;
+   * si no, empieza una nueva con fondo blanco.
+   */
+  const cambiarSeleccion = (cat: number | '', mod: string) => {
+    setCategoriaId(cat);
+    setModalidadId(mod);
+    if (!cat || !mod) return;
+    const guardada = obtenerCaratula(cat, mod);
+    if (guardada) {
+      setFormData(aForm(guardada));
+      toast.info(`Editando carátula guardada · ${nombreArea(cat)} · ${nombreModalidad(mod)}`);
+    } else {
+      setFormData(formNuevo(mod));
+      toast.info('Nueva carátula: personalízala y guarda.');
+    }
+  };
+
+  const abrirDesdeGaleria = (c: Caratula) => {
+    cambiarSeleccion(c.categoriaId, c.modalidadId);
+    setVista('editor');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, logoUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      toast.error('El logo es muy pesado (máx. 1 MB).');
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => setFormData((prev) => ({ ...prev, logoUrl: reader.result as string }));
+    reader.readAsDataURL(file);
   };
 
-  const handleClearLogo = () => {
-    setFormData(prev => ({ ...prev, logoUrl: null }));
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!selectedCategoriaId) return;
-
+    if (!categoriaId || !modalidadId) return;
+    if (!formData.institutionName.trim() || !formData.headerText.trim() || !formData.modalidad.trim()) {
+      toast.error('Completa institución, título y texto de modalidad.');
+      return;
+    }
     setIsSaving(true);
-    setSaveMessage(null);
-
     try {
-      // Guardar Formato
-      localStorage.setItem('configuracionExamen', JSON.stringify(formData));
-      setSaveMessage({ type: 'success', text: 'Configuración aplicada y guardada exitosamente.' });
-    } catch (err) {
-      console.error(err);
-      setSaveMessage({ type: 'error', text: 'Hubo un error al guardar la configuración.' });
+      guardarCaratula({ ...formData, categoriaId, categoriaNombre, modalidadId });
+      setGuardadas(listarCaratulas());
+      toast.success(existente ? 'Carátula actualizada.' : 'Carátula guardada.');
+    } catch {
+      toast.error('No se pudo guardar: el navegador no tiene espacio (prueba con un logo más liviano).');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const getContrastColor = (hexColor: string) => {
-    const hex = (hexColor || '#ffffff').replace('#', '');
-    if (hex.length === 6) {
-      const r = parseInt(hex.substring(0, 2), 16);
-      const g = parseInt(hex.substring(2, 4), 16);
-      const b = parseInt(hex.substring(4, 6), 16);
-      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-      return (yiq >= 128) ? '#0f172a' : '#ffffff';
-    }
-    return '#ffffff';
+  const handleEliminar = async (c: Caratula) => {
+    const ok = await confirmar({
+      titulo: '¿Eliminar esta carátula?',
+      mensaje: `${c.categoriaNombre} · ${nombreModalidad(c.modalidadId)}`,
+      advertencia: 'Los exámenes de esta área y modalidad no podrán generarse hasta que crees otra carátula.',
+      peligro: true,
+    });
+    if (!ok) return;
+    eliminarCaratula(c.categoriaId, c.modalidadId);
+    setGuardadas(listarCaratulas());
+    if (c.categoriaId === categoriaId && c.modalidadId === modalidadId) setFormData(formNuevo(modalidadId));
+    toast.success('Carátula eliminada.');
   };
 
-  const previewTextColor = getContrastColor(formData.colorPortada);
-  const activeCat = categorias.find(c => c.id === selectedCategoriaId);
+  if (vista === 'galeria') {
+    return (
+      <div className="config-container">
+        <header className="config-header cfg-header-row">
+          <div>
+            <h1>Carátulas guardadas</h1>
+            <p>Agrupadas por área. Haz clic en una para abrirla en el editor.</p>
+          </div>
+          <button type="button" className="cfg-btn-ghost" onClick={() => setVista('editor')}>
+            <span className="material-icons-outlined">arrow_back</span> Volver al editor
+          </button>
+        </header>
+
+        {grupos.length === 0 ? (
+          <section className="panel cfg-empty">
+            <span className="material-icons-outlined">collections_bookmark</span>
+            <p>Aún no hay carátulas guardadas.</p>
+            <button type="button" className="btn-primary" onClick={() => setVista('editor')}>Crear la primera</button>
+          </section>
+        ) : grupos.map((g) => (
+          <section key={g.id} className="panel cfg-group">
+            <h2 className="cfg-group-title">
+              {g.nombre} <span className="cfg-count">{g.items.length}</span>
+            </h2>
+            <div className="cfg-gallery">
+              {g.items.map((c) => {
+                const activa = c.categoriaId === categoriaId && c.modalidadId === modalidadId;
+                return (
+                  <div key={c.modalidadId} className={`cfg-thumb ${activa ? 'is-active' : ''}`}>
+                    <button type="button" className="cfg-thumb-main" onClick={() => abrirDesdeGaleria(c)} title="Abrir en el editor">
+                      <PortadaMiniatura data={c} ancho={140} />
+                      <span className="cfg-thumb-mod">{nombreModalidad(c.modalidadId)}</span>
+                      <span className="cfg-thumb-fecha">
+                        Editada {new Date(c.actualizado).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </span>
+                    </button>
+                    <button type="button" className="cfg-thumb-del" onClick={() => handleEliminar(c)} aria-label="Eliminar carátula" title="Eliminar">
+                      <span className="material-icons-outlined">delete</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="config-container">
-      <header className="config-header">
-        <h1>Configuración del Examen</h1>
-        <p>Personaliza el diseño, logotipo, colores e instrucciones de la carátula oficial para los exámenes generados.</p>
+      <header className="config-header cfg-header-row">
+        <div>
+          <h1>Configuración de carátulas</h1>
+          <p>Cada combinación de <strong>área + modalidad</strong> tiene su propia carátula. Al generar un examen se usa automáticamente la que corresponde.</p>
+        </div>
+        <button type="button" className="cfg-btn-ghost" onClick={() => setVista('galeria')}>
+          <span className="material-icons-outlined">collections_bookmark</span>
+          Carátulas guardadas <span className="cfg-count">{guardadas.length}</span>
+        </button>
       </header>
 
-      {/* Selección Obligatoria */}
-      <section className="exam-selector-section panel" style={{ marginBottom: '24px' }}>
-        <label htmlFor="catSelect" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>
-          Seleccionar Categoría
-        </label>
-        <Select 
-          value={selectedCategoriaId === '' ? '' : String(selectedCategoriaId)}
-          onValueChange={(value) => setSelectedCategoriaId(value ? Number(value) : '')}
-        >
-          <SelectTrigger id="catSelect" className="w-full">
-            <SelectValue placeholder="-- Elige una categoría --" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">-- Elige una categoría --</SelectItem>
-            {categorias.map(cat => (
-              <SelectItem key={cat.id} value={String(cat.id)}>
-                {cat.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Área + modalidad */}
+      <section className="panel cfg-selector">
+        <div className="cfg-selector-grid">
+          <div className="form-group">
+            <label>Área / categoría</label>
+            <CustomSelect
+              options={categorias.map((c) => ({ value: String(c.id), label: c.nombre }))}
+              value={categoriaId === '' ? '' : String(categoriaId)}
+              onChange={(v) => cambiarSeleccion(v ? Number(v) : '', modalidadId)}
+              placeholder="Elige un área"
+            />
+          </div>
+          <div className="form-group">
+            <label>Modalidad / tipo de prueba</label>
+            <CustomSelect
+              options={TIPOS_PRUEBA.map((t) => ({ value: t.id, label: t.nombre }))}
+              value={modalidadId}
+              onChange={(v) => cambiarSeleccion(categoriaId, v)}
+              placeholder="Elige una modalidad"
+            />
+          </div>
+        </div>
       </section>
 
-      {saveMessage && (
-        <div className={`alert-message ${saveMessage.type}`}>
-          {saveMessage.text}
-        </div>
-      )}
-
-      <div className={`config-grid ${!selectedCategoriaId ? 'disabled-section' : ''}`}>
+      <div className={`config-grid ${!seleccionCompleta ? 'disabled-section' : ''}`}>
         <section className="config-form-section">
-          {/* Formato */}
           <div className="panel">
-            <h2 className="panel-title">Personalizar Formato</h2>
+            <h2 className="panel-title">Personalizar carátula</h2>
             <form onSubmit={handleSubmit} className="config-form">
-              <fieldset disabled={!selectedCategoriaId} style={{ border: 'none', padding: 0, margin: 0 }}>
+              <fieldset disabled={!seleccionCompleta} className="cfg-fieldset">
                 <div className="form-group">
-                  <label htmlFor="institutionName">Nombre de la Institución</label>
+                  <label htmlFor="institutionName">Nombre de la institución</label>
                   <input type="text" id="institutionName" name="institutionName" value={formData.institutionName} onChange={handleChange} />
                 </div>
 
                 <div className="form-group">
-                  <label>Logo de la Institución</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+                  <label>Logo de la institución</label>
+                  <div className="cfg-logo-row">
                     {formData.logoUrl ? (
-                      <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img src={formData.logoUrl} alt="Logo preview" style={{ height: '48px', width: '48px', objectFit: 'contain', border: '1px solid #dadce0', borderRadius: '4px', padding: '2px', backgroundColor: '#f8f9fa' }} />
-                        <button type="button" onClick={handleClearLogo} style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ea4335', color: 'white', border: 'none', borderRadius: '50%', width: '16px', height: '16px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Eliminar Logo">×</button>
+                      <div className="cfg-logo-box">
+                        <img src={formData.logoUrl} alt="Logo" />
+                        <button type="button" onClick={() => setFormData((p) => ({ ...p, logoUrl: null }))} title="Quitar logo" aria-label="Quitar logo">×</button>
                       </div>
                     ) : (
-                      <div style={{ height: '48px', width: '48px', border: '1px dashed #dadce0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#70757a', backgroundColor: '#f8f9fa' }}>Sin logo</div>
+                      <div className="cfg-logo-box cfg-logo-empty">Sin logo</div>
                     )}
-                    <label className="btn-secondary" style={{ padding: '8px 12px', border: '1px solid #dadce0', borderRadius: '6px', fontSize: '13px', cursor: 'pointer', backgroundColor: 'white', display: 'inline-block', fontWeight: 500 }}>
-                      Subir Imagen
-                      <input type="file" accept="image/*" onChange={handleLogoChange} style={{ display: 'none' }} />
+                    <label className="cfg-btn-ghost">
+                      Subir imagen
+                      <input type="file" accept="image/*" onChange={handleLogoChange} hidden />
                     </label>
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="headerText">Título del Examen</label>
+                  <label htmlFor="headerText">Título del examen</label>
                   <input type="text" id="headerText" name="headerText" value={formData.headerText} onChange={handleChange} placeholder="Ej. EXAMEN DE ADMISIÓN" />
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="modalidad">Modalidad</label>
-                  <input type="text" id="modalidad" name="modalidad" value={formData.modalidad} onChange={handleChange} placeholder="Ej. MODALIDAD ORDINARIO" />
+                  <label htmlFor="modalidad">Texto de modalidad en la portada</label>
+                  <div className="cfg-inline">
+                    <input type="text" id="modalidad" name="modalidad" value={formData.modalidad} onChange={handleChange} />
+                    <button
+                      type="button"
+                      className="cfg-btn-ghost cfg-btn-sm"
+                      onClick={() => setFormData((p) => ({ ...p, modalidad: textoModalidadSugerido(modalidadId) }))}
+                      title="Usar el texto sugerido para la modalidad elegida"
+                    >
+                      Restablecer
+                    </button>
+                  </div>
+                  <small>Se genera a partir de la modalidad elegida arriba; puedes ajustar cómo se imprime.</small>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="colorPortada">Color de Portada</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {[
-                      { color: '#6366f1', label: 'Índigo' },
-                      { color: '#ec4899', label: 'Rosa' },
-                      { color: '#0ea5e9', label: 'Azul' },
-                      { color: '#10b981', label: 'Verde' },
-                      { color: '#f59e0b', label: 'Ámbar' },
-                      { color: '#ef4444', label: 'Rojo' },
-                      { color: '#1e293b', label: 'Oscuro' },
-                    ].map(({ color, label }) => (
+                  <label htmlFor="temaLetra">Tema (letra de la primera versión)</label>
+                  <input
+                    type="text"
+                    id="temaLetra"
+                    value={formData.temaLetra}
+                    maxLength={5}
+                    onChange={(e) => setFormData((p) => ({ ...p, temaLetra: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) }))}
+                    placeholder="Ej. P"
+                    className="cfg-tema"
+                  />
+                  <small>Las siguientes versiones continúan el abecedario (P, Q, R…) y se pueden cambiar al generar.</small>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="colorPortada">Color de portada</label>
+                  <div className="cfg-colors">
+                    {COLORES.map(({ color, label }) => (
                       <button
                         key={color}
                         type="button"
                         title={label}
-                        onClick={() => setFormData(prev => ({ ...prev, colorPortada: color }))}
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '50%',
-                          background: color,
-                          border: formData.colorPortada === color ? '2px solid #1e293b' : '2px solid transparent',
-                          cursor: 'pointer',
-                          outline: formData.colorPortada === color ? '2px solid white' : 'none',
-                        }}
+                        aria-label={label}
+                        className={`cfg-swatch ${color === '#ffffff' ? 'cfg-swatch-white' : ''} ${formData.colorPortada.toLowerCase() === color ? 'is-active' : ''}`}
+                        style={{ background: color }}
+                        onClick={() => setFormData((p) => ({ ...p, colorPortada: color }))}
                       />
                     ))}
-                    <input type="color" id="colorPortada" name="colorPortada" value={formData.colorPortada} onChange={handleChange} style={{ width: '32px', height: '28px', padding: '0', cursor: 'pointer', border: '1px solid #dadce0', borderRadius: '4px' }} />
+                    <input type="color" id="colorPortada" name="colorPortada" value={formData.colorPortada} onChange={handleChange} className="cfg-color-input" />
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label htmlFor="instructions">Instrucciones Específicas</label>
+                  <label htmlFor="instructions">Instrucciones</label>
                   <textarea id="instructions" name="instructions" value={formData.instructions} onChange={handleChange} rows={3} />
                 </div>
 
-                <div className="form-actions">
-                  <button type="submit" className="btn-primary" disabled={isSaving || !selectedCategoriaId}>
-                    {isSaving ? 'Guardando...' : 'Aplicar y Guardar'}
+                <div className="form-actions cfg-actions">
+                  {existente && (
+                    <button type="button" className="cfg-btn-danger" onClick={() => handleEliminar(existente)}>
+                      Eliminar
+                    </button>
+                  )}
+                  <button type="submit" className="btn-primary" disabled={isSaving || !seleccionCompleta}>
+                    {isSaving ? 'Guardando…' : existente ? 'Guardar cambios' : 'Guardar carátula'}
                   </button>
                 </div>
               </fieldset>
@@ -236,53 +377,14 @@ export const Configuracion: React.FC = () => {
           </div>
         </section>
 
-        {/* Vista Previa */}
         <section className="config-preview-section">
           <div className="panel preview-panel">
-            <h2 className="panel-title">Vista Previa: {activeCat ? activeCat.nombre : 'Ninguna'}</h2>
-            <div className="a4-preview" style={{ backgroundColor: formData.colorPortada, color: previewTextColor, transition: 'background-color 0.3s' }}>
-              {!selectedCategoriaId ? (
-                <div style={{ textAlign: 'center', opacity: 0.7, marginTop: '40px' }}>
-                  Selecciona una categoría para previsualizar la carátula.
-                </div>
-              ) : (
-                <div className="cover-preview-content">
-                  <div className="cover-institution">
-                    {formData.institutionName || 'UNIVERSIDAD'}
-                  </div>
-                  
-                  {formData.logoUrl ? (
-                    <img src={formData.logoUrl} alt="Logo" className="cover-logo" />
-                  ) : (
-                    <div className="cover-logo-placeholder" style={{ borderColor: previewTextColor }}>LOGO</div>
-                  )}
-                  
-                  <div className="cover-title">
-                    {formData.headerText || 'EXAMEN DE ADMISIÓN'}
-                  </div>
-
-                  <div className="cover-modality">
-                    {formData.modalidad || 'MODALIDAD'}
-                  </div>
-
-                  <div className="cover-theme-section" style={{ borderColor: previewTextColor }}>
-                    <div className="cover-theme-label">TEMA</div>
-                    <div className="cover-theme-letter">A</div>
-                    <div className="cover-theme-hint">(Se genera automáticamente en el PDF)</div>
-                  </div>
-
-                  <div className="cover-instructions" style={{ borderColor: previewTextColor }}>
-                    <strong>Instrucciones:</strong> {formData.instructions || 'Sin instrucciones adicionales.'}
-                  </div>
-                  
-                  {formData.footerText && (
-                    <div className="cover-footer-text">
-                      {formData.footerText}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <h2 className="panel-title">
+              Vista previa{seleccionCompleta ? `: ${categoriaNombre} · ${nombreModalidad(modalidadId)}` : ''}
+            </h2>
+            {seleccionCompleta
+              ? <PortadaPreview data={formData} />
+              : <div className="portada cfg-preview-empty">Elige un área y una modalidad para editar su carátula.</div>}
           </div>
         </section>
       </div>

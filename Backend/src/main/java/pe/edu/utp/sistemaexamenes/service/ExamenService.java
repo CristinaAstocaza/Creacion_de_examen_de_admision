@@ -13,4 +13,7 @@ public interface ExamenService {
     ExamenResponse obtenerPorId(Long id);
     ExamenVersionResponse obtenerVersion(Long id, String version);
     ExamenSolucionarioResponse obtenerSolucionario(Long id);
+
+    /** Cambia la letra (tema) de una versión ya generada, p. ej. de "A" a "P". */
+    ExamenResponse cambiarCodigoVersion(Long id, String versionActual, String nuevoCodigo);
 }

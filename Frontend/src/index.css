@@ -195,3 +195,14 @@ table.shadcn-table tbody tr:last-child td {
     @apply font-sans;
   }
 }
+/* ── Iconos Material dentro de texto (reemplazan a los emojis) ── */
+.material-icons-outlined.mi { font-size: 1.15em; vertical-align: -0.22em; line-height: 1; }
+.mi-ok { color: #16a34a; }
+.mi-aviso { color: #d97706; }
+.mi-error { color: #dc2626; }
+.card-icon .material-icons-outlined { font-size: 48px; color: var(--primary-blue, #1a73e8); }
+.scanner-page-pdf .material-icons-outlined { font-size: 30px; color: #dc2626; }
+.status-icon .rp-estado { font-size: 26px; }
+.rp-estado.is-ok { color: #16a34a; }
+.rp-estado.is-aviso { color: #d97706; }
+.rp-estado.is-error { color: #dc2626; }
