@@ -1,8 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: examen_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: bd_examen_admi
       POSTGRES_USER: postgres
@@ -20,8 +19,7 @@ services:
     build:
       context: ./Backend
       dockerfile: Dockerfile
-    container_name: examen_backend
-    restart: always
+    restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/bd_examen_admi
       SPRING_DATASOURCE_USERNAME: postgres
@@ -45,10 +43,9 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
-    container_name: examen_frontend
-    restart: always
-    ports:
-      - "3001:80"
+    restart: unless-stopped
+    expose:
+      - "80"
     depends_on:
       - backend
 
